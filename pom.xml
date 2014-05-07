@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.samskivert.scaled</groupId>
-  <artifactId>scaled-project-service</artifactId>
+  <artifactId>project-service</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
