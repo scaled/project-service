@@ -120,8 +120,9 @@ abstract class Project {
           _currentErr = -1
           _compileErrs = errs.result
           _compileErrCount() = _compileErrs.size
-          val duration = (System.currentTimeMillis - start) / 1000
-          buf.append(Line.fromTextNL(s"Completed in $duration s, at ${new Date}."))
+          val duration = System.currentTimeMillis - start
+          val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
+          buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
           // report feedback to the user if this was requested interactively
           if (interactive) {
             val result = if (success) "succeeded" else "failed"
