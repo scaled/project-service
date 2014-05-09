@@ -5,13 +5,15 @@
 package scaled.project
 
 import java.util.Date
+import reactual.Value
 import scaled._
 import scaled.major.EditingMode
 
 /** Provides configuration for [[ProjectMode]]. */
 object ProjectConfig extends Config.Defs {
 
-  // TODO
+  @Var("If true, the project will be automatically recompiled on file save.")
+  val recompileOnSave = key(true)
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -30,6 +32,16 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
   val project :Project = psvc.projectFor(buffer.file).reference(buffer)
+
+  private def toStatus (errors :Int) = {
+    val errstr = if (errors == 0) "\u263A" else s"\u2639 ${errors.toString}"
+    s"(${project.name} $errstr)"
+  }
+  // display the project status in the modeline
+  note(env.mline.addDatum(project.compileErrors map toStatus,
+                          "Project status: (project-name XX)\n" +
+                          "\u263A = successful compile\n" +
+                          "\u2639 N = indicates N compilation errors"))
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
@@ -50,6 +62,14 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   }
 
   //
+  // Behaviors
+
+  // trigger a recompile on buffer save, if thusly configured
+  note(buffer.fileV onEmit {
+    if (config(ProjectConfig.recompileOnSave)) project.recompile(editor, false)
+  })
+
+  //
   // FNs
 
   @Fn("Reads a project file name from the minibuffer (with smart completion), and visits it.")
@@ -66,7 +86,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
          displayed in a buffer named *{project} compile* and errors identified in said output
          can be navigated using `project-next-error` and `project-previous-error`.""")
   def recompile () {
-    project.recompile(editor)
+    project.recompile(editor, true)
   }
 
   @Fn("""Visits the next compilation error. The buffer containing the compilation unit will be

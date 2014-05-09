@@ -28,6 +28,9 @@ abstract class Project {
     */
   val fileCompleter :Completer[File]
 
+  /** Indicates the number of errors in the most recent compile run. */
+  def compileErrors :ValueV[Int] = _compileErrCount
+
   /** Returns the name of this project. */
   def name :String
 
@@ -96,10 +99,11 @@ abstract class Project {
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
     */
-  def recompile (editor :Editor) {
+  def recompile (editor :Editor, interactive :Boolean) {
     if (_compiler == null) _compiler = createCompiler()
     _compiler match {
-      case None => editor.emitStatus("Compilation is not supported by this project.")
+      case None =>
+        if (interactive) editor.emitStatus("Compilation is not supported by this project.")
       case Some(comp) =>
         // create our compilation output buffer if necessary
         val buf = editor.createBuffer(compileBufferName, "log" /*project-compile*/, true).buffer
@@ -115,14 +119,17 @@ abstract class Project {
           loop(buf.start)
           _currentErr = -1
           _compileErrs = errs.result
+          _compileErrCount() = _compileErrs.size
           val duration = (System.currentTimeMillis - start) / 1000
           buf.append(Line.fromTextNL(s"Completed in $duration s, at ${new Date}."))
-          // report feedback to the user
-          val result = if (success) "succeeded" else "failed"
-          val msg = s"Compilation $result with ${_compileErrs.size} error(s)."
-          editor.popStatus(msg)
+          // report feedback to the user if this was requested interactively
+          if (interactive) {
+            val result = if (success) "succeeded" else "failed"
+            val msg = s"Compilation $result with ${_compileErrCount()} error(s)."
+            editor.emitStatus(msg)
+          }
         }
-        editor.emitStatus("Recompile initiated...")
+        if (interactive) editor.emitStatus("Recompile initiated...")
     }
   }
 
@@ -154,6 +161,7 @@ abstract class Project {
   // until all project modes relinquish the project, at which point it's shutdown
   private[this] var _compiler :Option[Compiler] = null
 
+  private val _compileErrCount = Value(0)
   private[this] var _compileErrs = Seq[Compiler.Error]()
   private[this] var _currentErr = -1
 }
