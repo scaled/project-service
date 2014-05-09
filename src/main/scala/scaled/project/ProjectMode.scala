@@ -34,7 +34,11 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   val project :Project = psvc.projectFor(buffer.file).reference(buffer)
 
   private def toStatus (errors :Int) = {
-    val errstr = if (errors == 0) "\u263A" else s"\u2639 ${errors.toString}"
+    val errstr = errors match {
+      case -1 =>  "\u231B" // hourglass
+      case  0 =>  "\u263A" // smiley
+      case ee => s"\u2639 ${ee.toString}" // frownz!
+    }
     s"(${project.name} $errstr)"
   }
   // display the project status in the modeline

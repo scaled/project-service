@@ -28,7 +28,8 @@ abstract class Project {
     */
   val fileCompleter :Completer[File]
 
-  /** Indicates the number of errors in the most recent compile run. */
+  /** Indicates the number of errors in the most recent compile run. This is set to -1 while a
+    * compile is in progress. */
   def compileErrors :ValueV[Int] = _compileErrCount
 
   /** Returns the name of this project. */
@@ -109,6 +110,7 @@ abstract class Project {
         val buf = editor.createBuffer(compileBufferName, "log" /*project-compile*/, true).buffer
         val start = System.currentTimeMillis
         buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
+        _compileErrCount() = -1
         comp.compile(buf).onFailure(editor.emitError).onSuccess { success =>
           // scan the results buffer for compiler errors
           val errs = Seq.newBuilder[Compiler.Error]
