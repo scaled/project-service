@@ -61,10 +61,10 @@ class FileProject (val root :File) extends Project {
   }
 
   val fileCompleter = new Completer[File]() {
+    import Completer._
     def complete (prefix :String) = {
       dirMap(root).refresh()
-      sortedCompletion(allFiles.filter(f => startsWithI(prefix)(f.getName)),
-                       f => Completer.defang(f.getName))
+      sortedCompletion(allFiles.filter(fileFilter(prefix)), f => defang(f.getName))
     }
   }
 
