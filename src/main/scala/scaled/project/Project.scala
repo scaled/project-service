@@ -77,7 +77,6 @@ abstract class Project {
     */
   protected def hibernate () {
     if (_compiler != null) {
-      println(s"$this hibernating...")
       _compiler.shutdown()
       _compiler = null
     }
