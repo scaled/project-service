@@ -46,10 +46,9 @@ abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
     */
   def checkRoot (root :File) :Int
 
-  /** Applies this finder to the supplied path list. If it matches, `Some(this,root)` is returned,
-    * otherwise `None`.
-    */
-  def apply (paths :List[File]) :Option[(ProjectFinderPlugin,File)] = {
+  /** Applies this finder to the supplied path list.
+    * @return `Some(root,this)` if it matches, otherwise `None`. */
+  def apply (paths :List[File]) :Option[(File,ProjectFinderPlugin)] = {
     var best :File = null ; var cur = paths
     while (!cur.isEmpty) {
       checkRoot(cur.head) match {
@@ -58,6 +57,6 @@ abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
         case  1 => best = cur.head ; cur = Nil      // stop the search
       }
     }
-    if (best == null) None else Some(this -> best)
+    if (best == null) None else Some(best -> this)
   }
 }

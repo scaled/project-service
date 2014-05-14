@@ -42,10 +42,8 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   def projectFor (file :File) = {
-    // compute the path tree from this file to the file system root
     val paths = parents(file.getParentFile)
-    // either we have an open project, we can resolve one, or we use the last ditch project
-    findOpenProject(paths) orElse resolveProject(paths) getOrElse FileProject.lastDitch(paths.head)
+    resolveProject(paths) getOrElse FileProject.lastDitch(paths.head)
   }
 
   def projectForId (id :String) = projectInRoot(byID.get(id))
@@ -58,48 +56,39 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     if (root == null || !root.exists) None
     else projects.get(root) orElse resolveProject(parents(root))
 
-  private def findOpenProject (paths :List[File]) :Option[Project] =
-    if (paths.isEmpty) None
-    else projects.get(paths.head) orElse findOpenProject(paths.tail)
-
   private def resolveProject (paths :List[File]) :Option[Project] = {
-    def create (pi :(ProjectFinderPlugin,File)) = {
-      val (pf, root) = pi
-      // println(s"Creating ${pf.name} project in $root")
-      val proj = metaSvc.injectInstance(pf.projectClass, List(root))
-      projects += (root -> proj)
-
-      // add this project to our all-projects maps, and save them if it's new
-      val newID = proj.id.map(id => byID.put(id, root) != root).getOrElse(false)
-      val newURL = proj.sourceURL.map(url => byURL.put(url, root) != root).getOrElse(false)
-      val newName = toName.put(root, proj.name) != Some(proj.name)
-      if (newID || newURL || newName) {
-        log.log(s"New project in '$root', updating '${mapFile.getName}'.")
-        writeProjectMap()
-      }
-
-      // println(s"Created $proj")
-      Some(proj)
-    }
-
     // apply each of our finders to the path tree
-    val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._1.intelligent)
+    val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._2.intelligent)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
       if (iprojs.size > 1) log.log(s"Multiple intelligent project matches: ${iprojs.mkString(" ")}")
-      create(iprojs.head)
+      Some(openProject(iprojs.head._1, iprojs.head._2))
     }
     // if there are any non-intelligent project matches, use the deepest match
     else if (!dprojs.isEmpty) {
-      var deep = dprojs.head ; var dps = dprojs.toList.tail
-      while (!dps.isEmpty) {
-        if (dps.head._2.getPath.length > deep._2.getPath.length) deep = dps.head
-        dps = dps.tail
-      }
-      create(deep)
+      val deep = dprojs.maxBy(_._1.getPath.length)
+      Some(openProject(deep._1, deep._2))
     }
     else None
   }
+
+  private def openProject (root :File, finder :ProjectFinderPlugin) = projects.getOrElse(root, {
+    // println(s"Creating ${pf.name} project in $root")
+    val proj = metaSvc.injectInstance(finder.projectClass, List(root))
+    projects += (root -> proj)
+
+    // add this project to our all-projects maps, and save them if it's new
+    val newID = proj.id.map(id => byID.put(id, root) != root).getOrElse(false)
+    val newURL = proj.sourceURL.map(url => byURL.put(url, root) != root).getOrElse(false)
+    val newName = toName.put(root, proj.name) != Some(proj.name)
+    if (newID || newURL || newName) {
+      log.log(s"New project in '$root', updating '${mapFile.getName}'.")
+      writeProjectMap()
+    }
+
+    // println(s"Created $proj")
+    proj
+  })
 
   @tailrec private def parents (file :File, accum :List[File] = Nil) :List[File] =
     file.getParentFile match {
