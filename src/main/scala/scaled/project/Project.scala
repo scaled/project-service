@@ -16,22 +16,6 @@ import scaled.util.Error
   */
 abstract class Project {
 
-  /** The history ring for file names in this project. */
-  val fileHistory = new Ring(32) // TODO: how might we configure this?
-
-  /** Completes files in this project. The string representation of the files should not be
-    * prefixed with path information, but rather suffixed and only where necessary to avoid
-    * name collisions.
-    *
-    * Thus one might see as possible completions: `Bar.scala Baz.scala(util/) Baz.scala(data/)`
-    * When completing on `Ba`.
-    */
-  val fileCompleter :Completer[File]
-
-  /** Indicates the number of errors in the most recent compile run. This is set to -1 while a
-    * compile is in progress. */
-  def compileErrors :ValueV[Int] = _compileErrCount
-
   /** Returns the name of this project. */
   def name :String
 
@@ -67,81 +51,25 @@ abstract class Project {
     if (_refcount == 0) hibernate()
   }
 
-  /** Advances the internal error pointer to the next error and visits that buffer in `editor`.
-    * If we are at the end of the list, the user is informed via feedback that we have reached the
-    * last error, and the internal counter is reset so that a subsequent request to visit the next
-    * error will visit the first error.
-    */
-  def visitNextError (editor :Editor) {
-    if (_compileErrs.isEmpty) editor.popStatus("No compilation errors.")
-    else {
-      _currentErr += 1
-      if (_currentErr < _compileErrs.length) visitError(editor, _compileErrs(_currentErr))
-      else {
-        _currentErr = -1
-        editor.emitStatus("At last error. Repeat command to start from first error.")
-      }
-    }
-  }
+  /** The history ring for file names in this project. */
+  val fileHistory = new Ring(32) // TODO: how might we configure this?
 
-  /** Regresses the internal error pointer to the previous error and visits that buffer in `editor`.
-    * If we are at the start of the list, the user is informed via feedback that we have reached the
-    * first error, and the internal counter is reset so that a subsequent request to visit the
-    * previous error will visit the last error.
+  /** Completes files in this project. The string representation of the files should not be
+    * prefixed with path information, but rather suffixed and only where necessary to avoid
+    * name collisions.
+    *
+    * Thus one might see as possible completions: `Bar.scala Baz.scala(util/) Baz.scala(data/)`
+    * When completing on `Ba`.
     */
-  def visitPrevError (editor :Editor) {
-    // TODO
-  }
+  val fileCompleter :Completer[File]
 
-  /** Returns the buffer in which we record compiler output. It will be created if needed. */
-  def compileBuffer (editor :Editor) :Buffer = editor.createBuffer(
-    s"*compile-$name*", true, ModeInfo("log" /*project-compile*/, Nil)).buffer
-
-  /** Initiates a recompilation of this project, if supported.
-    * @return a future which will report a summary of the compilation, or a failure if compilation
-    * is not supported by this project.
-    */
-  def recompile (editor :Editor, interactive :Boolean) {
+  /** Returns the compiler that handles compilation for this project. Created on demand. */
+  def compiler :Compiler = {
     if (_compiler == null) _compiler = createCompiler()
-    _compiler match {
-      case None =>
-        if (interactive) editor.emitStatus("Compilation is not supported by this project.")
-      case Some(comp) =>
-        val start = System.currentTimeMillis
-        val buf = compileBuffer(editor)
-        buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
-        _compileErrCount() = -1
-        comp.compile(buf).onFailure(editor.emitError).onSuccess { success =>
-          // scan the results buffer for compiler errors
-          val errs = Seq.newBuilder[Compiler.Error]
-          @inline @tailrec def loop (loc :Loc) :Unit = comp.nextError(buf, loc) match {
-            case Some((err, next)) => errs += err ; loop(next)
-            case None => // done!
-          }
-          loop(buf.start)
-          _currentErr = -1
-          _compileErrs = errs.result
-          _compileErrCount() = _compileErrs.size
-          val duration = System.currentTimeMillis - start
-          val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
-          buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
-          // report feedback to the user if this was requested interactively
-          if (interactive) {
-            val result = if (success) "succeeded" else "failed"
-            val msg = s"Compilation $result with ${_compileErrCount()} error(s)."
-            editor.emitStatus(msg)
-          }
-        }
-        if (interactive) editor.emitStatus("Recompile initiated...")
-    }
+    _compiler
   }
 
   override def toString = s"Project($root, $name, $id, $sourceURL)"
-
-  private def visitError (editor :Editor, err :Compiler.Error) {
-    editor.visitFile(new File(err.path)).point() = err.loc
-    editor.popStatus(err.descrip)
-  }
 
   /** When a project is released by all project modes, it goes back into hibernation. This method
     * should shut down any complex services maintained by the project. The default implementation
@@ -149,22 +77,22 @@ abstract class Project {
     */
   protected def hibernate () {
     if (_compiler != null) {
-      _compiler foreach { _.shutdown() }
+      println(s"$this hibernating...")
+      _compiler.shutdown()
       _compiler = null
     }
   }
 
-  /** If this mode supports a compiler, this should create and return a new compiler instance. */
-  protected def createCompiler () :Option[Compiler] = None
+  /** Creates and returns a new compiler instance. By default a NOOP compiler is created. */
+  protected def createCompiler () :Compiler = new Compiler(this) {
+    override def shutdown () {}
+    override def recompile (editor :Editor, interactive :Boolean) {
+      if (interactive) editor.emitStatus("Compilation is not supported by this project.")
+    }
+    override protected def compile (buffer :Buffer) = Future.success(true)
+    override protected def nextError (buffer :Buffer, start :Loc) = None
+  }
 
-  private[this] var _refcount = 0 // see reference/release
-
-  // a reference to our active compiler, if one is resolved; a compiler is created on demand
-  // when a project mode references this project and requests it; the compiler remains active
-  // until all project modes relinquish the project, at which point it's shutdown
-  private[this] var _compiler :Option[Compiler] = null
-
-  private val _compileErrCount = Value(0)
-  private[this] var _compileErrs = Seq[Compiler.Error]()
-  private[this] var _currentErr = -1
+  private[this] var _refcount = 0 // see reference()/release()
+  private[this] var _compiler :Compiler = null // see compiler()/hibernate()
 }

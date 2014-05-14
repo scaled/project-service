@@ -4,8 +4,6 @@
 
 package scaled.project
 
-import java.util.Date
-import reactual.Value
 import scaled._
 import scaled.major.EditingMode
 
@@ -42,7 +40,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     s"(${project.name} $errstr)"
   }
   // display the project status in the modeline
-  note(env.mline.addDatum(project.compileErrors map toStatus,
+  note(env.mline.addDatum(project.compiler.errCount map toStatus,
                           "Project status: (project-name XX)\n" +
                           "\u263A = successful compile\n" +
                           "\u2639 N = indicates N compilation errors"))
@@ -70,7 +68,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.fileV onEmit {
-    if (config(ProjectConfig.recompileOnSave)) project.recompile(editor, false)
+    if (config(ProjectConfig.recompileOnSave)) project.compiler.recompile(editor, false)
   })
 
   //
@@ -90,23 +88,23 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
          displayed in a buffer named *{project} compile* and errors identified in said output
          can be navigated using `project-next-error` and `project-previous-error`.""")
   def recompile () {
-    project.recompile(editor, true)
+    project.compiler.recompile(editor, true)
   }
 
   @Fn("""Visits the next compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def visitNextError () {
-    project.visitNextError(editor)
+    project.compiler.visitNextError(editor)
   }
 
   @Fn("""Visits the previous compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def visitPrevError () {
-    project.visitPrevError(editor)
+    project.compiler.visitPrevError(editor)
   }
 
   @Fn("Displays the buffer that contains compiler output for this project.")
   def showCompilerOutput () {
-    editor.visitBuffer(project.compileBuffer(editor))
+    editor.visitBuffer(project.compiler.buffer(editor))
   }
 }
