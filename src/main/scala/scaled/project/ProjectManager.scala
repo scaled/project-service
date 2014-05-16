@@ -42,6 +42,9 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   def projectFor (file :File) = resolveProject(parents(file.getParentFile))
+  def projectIn (root :File) = projectInRoot(root) getOrElse {
+    throw scaled.util.Error.feedback(s"No project in $root")
+  }
   def projectForId (id :String) = projectInRoot(byID.get(id))
   def projectForSrcURL (srcURL :String) = projectInRoot(byURL.get(srcURL))
   def loadedProjects = projects.values.toSeq
@@ -50,7 +53,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   // the root passed here may have disappeared in the fullness of time, so validate it
   private def projectInRoot (root :File) =
     if (root == null || !root.exists) None
-    else projects.get(root) orElse Some(resolveProject(parents(root)))
+    else projects.get(root) orElse Some(resolveProject(List(root)))
 
   private def resolveProject (paths :List[File]) :Project = {
     // apply each of our finders to the path tree
@@ -69,7 +72,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   private def openProject (root :File, clazz :Class[_ <: Project]) = projects.getOrElse(root, {
-    // println(s"Creating ${pf.name} project in $root")
+    // println(s"Creating $clazz project in $root")
     val proj = metaSvc.injectInstance(clazz, List(root))
     projects += (root -> proj)
 

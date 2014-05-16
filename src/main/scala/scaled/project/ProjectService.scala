@@ -36,6 +36,9 @@ trait ProjectService {
     */
   def projectFor (file :File) :Project
 
+  /** Resolves (if necessary) and returns the project which is rooted at `root`. */
+  def projectIn (root :File) :Project
+
   /** Returns the project with id `id` if such a project is known. */
   def projectForId (id :String) :Option[Project]
 
