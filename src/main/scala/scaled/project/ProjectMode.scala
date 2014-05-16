@@ -107,4 +107,9 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   def showCompilerOutput () {
     editor.visitBuffer(project.compiler.buffer(editor))
   }
+
+  @Fn("Visits the project's execution configuration file.")
+  def editProjectExecutions () {
+    project.runner.visitConfig(editor)
+  }
 }

@@ -13,7 +13,7 @@ import scaled._
 /** Provides an interface whereby project mode can initiate project compilation and display
   * compiler feedback in the appropriate buffers.
   */
-abstract class Compiler (project :Project) {
+abstract class Compiler (project :Project) extends AutoCloseable {
   import Compiler._
 
   /** Indicates the number of errors in the most recent compile run. This is set to -1 while a
@@ -95,7 +95,7 @@ abstract class Compiler (project :Project) {
 
   /** Called when this compiler is no longer needed. This should terminate any external processes
     * and release any resources retained by this instance. */
-  def shutdown () :Unit
+  def close () {} // nada by default
 
   /** Initiates a compilation, sends output to `buffer`, returns a future that indicates compilation
     * success or failure. */

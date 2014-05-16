@@ -13,7 +13,8 @@ import scaled._
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
   * of the root of a project.
   */
-class FileProject (val root :File) extends Project {
+class FileProject (val root :File, log :Logger, metaSvc :MetaService)
+    extends Project(log, metaSvc) {
 
   private class Dir (dir :File) {
     var files = Set[File]()
@@ -81,10 +82,6 @@ object FileProject {
 
   /** The standard set of directories that are ignored when enumerating all project dirs. */
   val stockIgnores = Set(".git", ".hg", ".svn") // TODO: more
-
-  /** Creates a last ditch project, which is generally rooted in the parent directory of the
-    * file for whom we're trying to create a project. */
-  def lastDitch (root :File) = new FileProject(root)
 
   /** Creates file projects rooted at .git directories. */
   @Plugin(tag="project-finder")

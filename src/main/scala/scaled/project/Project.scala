@@ -5,16 +5,14 @@
 package scaled.project
 
 import java.io.File
-import java.util.Date
-import reactual.{Future, Value, ValueV}
-import scala.annotation.tailrec
+import reactual.Future
 import scaled._
-import scaled.util.Error
+import scaled.util.{CloseBox, CloseList}
 
 /** Provides services for a particular project. See [[ProjectService]] for a more detailed
   * description of what Scaled defines to be a project.
   */
-abstract class Project {
+abstract class Project (log :Logger, metaSvc :MetaService) {
 
   /** Returns the name of this project. */
   def name :String
@@ -63,28 +61,32 @@ abstract class Project {
     */
   val fileCompleter :Completer[File]
 
-  /** Returns the compiler that handles compilation for this project. Created on demand. */
-  def compiler :Compiler = {
-    if (_compiler == null) _compiler = createCompiler()
-    _compiler
+  /** Returns the file named `name` in this project's metadata directory. */
+  def metaFile (name :String) :File = {
+    if (!_metaDir.exists && !_metaDir.mkdir())
+      log.log("Failed to create ${_metaDir}. Badness likely to ensue.")
+    new File(_metaDir, name)
   }
+
+  /** Returns the compiler that handles compilation for this project. Created on demand. */
+  def compiler :Compiler = _compiler.get
+
+  /** Returns the runner that manages executions for this project. Created on demand. */
+  def runner :Runner = _runner.get
+
+  /** Notes a closeable resource that should be freed when this project goes into hibernation. */
+  def note (ac :AutoCloseable) :Unit = _toClose += ac
 
   override def toString = s"Project($root, $name, $id, $sourceURL)"
 
-  /** When a project is released by all project modes, it goes back into hibernation. This method
-    * should shut down any complex services maintained by the project. The default implementation
-    * shuts down any active compiler.
-    */
+  /** Shuts down all helper services and frees as much memory as possible.
+    * A project hibernates when it is no longer referenced by project-mode using buffers. */
   protected def hibernate () {
-    if (_compiler != null) {
-      _compiler.shutdown()
-      _compiler = null
-    }
+    _toClose.close()
   }
 
-  /** Creates and returns a new compiler instance. By default a NOOP compiler is created. */
+  /** Creates and returns a new `Compiler` instance. By default a NOOP compiler is created. */
   protected def createCompiler () :Compiler = new Compiler(this) {
-    override def shutdown () {}
     override def recompile (editor :Editor, interactive :Boolean) {
       if (interactive) editor.emitStatus("Compilation is not supported by this project.")
     }
@@ -92,6 +94,19 @@ abstract class Project {
     override protected def nextError (buffer :Buffer, start :Loc) = None
   }
 
-  private[this] var _refcount = 0 // see reference()/release()
-  private[this] var _compiler :Compiler = null // see compiler()/hibernate()
+  /** Creates and returns a new `Runner` instance. */
+  protected def createRunner () = metaSvc.injectInstance(classOf[Runner], List(this))
+
+  private var _refcount = 0 // see reference()/release()
+  private val _metaDir = new File(root, ".scaled")
+  private val _toClose = new CloseList()
+
+  private val _compiler = new CloseBox[Compiler]() {
+    override protected def create = createCompiler()
+    override protected def didCreate = note(this)
+  }
+  private val _runner = new CloseBox[Runner]() {
+    override protected def create = createRunner()
+    override protected def didCreate = note(this)
+  }
 }

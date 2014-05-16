@@ -41,11 +41,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     // TODO!
   }
 
-  def projectFor (file :File) = {
-    val paths = parents(file.getParentFile)
-    resolveProject(paths) getOrElse FileProject.lastDitch(paths.head)
-  }
-
+  def projectFor (file :File) = resolveProject(parents(file.getParentFile))
   def projectForId (id :String) = projectInRoot(byID.get(id))
   def projectForSrcURL (srcURL :String) = projectInRoot(byURL.get(srcURL))
   def loadedProjects = projects.values.toSeq
@@ -54,27 +50,27 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   // the root passed here may have disappeared in the fullness of time, so validate it
   private def projectInRoot (root :File) =
     if (root == null || !root.exists) None
-    else projects.get(root) orElse resolveProject(parents(root))
+    else projects.get(root) orElse Some(resolveProject(parents(root)))
 
-  private def resolveProject (paths :List[File]) :Option[Project] = {
+  private def resolveProject (paths :List[File]) :Project = {
     // apply each of our finders to the path tree
     val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._2.intelligent)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
       if (iprojs.size > 1) log.log(s"Multiple intelligent project matches: ${iprojs.mkString(" ")}")
-      Some(openProject(iprojs.head._1, iprojs.head._2))
+      openProject(iprojs.head._1, iprojs.head._2.projectClass)
     }
     // if there are any non-intelligent project matches, use the deepest match
     else if (!dprojs.isEmpty) {
       val deep = dprojs.maxBy(_._1.getPath.length)
-      Some(openProject(deep._1, deep._2))
+      openProject(deep._1, deep._2.projectClass)
     }
-    else None
+    else openProject(paths.last, classOf[FileProject])
   }
 
-  private def openProject (root :File, finder :ProjectFinderPlugin) = projects.getOrElse(root, {
+  private def openProject (root :File, clazz :Class[_ <: Project]) = projects.getOrElse(root, {
     // println(s"Creating ${pf.name} project in $root")
-    val proj = metaSvc.injectInstance(finder.projectClass, List(root))
+    val proj = metaSvc.injectInstance(clazz, List(root))
     projects += (root -> proj)
 
     // add this project to our all-projects maps, and save them if it's new
