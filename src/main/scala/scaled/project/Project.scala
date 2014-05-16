@@ -55,6 +55,9 @@ abstract class Project (val metaSvc :MetaService) {
   /** The history ring for file names in this project. */
   val fileHistory = new Ring(32) // TODO: how might we configure this?
 
+  /** The history ring for execution invocations. */
+  val execHistory = new Ring(32)
+
   /** Completes files in this project. The string representation of the files should not be
     * prefixed with path information, but rather suffixed and only where necessary to avoid
     * name collisions.
@@ -98,7 +101,7 @@ abstract class Project (val metaSvc :MetaService) {
   }
 
   /** Creates and returns a new `Runner` instance. */
-  protected def createRunner () = metaSvc.injectInstance(classOf[Runner], List(this))
+  protected def createRunner () = new Runner(this)
 
   private var _refcount = 0 // see reference()/release()
   private val _metaDir = new File(root, ".scaled")

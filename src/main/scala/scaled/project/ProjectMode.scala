@@ -12,6 +12,8 @@ object ProjectConfig extends Config.Defs {
 
   @Var("If true, the project will be automatically recompiled on file save.")
   val recompileOnSave = key(true)
+
+  // TODO: track last project/exec (per editor?)
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -47,11 +49,16 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
-    "C-x C-f" -> "find-file-in-project",
+    "C-x C-f" -> "project-find-file",
 
-    "C-c C-r" -> "recompile",
+    // compilation fns
+    "C-c C-r" -> "project-recompile",
     "C-]"     -> "visit-next-error",
     "C-["     -> "visit-prev-error",
+
+    // execution fns
+    "C-c C-e"   -> "project-execute",
+    "C-c S-C-e" -> "project-execute-in",
 
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
@@ -75,7 +82,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // FNs
 
   @Fn("Reads a project file name from the minibuffer (with smart completion), and visits it.")
-  def findFileInProject () {
+  def projectFindFile () {
     editor.miniRead(
       s"Find file in project (${project.name}):", "", project.fileHistory, project.fileCompleter
     ) onSuccess editor.visitFile
@@ -87,7 +94,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   @Fn("""Initiates a compilation of the current project. Output from the compilation will be
          displayed in a buffer named *{project} compile* and errors identified in said output
          can be navigated using `project-next-error` and `project-previous-error`.""")
-  def recompile () {
+  def projectRecompile () {
     project.compiler.recompile(editor, true)
   }
 
@@ -108,8 +115,21 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     editor.visitBuffer(project.compiler.buffer(editor))
   }
 
+  @Fn("Invokes a particular execution in this project.")
+  def projectExecute () {
+    val exns = project.runner.executions
+    if (exns.isEmpty) editor.popStatus(s"${project.name} defines no executions.")
+    else editor.miniRead(s"Execute:", "", project.execHistory,
+                         Completer.from(exns)(_.name)) onSuccess project.runner.execute(editor)
+  }
+
+  @Fn("Invokes a particular execution in this project.")
+  def projectExecuteIn () {
+    editor.popStatus("TODO")
+  }
+
   @Fn("Visits the project's execution configuration file.")
-  def editProjectExecutions () {
+  def projectEditExecutions () {
     project.runner.visitConfig(editor)
   }
 }

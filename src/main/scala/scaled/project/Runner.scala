@@ -8,7 +8,7 @@ import com.google.common.collect.ArrayListMultimap
 import java.io.File
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
-import scaled.util.{Error, Properties}
+import scaled.util.{Error, Properties, SubProcess}
 
 /** Contains metadata for an execution. The metadata has is a set of key/value pairs where the
   * value can either be a single string or a sequence of strings.
@@ -17,20 +17,27 @@ import scaled.util.{Error, Properties}
 class Execution (val name :String, data :ArrayListMultimap[String,String]) {
   import scala.collection.convert.WrapAsScala._
 
-  /** Returns the value `key`, returning `defval` if none was specified by the execution. */
+  /** Returns the value for `key`, throwing a feedback exception if none exists. */
+  def param (key :String) :String = data.get(key) match {
+    case null   => throw Error.feedback(s"Execution ($name) missing required parameter: '$key'")
+    case values => if (values.size == 1) values.get(0)
+                   else throw Error.feedback(s"Expected single value for '$key' but got $values")
+  }
+
+  /** Returns the value for `key`, returning `defval` if none exists. */
   def param (key :String, defval :String) :String = data.get(key) match {
     case null   => defval
     case values => if (values.size == 1) values.get(0)
                    else throw Error.feedback(s"Expected single value for '$key' but got $values")
   }
 
-  /** Returns the values `key`, returning `defvals` if none were specified by the execution. */
+  /** Returns the values for `key`, returning `defvals` if none exist. */
   def param (key :String, defvals :Seq[String]) :Seq[String] = data.get(key) match {
     case null   => defvals
     case values => values
   }
 
-  override def toString = name
+  override def toString = s"$name $data"
 }
 
 /** Manages a set of executions for a project. An execution is a collection of key/value pairs which
@@ -67,7 +74,7 @@ class Runner (project :Project) extends AutoCloseable {
   private def readConfig (file :File) :Unit = if (file.exists) {
     val configs = MMap[String,ArrayListMultimap[String,String]]()
     Properties.read(log, file) { (key, value) =>
-      key split(".", 2) match {
+      key split("\\.", 2) match {
         case Array(name, ekey) =>
           configs.getOrElseUpdate(name, ArrayListMultimap.create[String,String]()).put(ekey, value)
         case _ => log.log(s"$file contains invalid execution key '$key' (value = $value)")
@@ -89,9 +96,20 @@ class Runner (project :Project) extends AutoCloseable {
   /** Returns all configured executions. */
   def executions :Seq[Execution] = _execs
 
-  /** Invokes `exec`, sending output to `buffer`. */
-  def execute (exec :Execution, buffer :Buffer) {
-    log.log(s"TODO: execute $exec")
+  /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
+  def execute (editor :Editor)(exec :Execution) {
+    val bufname = s"*exec-${project.name}-${exec.name}*"
+    val buffer = editor.createBuffer(bufname, true, ModeInfo("log", Nil)).buffer
+    SubProcess(config(exec), editor, project.metaSvc.exec, buffer)
+    // TODO: associate the subprocess with the buffer, kill the subprocess (if it's still alive)
+    // when the buffer is killed?
+    editor.visitBuffer(buffer)
+  }
+
+  /** Creates a sub-process config for `exec`. */
+  protected def config (exec :Execution) :SubProcess.Config = {
+    val args = exec.param("cmd") +: exec.param("arg", Seq())
+    SubProcess.Config(args.toArray)
   }
 
   /** Generates the preamble placed at the top of a project's execution configuration file. */
