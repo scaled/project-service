@@ -97,7 +97,7 @@ class Runner (project :Project) extends AutoCloseable {
   def executions :Seq[Execution] = _execs
 
   /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
-  def execute (editor :Editor)(exec :Execution) {
+  def execute (editor :Editor, exec :Execution) {
     val bufname = s"*exec-${project.name}-${exec.name}*"
     val buffer = editor.createBuffer(bufname, true, ModeInfo("log", Nil)).buffer
     SubProcess(config(exec), editor, project.metaSvc.exec, buffer)

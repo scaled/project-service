@@ -4,6 +4,7 @@
 
 package scaled.project
 
+import reactual.OptValue
 import scaled._
 import scaled.major.EditingMode
 
@@ -13,7 +14,8 @@ object ProjectConfig extends Config.Defs {
   @Var("If true, the project will be automatically recompiled on file save.")
   val recompileOnSave = key(true)
 
-  // TODO: track last project/exec (per editor?)
+  /** Tracks the last project/execution pair. Used by `project-reexecute. */
+  val lastExecution = fnKey(cfg => OptValue[(Project,Execution)]())
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -28,6 +30,7 @@ object ProjectConfig extends Config.Defs {
        tags=Array("project"),
        desc="""A minor mode that provides project-centric fns.""")
 class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends MinorMode(env) {
+  import ProjectConfig._
 
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
@@ -58,6 +61,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
     // execution fns
     "C-c C-e"   -> "project-execute",
+    "C-c C-a"   -> "project-execute-again",
     "C-c S-C-e" -> "project-execute-in",
 
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
@@ -75,7 +79,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.fileV onEmit {
-    if (config(ProjectConfig.recompileOnSave)) project.compiler.recompile(editor, false)
+    if (config(recompileOnSave)) project.compiler.recompile(editor, false)
   })
 
   //
@@ -120,7 +124,16 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     val exns = project.runner.executions
     if (exns.isEmpty) editor.popStatus(s"${project.name} defines no executions.")
     else editor.miniRead(s"Execute:", "", project.execHistory,
-                         Completer.from(exns)(_.name)) onSuccess project.runner.execute(editor)
+                         Completer.from(exns)(_.name)) onSuccess { e => execute(project, e) }
+  }
+
+  @Fn("""Reinvokes the last invoked execution. Note that the last execution may have been in a
+         different project than is currently active.""")
+  def projectExecuteAgain () {
+    config(lastExecution).getOption match {
+      case Some((p, e)) => execute(p, e)
+      case None => editor.popStatus("No execution has been invoked yet.")
+    }
   }
 
   @Fn("Invokes a particular execution in this project.")
@@ -131,5 +144,13 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   @Fn("Visits the project's execution configuration file.")
   def projectEditExecutions () {
     project.runner.visitConfig(editor)
+  }
+
+  //
+  // Implementation details
+
+  private def execute (project :Project, exec :Execution) {
+    project.runner.execute(editor, exec)
+    config(lastExecution).update(project -> exec)
   }
 }
