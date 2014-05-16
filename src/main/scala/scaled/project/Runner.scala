@@ -10,6 +10,29 @@ import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
 import scaled.util.{Error, Properties}
 
+/** Contains metadata for an execution. The metadata has is a set of key/value pairs where the
+  * value can either be a single string or a sequence of strings.
+  * @param name the name of the execution in question.
+  */
+class Execution (val name :String, data :ArrayListMultimap[String,String]) {
+  import scala.collection.convert.WrapAsScala._
+
+  /** Returns the value `key`, returning `defval` if none was specified by the execution. */
+  def param (key :String, defval :String) :String = data.get(key) match {
+    case null   => defval
+    case values => if (values.size == 1) values.get(0)
+                   else throw Error.feedback(s"Expected single value for '$key' but got $values")
+  }
+
+  /** Returns the values `key`, returning `defvals` if none were specified by the execution. */
+  def param (key :String, defvals :Seq[String]) :Seq[String] = data.get(key) match {
+    case null   => defvals
+    case values => values
+  }
+
+  override def toString = name
+}
+
 /** Manages a set of executions for a project. An execution is a collection of key/value pairs which
   * configure a particular execution of a project's code. The `Runner` manages this metadata and
   * provides the means by which the user initiates executions.
@@ -36,30 +59,7 @@ import scaled.util.{Error, Properties}
   * program arguments, and run the class in a JVM configured automatically with the appropriate
   * classpath.
   */
-class Runner (project :Project, log :Logger, watchSvc :WatchService) extends AutoCloseable {
-  import scala.collection.convert.WrapAsScala._
-
-  /** Contains metadata for an execution. The metadata has is a set of key/value pairs where the
-    * value can either be a single string or a sequence of strings.
-    * @param name the name of the execution in question.
-    */
-  class Execution (val name :String, data :ArrayListMultimap[String,String]) {
-
-    /** Returns the value `key`, returning `defval` if none was specified by the execution. */
-    def param (key :String, defval :String) :String = data.get(key) match {
-      case null   => defval
-      case values => if (values.size == 1) values.get(0)
-                     else throw Error.feedback(s"Expected single value for '$key' but got $values")
-    }
-
-    /** Returns the values `key`, returning `defvals` if none were specified by the execution. */
-    def param (key :String, defvals :Seq[String]) :Seq[String] = data.get(key) match {
-      case null   => defvals
-      case values => values
-    }
-
-    override def toString = name
-  }
+class Runner (project :Project) extends AutoCloseable {
 
   private val _configFile = project.metaFile("executions.properties")
   private val _execs = ArrayBuffer[Execution]()
@@ -78,7 +78,10 @@ class Runner (project :Project, log :Logger, watchSvc :WatchService) extends Aut
   }
   // read our config and set up a file watch to re-read when it's modified
   readConfig(_configFile)
-  project.note(watchSvc.watchFile(_configFile, readConfig(_)))
+  project.note(project.metaSvc.service[WatchService].watchFile(_configFile, readConfig(_)))
+
+  /** For great logging. */
+  protected val log = project.metaSvc.log
 
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default
