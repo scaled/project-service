@@ -12,7 +12,10 @@ import scaled.util.{CloseBox, CloseList}
 /** Provides services for a particular project. See [[ProjectService]] for a more detailed
   * description of what Scaled defines to be a project.
   */
-abstract class Project (log :Logger, metaSvc :MetaService) {
+abstract class Project (metaSvc :MetaService) {
+
+  // keep a logger around for ourselves and children
+  protected val log = metaSvc.log
 
   /** Returns the name of this project. */
   def name :String

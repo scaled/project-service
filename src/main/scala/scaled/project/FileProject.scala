@@ -13,8 +13,7 @@ import scaled._
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
   * of the root of a project.
   */
-class FileProject (val root :File, log :Logger, metaSvc :MetaService)
-    extends Project(log, metaSvc) {
+class FileProject (val root :File, metaSvc :MetaService) extends Project(metaSvc) {
 
   private class Dir (dir :File) {
     var files = Set[File]()
