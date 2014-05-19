@@ -76,9 +76,11 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     val proj = metaSvc.injectInstance(clazz, List(root))
     projects += (root -> proj)
 
-    // add this project to our all-projects maps, and save them if it's new
-    val newID = proj.id.map(id => byID.put(id, root) != root).getOrElse(false)
-    val newURL = proj.sourceURL.map(url => byURL.put(url, root) != root).getOrElse(false)
+    // add this project to our all-projects maps, and save them if it's new; note that we use
+    // forcePut to ensure that if a project previously mapped to some other id or url, we replace
+    // it rather than throw an exception
+    val newID = proj.id.map(id => byID.forcePut(id, root) != root).getOrElse(false)
+    val newURL = proj.sourceURL.map(url => byURL.forcePut(url, root) != root).getOrElse(false)
     val newName = toName.put(root, proj.name) != Some(proj.name)
     if (newID || newURL || newName) {
       log.log(s"New project in '$root', updating '${mapFile.getName}'.")
