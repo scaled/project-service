@@ -34,7 +34,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
-  val project :Project = psvc.projectFor(buffer.file).reference(buffer)
+  val project :Project = psvc.projectFor(buffer.store).reference(buffer)
 
   private def toStatus (errors :Int) = {
     val errstr = errors match {
@@ -78,7 +78,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // Behaviors
 
   // trigger a recompile on buffer save, if thusly configured
-  note(buffer.fileV onEmit {
+  note(buffer.storeV onEmit {
     if (config(recompileOnSave)) project.compiler.recompile(editor, false)
   })
 

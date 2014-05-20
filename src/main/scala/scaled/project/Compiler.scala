@@ -4,7 +4,6 @@
 
 package scaled.project
 
-import java.io.File
 import java.util.Date
 import reactual.{Future, Value, ValueV}
 import scala.annotation.tailrec
@@ -109,7 +108,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
   protected def nextError (buffer :Buffer, start :Loc) :Option[(Error,Loc)]
 
   private def visitError (editor :Editor, err :Compiler.Error) {
-    editor.visitFile(new File(err.path)).point() = err.loc
+    editor.visitFile(Store(err.path)).point() = err.loc
     editor.popStatus(err.descrip)
   }
 

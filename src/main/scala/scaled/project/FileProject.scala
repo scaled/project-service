@@ -4,7 +4,8 @@
 
 package scaled.project
 
-import java.io.File
+import java.nio.file.attribute.FileTime
+import java.nio.file.{Files, Path}
 import scala.collection.immutable.TreeMap
 import scala.collection.mutable.{Map => MMap}
 import scaled._
@@ -13,24 +14,26 @@ import scaled._
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
   * of the root of a project.
   */
-class FileProject (val root :File, metaSvc :MetaService) extends Project(metaSvc) {
+class FileProject (val root :Path, metaSvc :MetaService) extends Project(metaSvc) {
 
-  private class Dir (dir :File) {
-    var files = Set[File]()
-    var dirs = Set[File]()
-    var lastRefresh = 0L
+  private class Dir (dir :Path) {
+    import scala.collection.convert.WrapAsScala._
+    var files = Set[Path]()
+    var dirs = Set[Path]()
+    var lastRefresh = FileTime.fromMillis(0L)
 
     def refresh () {
-      val lm = dir.lastModified
-      if (lm > lastRefresh) {
+      val lm = Files.getLastModifiedTime(dir)
+      if (lm.compareTo(lastRefresh) > 0) {
         lastRefresh = lm
-        val (nd, nf) = dir.listFiles.partition(_.isDirectory)
+        val fs = Seq() ++ Files.list(dir).iterator
+        val (nd, nf) = fs.partition(Files.isDirectory(_))
         val nfiles = nf.toSet
         if (files != nfiles) {
           files = nfiles
           _allFiles = null
         }
-        val ndirs = nd.filterNot(ignore).map(_.getCanonicalFile).toSet
+        val ndirs = nd.filterNot(ignore).map(_.toRealPath()).toSet
         if (ndirs != dirs) {
           _allFiles = null
           // remove directories that have gone away
@@ -49,9 +52,9 @@ class FileProject (val root :File, metaSvc :MetaService) extends Project(metaSvc
       dirs map(dirMap) foreach { _.refresh() }
     }
   }
-  private val dirMap = MMap[File,Dir](root -> new Dir(root))
+  private val dirMap = MMap[Path,Dir](root -> new Dir(root))
 
-  private var _allFiles :Set[File] = _
+  private var _allFiles :Set[Path] = _
   private def allFiles = {
     if (_allFiles == null) {
       _allFiles = Set() ++ dirMap.values.flatMap(_.files)
@@ -60,18 +63,18 @@ class FileProject (val root :File, metaSvc :MetaService) extends Project(metaSvc
     _allFiles
   }
 
-  val fileCompleter = new Completer[File]() {
+  val fileCompleter = new Completer[Store]() {
     import Completer._
     def complete (prefix :String) = {
       dirMap(root).refresh()
-      sortedCompletion(allFiles.filter(fileFilter(prefix)), f => defang(f.getName))
+      sortedCompletion(allFiles.filter(fileFilter(prefix)).map(Store.apply), f => defang(f.name))
     }
   }
 
-  def name = root.getName
+  def name = root.getFileName.toString
 
-  protected def ignore (dir :File) :Boolean = {
-    val name = dir.getName
+  protected def ignore (dir :Path) :Boolean = {
+    val name = dir.getFileName.toString
     name.startsWith(".") || ignores(name)
   }
   protected def ignores :Set[String] = FileProject.stockIgnores
@@ -85,19 +88,19 @@ object FileProject {
   /** Creates file projects rooted at .git directories. */
   @Plugin(tag="project-finder")
   class GitFinderPlugin extends FileProjectFinderPlugin("git") {
-    def checkRoot (root :File) = if (new File(root, ".git").isDirectory()) 1 else -1
+    def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".git"))) 1 else -1
   }
 
   /** Creates file projects rooted at .hg directories. */
   @Plugin(tag="project-finder")
   class MercurialFinderPlugin extends FileProjectFinderPlugin("mercurial") {
-    def checkRoot (root :File) = if (new File(root, ".hg").isDirectory()) 1 else -1
+    def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".hg"))) 1 else -1
   }
 
   /** Creates file projects rooted at the highest .svn directory. */
   @Plugin(tag="project-finder")
   class SubversionFinderPlugin extends FileProjectFinderPlugin("subversion") {
-    def checkRoot (root :File) = if (new File(root, ".svn").isDirectory()) 0 else -1
+    def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".svn"))) 0 else -1
   }
 
   abstract class FileProjectFinderPlugin (nm :String)

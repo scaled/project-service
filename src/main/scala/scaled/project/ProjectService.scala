@@ -4,8 +4,8 @@
 
 package scaled.project
 
-import java.io.File
-import scaled.Service
+import java.nio.file.Path
+import scaled.{Service, Store}
 
 /** Provides "project" services. A project is, at its simplest, a directory tree that contains a
   * bunch of related files. A sentinel file or directory usually indicates the root of the project
@@ -34,10 +34,10 @@ trait ProjectService {
   /** Resolves (if necessary) and returns the project which handles `file`.
     * This may be [[DefaultProject]] if no more sophisticated project can be determined.
     */
-  def projectFor (file :File) :Project
+  def projectFor (file :Store) :Project
 
   /** Resolves (if necessary) and returns the project which is rooted at `root`. */
-  def projectIn (root :File) :Project
+  def projectIn (root :Path) :Project
 
   /** Returns the project with id `id` if such a project is known. */
   def projectForId (id :String) :Option[Project]
@@ -49,5 +49,5 @@ trait ProjectService {
   def loadedProjects :Seq[Project]
 
   /** Returns `(root, name)` for all known projects (which may or may not be resolved). */
-  def knownProjects :Seq[(File,String)]
+  def knownProjects :Seq[(Path,String)]
 }

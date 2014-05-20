@@ -5,7 +5,7 @@
 package scaled.project
 
 import com.google.common.collect.ArrayListMultimap
-import java.io.File
+import java.nio.file.{Files, Path}
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
 import scaled.util.{Error, Properties, SubProcess}
@@ -71,7 +71,7 @@ class Runner (project :Project) extends AutoCloseable {
   private val _configFile = project.metaFile("executions.properties")
   private val _execs = ArrayBuffer[Execution]()
 
-  private def readConfig (file :File) :Unit = if (file.exists) {
+  private def readConfig (file :Path) :Unit = if (Files.exists(file)) {
     val configs = MMap[String,ArrayListMultimap[String,String]]()
     Properties.read(log, file) { (key, value) =>
       key split("\\.", 2) match {
@@ -130,7 +130,7 @@ class Runner (project :Project) extends AutoCloseable {
 
   /** Opens this project's executions config file in `editor`. */
   def visitConfig (editor :Editor) {
-    val buffer = editor.visitFile(_configFile).buffer
+    val buffer = editor.visitFile(Store(_configFile)).buffer
     // if the buffer is empty; populate it with an example configuration
     if (buffer.start == buffer.end) buffer.append(
       configPreamble ++ Seq("") ++ exampleExecutions ++ Seq("") map(Line.apply))

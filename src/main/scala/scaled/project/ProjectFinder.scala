@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import java.io.File
+import java.nio.file.{Files, Path}
 import scaled.AbstractPlugin
 
 /** Finders are used to identify projects given only the location of a file somewhere in the bowels
@@ -24,7 +24,7 @@ import scaled.AbstractPlugin
   * override the chosen project type, if desired, in the `.scaled/config.properties` file placed
   * in the project root.
   * @param projectClass the class that implements projects identified by this finder. This class
-  * will be instantiated using the Scaled dependency injection mechanism, with a single `File`
+  * will be instantiated using the Scaled dependency injection mechanism, with a single `Path`
   * argument (the root of the project). Using the dependency injection mechanism allows the project
   * to inject any Scaled services it may need.
   */
@@ -44,12 +44,12 @@ abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
     * a directory higher up the hierarchy. In the absence of a 1 directory, the algorithm chooses
     * the 0 directory nearest to the file-system root.
     */
-  def checkRoot (root :File) :Int
+  def checkRoot (root :Path) :Int
 
   /** Applies this finder to the supplied path list.
     * @return `Some(root,this)` if it matches, otherwise `None`. */
-  def apply (paths :List[File]) :Option[(File,ProjectFinderPlugin)] = {
-    var best :File = null ; var cur = paths
+  def apply (paths :List[Path]) :Option[(Path,ProjectFinderPlugin)] = {
+    var best :Path = null ; var cur = paths
     while (!cur.isEmpty) {
       checkRoot(cur.head) match {
         case -1 => /* skip it */     cur = cur.tail
@@ -59,4 +59,6 @@ abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
     }
     if (best == null) None else Some(best -> this)
   }
+
+  protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))
 }

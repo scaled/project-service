@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import java.io.File
+import java.nio.file.{Files, Path}
 import reactual.Future
 import scaled._
 import scaled.util.{CloseBox, CloseList}
@@ -21,7 +21,7 @@ abstract class Project (val metaSvc :MetaService) {
   def name :String
 
   /** Returns the root of this project. */
-  def root :File
+  def root :Path
 
   /** Returns a unique identifier for this project, if one can be determined. Generally this is
     * Maven-style: `groupId:name:version`, but a `Project` is welcome to use whatever makes sense
@@ -65,13 +65,12 @@ abstract class Project (val metaSvc :MetaService) {
     * Thus one might see as possible completions: `Bar.scala Baz.scala(util/) Baz.scala(data/)`
     * When completing on `Ba`.
     */
-  val fileCompleter :Completer[File]
+  val fileCompleter :Completer[Store]
 
   /** Returns the file named `name` in this project's metadata directory. */
-  def metaFile (name :String) :File = {
-    if (!_metaDir.exists && !_metaDir.mkdir())
-      log.log("Failed to create ${_metaDir}. Badness likely to ensue.")
-    new File(_metaDir, name)
+  def metaFile (name :String) :Path = {
+    if (!Files.exists(_metaDir)) Files.createDirectory(_metaDir)
+    _metaDir.resolve(name)
   }
 
   /** Returns the compiler that handles compilation for this project. Created on demand. */
@@ -104,7 +103,7 @@ abstract class Project (val metaSvc :MetaService) {
   protected def createRunner () = new Runner(this)
 
   private var _refcount = 0 // see reference()/release()
-  private val _metaDir = new File(root, ".scaled")
+  private val _metaDir = root.resolve(".scaled")
   private val _toClose = new CloseList()
 
   private val _compiler = new CloseBox[Compiler]() {
