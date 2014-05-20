@@ -9,6 +9,17 @@ import reactual.{Future, Value, ValueV}
 import scala.annotation.tailrec
 import scaled._
 
+/** Static [[Compiler]] stuffs. */
+object Compiler {
+
+  /** Represents a compilation error extracted from a buffer.
+    * @param path the path to the compilation unit to which the error refers
+    * @param loc the location of the error in that compilation unit
+    * @param descrip the description of the error provided by the compiler
+    */
+  case class Error (path :String, loc :Loc, descrip :String)
+}
+
 /** Provides an interface whereby project mode can initiate project compilation and display
   * compiler feedback in the appropriate buffers.
   */
@@ -115,15 +126,4 @@ abstract class Compiler (project :Project) extends AutoCloseable {
   private[this] var _errs = Seq[Error]()
   private[this] var _currentErr = -1
   private[this] val _errCount = Value(0)
-}
-
-/** Static [[Compiler]] stuffs. */
-object Compiler {
-
-  /** Represents a compilation error extracted from a buffer.
-    * @param path the path to the compilation unit to which the error refers
-    * @param loc the location of the error in that compilation unit
-    * @param descrip the description of the error provided by the compiler
-    */
-  case class Error (path :String, loc :Loc, descrip :String)
 }
