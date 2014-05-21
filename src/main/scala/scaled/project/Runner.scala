@@ -97,7 +97,7 @@ class Runner (project :Project) extends AutoCloseable {
   def describeSelf (bb :BufferBuilder) {
     if (!executions.isEmpty) {
       bb.addSubHeader("Executions")
-      bb.addKeysValues(executions.map(_.describe))
+      bb.addKeysValues(executions.map(_.describe) :_*)
     }
   }
 

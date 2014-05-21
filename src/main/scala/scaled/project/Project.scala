@@ -86,7 +86,7 @@ abstract class Project (val metaSvc :MetaService) {
     info += ("Root: " -> root.toString)
     id.foreach { id => info += ("ID: " -> id) }
     sourceURL.foreach { url => info += ("Source: " -> url) }
-    bb.addKeysValues(info.result)
+    bb.addKeysValues(info.result :_*)
 
     // add info on our helpers
     compiler.describeSelf(bb)
