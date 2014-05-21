@@ -8,9 +8,30 @@ import java.util.Date
 import reactual.{Future, Value, ValueV}
 import scala.annotation.tailrec
 import scaled._
+import scaled.util.BufferBuilder
 
 /** Static [[Compiler]] stuffs. */
 object Compiler {
+
+  /** Defines various project status states. */
+  sealed abstract class Status (val glyph :String) {
+    def indicator :String = s" $glyph"
+    def tip :String = s"$glyph = $toString"
+  }
+  object Unknown extends Status("?") {
+    override def indicator = ""
+    override def toString = "project has not yet been compiled"
+  }
+  object Compiling extends Status("\u231B") { // hourglass
+    override def toString = "project is currently compiling"
+  }
+  object NoErrors extends Status("\u263A") { // smiley
+    override def toString = "project has no compile errors"
+  }
+  case class Errors (count :Int) extends Status("\u2639") { // frownz!
+    override def indicator = s" $glyph $count"
+    override def toString = s"project has $count compile error(s)"
+  }
 
   /** Represents a compilation error extracted from a buffer.
     * @param path the path to the compilation unit to which the error refers
@@ -26,9 +47,20 @@ object Compiler {
 abstract class Compiler (project :Project) extends AutoCloseable {
   import Compiler._
 
-  /** Indicates the number of errors in the most recent compile run. This is set to -1 while a
-    * compile is in progress. */
-  def errCount :ValueV[Int] = _errCount
+  /** Appends compiler status to our modeline status string and tooltip.
+    * @param sb the builder for the status line
+    * @param tb the builder for the tooltip */
+  def addStatus (sb :StringBuilder, tb :StringBuilder) {
+    val s = _status()
+    sb.append(s.indicator)
+    tb.append("\n").append(s.tip)
+  }
+
+  /** Adds compiler info to the project info buffer. */
+  def describeSelf (bb :BufferBuilder) {
+    bb.addSubHeader("Compiler")
+    bb.addKeyValue("Status: ", _status().toString)
+  }
 
   /** Returns the buffer in which we record compiler output. It will be created if needed. */
   def buffer (editor :Editor) :Buffer = editor.createBuffer(
@@ -42,7 +74,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     val buf = buffer(editor)
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
-    _errCount() = -1
+    _status() = Compiling
     compile(buf).onFailure(editor.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
       val errs = Seq.newBuilder[Error]
@@ -53,14 +85,17 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       loop(buf.start)
       _currentErr = -1
       _errs = errs.result
-      _errCount() = _errs.size
+      _status() = _errs.size match {
+        case 0 => NoErrors
+        case n => Errors(n)
+      }
       val duration = System.currentTimeMillis - start
       val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
       buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
       // report feedback to the user if this was requested interactively
       if (interactive) {
         val result = if (success) "succeeded" else "failed"
-        val msg = s"Compilation $result with ${_errCount()} error(s)."
+        val msg = s"Compilation $result with ${_errs.size} error(s)."
         editor.emitStatus(msg)
       }
     }
@@ -125,5 +160,6 @@ abstract class Compiler (project :Project) extends AutoCloseable {
 
   private[this] var _errs = Seq[Error]()
   private[this] var _currentErr = -1
-  private[this] val _errCount = Value(0)
+  private[this] val _status = Value[Status](Unknown)
+  _status onEmit { project.updateStatus() }
 }

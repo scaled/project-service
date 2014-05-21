@@ -4,9 +4,11 @@
 
 package scaled.project
 
-import reactual.OptValue
+import javafx.scene.control.Tooltip
+import reactual.{Value, OptValue}
 import scaled._
 import scaled.major.EditingMode
+import scaled.util.BufferBuilder
 
 /** Provides configuration for [[ProjectMode]]. */
 object ProjectConfig extends Config.Defs {
@@ -40,22 +42,14 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // do we really want to handle that crazy case?
   val project :Project = psvc.projectFor(buffer.store).reference(buffer)
 
-  private def toStatus (errors :Int) = {
-    val errstr = errors match {
-      case -1 =>  "\u231B" // hourglass
-      case  0 =>  "\u263A" // smiley
-      case ee => s"\u2639 ${ee.toString}" // frownz!
-    }
-    s"(${project.name} $errstr)"
-  }
   // display the project status in the modeline
-  note(env.mline.addDatum(project.compiler.errCount map toStatus,
-                          "Project status: (project-name XX)\n" +
-                          "\u263A = successful compile\n" +
-                          "\u2639 N = indicates N compilation errors"))
+  note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
+    "C-h p" -> "describe-project",
+
+    // file fns
     "C-x C-f" -> "project-find-file",
     "C-x C-o" -> "project-find-file-other",
 
@@ -161,6 +155,15 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   @Fn("Visits the project's execution configuration file.")
   def projectEditExecutions () {
     project.runner.visitConfig(editor)
+  }
+
+  @Fn("Describes the current project.")
+  def describeProject () {
+    val bb = new BufferBuilder(view.width()-1)
+    project.describeSelf(bb)
+    bb.addBlank()
+    val bname = s"*project:${project.name}*"
+    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
   }
 
   //

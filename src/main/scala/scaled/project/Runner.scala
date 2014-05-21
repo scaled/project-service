@@ -8,7 +8,7 @@ import com.google.common.collect.ArrayListMultimap
 import java.nio.file.{Files, Path}
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
-import scaled.util.{Error, Properties, SubProcess}
+import scaled.util.{BufferBuilder, Error, Properties, SubProcess}
 
 /** Contains metadata for an execution. The metadata has is a set of key/value pairs where the
   * value can either be a single string or a sequence of strings.
@@ -36,6 +36,9 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
     case null   => defvals
     case values => values
   }
+
+  /** Used to describe this execution in the `describe-project` buffer. */
+  def describe :(String, String) = (s"$name: ", data.toString)
 
   override def toString = s"$name $data"
 }
@@ -89,6 +92,14 @@ class Runner (project :Project) extends AutoCloseable {
 
   /** For great logging. */
   protected val log = project.metaSvc.log
+
+  /** Adds compiler info to the project info buffer. */
+  def describeSelf (bb :BufferBuilder) {
+    if (!executions.isEmpty) {
+      bb.addSubHeader("Executions")
+      bb.addKeysValues(executions.map(_.describe))
+    }
+  }
 
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default

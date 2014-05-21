@@ -5,9 +5,9 @@
 package scaled.project
 
 import java.nio.file.{Files, Path}
-import reactual.Future
+import reactual.{Future, Value}
 import scaled._
-import scaled.util.{CloseBox, CloseList}
+import scaled.util.{BufferBuilder, CloseBox, CloseList}
 
 /** Provides services for a particular project. See [[ProjectService]] for a more detailed
   * description of what Scaled defines to be a project.
@@ -52,6 +52,9 @@ abstract class Project (val metaSvc :MetaService) {
     if (_refcount == 0) hibernate()
   }
 
+  /** Summarizes the status of this project. This is displayed in the modeline. */
+  lazy val status :Value[(String,String)] = Value(makeStatus)
+
   /** The history ring for file names in this project. */
   val fileHistory = new Ring(32) // TODO: how might we configure this?
 
@@ -73,6 +76,27 @@ abstract class Project (val metaSvc :MetaService) {
     _metaDir.resolve(name)
   }
 
+  /** Emits a description of this project to `bb`. The default project adds basic metadata, and
+    * derived project implementations undoubtedly have useful things to add. */
+  def describeSelf (bb :BufferBuilder) {
+    bb.addHeader(name)
+    bb.addBlank()
+
+    val info = Seq.newBuilder[(String,String)]
+    info += ("Root: " -> root.toString)
+    id.foreach { id => info += ("ID: " -> id) }
+    sourceURL.foreach { url => info += ("Source: " -> url) }
+    bb.addKeysValues(info.result)
+
+    // add info on our helpers
+    compiler.describeSelf(bb)
+    runner.describeSelf(bb)
+  }
+
+  /** Instructs the project to update its status info. This is generally called by project helpers
+    * that participate in the modeline info. */
+  def updateStatus () :Unit = status() = makeStatus
+
   /** Returns the compiler that handles compilation for this project. Created on demand. */
   def compiler :Compiler = _compiler.get
 
@@ -90,8 +114,21 @@ abstract class Project (val metaSvc :MetaService) {
     _toClose.close()
   }
 
+  /** Populates our status line (`sb`) and status line tooltip (`tb`) strings. */
+  protected def makeStatus (sb :StringBuilder, tb :StringBuilder) {
+    compiler.addStatus(sb, tb)
+  }
+  private def makeStatus :(String,String) = {
+    val sb = new StringBuilder("(").append(name)
+    val tb = new StringBuilder("Current project: ").append(name)
+    makeStatus(sb, tb)
+    (sb.append(")").toString, tb.toString)
+  }
+
   /** Creates and returns a new `Compiler` instance. By default a NOOP compiler is created. */
   protected def createCompiler () :Compiler = new Compiler(this) {
+    override def describeSelf (bb :BufferBuilder) {} // nada
+    override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def recompile (editor :Editor, interactive :Boolean) {
       if (interactive) editor.emitStatus("Compilation is not supported by this project.")
     }
