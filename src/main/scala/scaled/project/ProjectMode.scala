@@ -10,12 +10,16 @@ import scaled.major.EditingMode
 
 /** Provides configuration for [[ProjectMode]]. */
 object ProjectConfig extends Config.Defs {
+  import EditorConfig._
 
   @Var("If true, the project will be automatically recompiled on file save.")
   val recompileOnSave = key(true)
 
   /** Tracks the last project/execution pair. Used by `project-reexecute. */
   val lastExecution = fnKey(cfg => OptValue[(Project,Execution)]())
+
+  /** The history ring for selecting projects. */
+  val projectHistory = fnKey(cfg => new Ring(cfg(historySize)))
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -53,6 +57,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
     "C-x C-f" -> "project-find-file",
+    "C-x C-o" -> "project-find-file-other",
 
     // compilation fns
     "C-c C-r" -> "project-recompile",
@@ -74,6 +79,13 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     project.release(buffer)
   }
 
+  /** Finds a file in `proj` and visits it. */
+  def findFileIn (proj :Project) {
+    editor.miniRead(
+      s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.fileCompleter
+    ) onSuccess editor.visitFile
+  }
+
   //
   // Behaviors
 
@@ -86,10 +98,15 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // FNs
 
   @Fn("Reads a project file name from the minibuffer (with smart completion), and visits it.")
-  def projectFindFile () {
-    editor.miniRead(
-      s"Find file in project (${project.name}):", "", project.fileHistory, project.fileCompleter
-    ) onSuccess editor.visitFile
+  def projectFindFile () :Unit = findFileIn(project)
+
+  @Fn("""Reads a project name from the minibuffer, then reads a file from that project (with smart
+         completion), and visits it.""")
+  def projectFindFileOther () {
+    val pcomp = Completer.from(psvc.knownProjects)(_._2)
+    editor.miniRead(s"Project:", "", config(projectHistory), pcomp) onSuccess { case pt =>
+      findFileIn(psvc.projectIn(pt._1))
+    }
   }
 
   @Fn("TEMP: forwards find-file to major mode")
