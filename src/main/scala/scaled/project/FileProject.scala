@@ -9,6 +9,7 @@ import java.nio.file.{Files, Path}
 import scala.collection.immutable.TreeMap
 import scala.collection.mutable.{Map => MMap}
 import scaled._
+import scaled.util.BufferBuilder
 
 /** A simple project used when we can't identify anything other than the root directory of the
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
@@ -56,6 +57,7 @@ class FileProject (val root :Path, metaSvc :MetaService) extends Project(metaSvc
 
   private var _allFiles :Set[Path] = _
   private def allFiles = {
+    dirMap(root).refresh()
     if (_allFiles == null) {
       _allFiles = Set() ++ dirMap.values.flatMap(_.files)
       // println(s"Rebuilt all files map (size: ${_allFiles.size})")
@@ -66,12 +68,18 @@ class FileProject (val root :Path, metaSvc :MetaService) extends Project(metaSvc
   val fileCompleter = new Completer[Store]() {
     import Completer._
     def complete (prefix :String) = {
-      dirMap(root).refresh()
       sortedCompletion(allFiles.filter(fileFilter(prefix)).map(Store.apply), f => defang(f.name))
     }
   }
 
   def name = root.getFileName.toString
+
+  override def describeSelf (bb :BufferBuilder) {
+    super.describeSelf(bb)
+    bb.addSubHeader("Files")
+    bb.addKeysValues("files: " -> allFiles.size.toString,
+                     "ignores: " -> ignores.mkString(" "))
+  }
 
   protected def ignore (dir :Path) :Boolean = {
     val name = dir.getFileName.toString
