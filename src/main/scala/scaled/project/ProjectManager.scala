@@ -116,9 +116,12 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
       Files.readAllLines(mapFile).foreach { line => line.split("\t") match {
         case Array(rpath, id, url, name) =>
           val root = Paths.get(rpath)
-          if (id   != "none") byID.put(id, root)
-          if (url  != "none") byURL.put(url, root)
-          if (name != "none") toName.put(root, name)
+          if (!Files.exists(root)) log.log(s"Removing obsolete project: $rpath")
+          else {
+            if (id   != "none") byID.put(id, root)
+            if (url  != "none") byURL.put(url, root)
+            if (name != "none") toName.put(root, name)
+          }
         case _ => log.log(s"Invalid line in projects.txt: $line")
       }}
     } catch {
