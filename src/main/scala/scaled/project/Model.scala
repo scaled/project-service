@@ -4,20 +4,20 @@
 
 package scaled.project
 
-import scaled.{LineV, Store}
+import scaled.{Line, LineV, Store}
 
-/** Defines a simple model of code. Code is modeled as a tree of nested elements. An element has:
+/** Defines a simple model of code. Code is modeled as a tree of nested elements. An element:
   *
-  *  - a simple name (e.g. `PeanutFactory`, `time_t`, `foo`, `getName`, `get-name`)
-  *  - a location in a source file (file and character offset)
-  *  - a language-specific signature (an opaque string displayed to the user)
-  *  - optional documentation (extracted from the source, like Javadoc)
+  *  - has a simple name (e.g. `PeanutFactory`, `time_t`, `foo`, `getName`, `get-name`)
+  *  - has a location in a source file (file and character offset)
   *  - is enclosed by zero or one elements
   *  - encloses zero or more elements
-  *  - has a kind (one of `module`, `type`, `function`, `term`)
+  *  - is uniquely identified by the path of simple names from its outermost enclosing element to
+  *    the element itself
+  *  - has a kind (e.g. `module`, `type`, `func`, `term`)
   *  - has a visibility (`public` or `non-public`)
-  *  - has zero or more language-specific attributes (a Java `type` may be tagged as a `class`,
-  *    `interface`, `enum`, or `annotation`)
+  *  - has zero or more language-specific attributes (e.g. a Java `type` may be tagged as a
+  *    `class`, `interface`, `enum`, or `annotation`)
   *
   * This classification attempts to do as little harm to the world's thousands of programming
   * languages, while still providing the foundation for useful navigation and visualization
@@ -38,30 +38,46 @@ import scaled.{LineV, Store}
   */
 object Model {
 
+  /** Locates a code element in a source file.
+    * @param file the compilation unit that contains this element.
+    * @param start the character offset in `file` at which this element is defined. */
+  case class Location (file :Store, start :Int)
+
   /** Defines the different kinds of elements. */
   sealed trait Kind
-  object Module extends Kind
-  object Type extends Kind
-  object Function extends Kind
-  object Term extends Kind
+  /** An assembly of modules. Examples: a `jar` file, a C# `dll` assembly, a source project. */
+  case object Assembly extends Kind
+  /** A namespaced collection of types, functions and terms. Examples: a Java/C#/Scala package, a
+    * Scala object, a C++ namespace. */
+  case object Module extends Kind
+  /** A named type, with type, function and term members. Examples: a Java/C#/Scala/C++ class or
+    * interface, a C struct. */
+  case object Type extends Kind
+  /** A function, procedure or method. */
+  case object Func extends Kind
+  /** A named value. Examples: a Java/C#/C++ class field, a C struct member, a function parameter, a
+    * local variable. */
+  case object Term extends Kind
 
   /** Defines a code element. */
-  abstract class Element {
-    /** The simple name of this element. */
-    def name  :String
-    /** The compilation unit that contains this element. */
-    def file  :Store
-    /** The character offset in `file` at which this element is defined. */
-    def start :Int
-    /** This element's signature. The line may be styled. */
-    def sig   :LineV
-    /** This element's documentation, if any. The lines may be styled. */
-    def doc   :Seq[LineV]
+  case class Element (
     /** This element's kind. */
-    def kind  :Kind
+    kind  :Kind,
+    /** The simple name of this element. */
+    name  :String,
+    /** The path to this element. This is composed of the simple names of all elements that enclose
+      * this element (excepting `Element.Root`) in inner-most to outer-most. This element's name is
+      * not included in the path. */
+    path  :List[String],
     /** Whether or not this element is public. */
-    def isPub :Boolean
+    isPub :Boolean,
     /** Zero or more language specific attributes. */
-    def attrs :Seq[String]
-  }
+    attrs :Array[String] = NoAttrs
+  )
+
+  /** An empty array for elements with no attributes. */
+  val NoAttrs = new Array[String](0)
+
+  /** The root element, used as the parent for all top-level elements. */
+  val Root = Element(Assembly, "<root>", Nil, true)
 }
