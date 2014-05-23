@@ -64,7 +64,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
 
   /** Returns the buffer in which we record compiler output. It will be created if needed. */
   def buffer (editor :Editor) :Buffer = editor.createBuffer(
-    s"*compile-${project.name}*", true, ModeInfo("log" /*project-compile*/, Nil)).buffer
+    s"*compile:${project.name}*", true, ModeInfo("log" /*project-compile*/, Nil)).buffer
 
   /** Initiates a recompilation of this project, if supported.
     * @return a future which will report a summary of the compilation, or a failure if compilation
