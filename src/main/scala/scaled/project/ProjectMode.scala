@@ -116,13 +116,13 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   @Fn("""Visits the next compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def visitNextError () {
-    project.compiler.visitNextError(editor)
+    project.compiler.errors.visitNext(editor)
   }
 
   @Fn("""Visits the previous compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def visitPrevError () {
-    project.compiler.visitPrevError(editor)
+    project.compiler.errors.visitPrev(editor)
   }
 
   @Fn("Displays the buffer that contains compiler output for this project.")
