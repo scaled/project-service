@@ -12,6 +12,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable.{Map => MMap}
 import scala.io.Source
 import scaled._
+import scaled.util.Errors
 
 /** Implements [[ProjectService]]. Hides implementation details from clients. */
 class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginService)
@@ -56,7 +57,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     case _                     => unknownProject
   }
   def projectIn (root :Path) = projectInRoot(root) getOrElse {
-    throw scaled.util.Error.feedback(s"No project in $root")
+    throw Errors.feedback(s"No project in $root")
   }
   def projectForId (id :String) = projectInRoot(byID.get(id))
   def projectForSrcURL (srcURL :String) = projectInRoot(byURL.get(srcURL))

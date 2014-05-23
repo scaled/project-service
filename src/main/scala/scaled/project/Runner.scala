@@ -8,7 +8,7 @@ import com.google.common.collect.ArrayListMultimap
 import java.nio.file.{Files, Path}
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
-import scaled.util.{BufferBuilder, Error, Properties, SubProcess}
+import scaled.util.{BufferBuilder, Errors, Properties, SubProcess}
 
 /** Contains metadata for an execution. The metadata has is a set of key/value pairs where the
   * value can either be a single string or a sequence of strings.
@@ -19,16 +19,16 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
 
   /** Returns the value for `key`, throwing a feedback exception if none exists. */
   def param (key :String) :String = data.get(key) match {
-    case null   => throw Error.feedback(s"Execution ($name) missing required parameter: '$key'")
+    case null   => throw Errors.feedback(s"Execution ($name) missing required parameter: '$key'")
     case values => if (values.size == 1) values.get(0)
-                   else throw Error.feedback(s"Expected single value for '$key' but got $values")
+                   else throw Errors.feedback(s"Expected single value for '$key' but got $values")
   }
 
   /** Returns the value for `key`, returning `defval` if none exists. */
   def param (key :String, defval :String) :String = data.get(key) match {
     case null   => defval
     case values => if (values.size == 1) values.get(0)
-                   else throw Error.feedback(s"Expected single value for '$key' but got $values")
+                   else throw Errors.feedback(s"Expected single value for '$key' but got $values")
   }
 
   /** Returns the values for `key`, returning `defvals` if none exist. */
