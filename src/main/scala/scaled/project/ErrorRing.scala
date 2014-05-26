@@ -64,7 +64,7 @@ class ErrorRing (thing :String, errs :Seq[Error]) {
     editor.popStatus(err.descrip)
   }
 
-  protected def onNone = "No ${thing}s."
-  protected def atFirst = "At first $thing. Repeat command to start from last $thing."
-  protected def atLast = "At last $thing. Repeat command to start from first $thing."
+  protected def onNone  = s"No ${thing}s."
+  protected def atFirst = s"At first $thing. Repeat command to start from last $thing."
+  protected def atLast  = s"At last $thing. Repeat command to start from first $thing."
 }
