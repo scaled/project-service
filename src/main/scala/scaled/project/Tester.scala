@@ -8,7 +8,7 @@ import java.nio.file.Path
 import scaled._
 
 /** Provides an interface for interacting with test frameworks. */
-abstract class Tester (project :Project) {
+abstract class Tester (project :Project) extends AutoCloseable {
 
   /** The latest set of test failures as a navigable ring. */
   def failures :ErrorRing = _fails
@@ -16,6 +16,9 @@ abstract class Tester (project :Project) {
   /** Returns the buffer in which we record test output. It will be created if needed. */
   def buffer (editor :Editor) :Buffer = editor.createBuffer(
     s"*test:${project.name}*", true, ModeInfo("log" /*project-test*/, Nil)).buffer
+
+  /** Frees any resources maintained by this instance. */
+  def close () {} // nada by default
 
   /** Runs all tests in the project. Test output will be directed to [[buffer]].
     * @param interactive if true the user manually requested this test run, if false, it was
@@ -37,10 +40,10 @@ abstract class Tester (project :Project) {
   def runTest (editor :Editor, file :Path, elem :Model.Element) :Unit
 
   /** Reports the results of a test run. */
-  protected def noteResults (editor :Editor, interactive :Boolean, fails :Seq[Error]) {
+  protected def noteResults (editor :Editor, interactive :Boolean, succs :Int, fails :Seq[Error]) {
     _fails = failureRing(fails)
     if (interactive) {
-      val msg = s"Test run completed with ${fails.size} failures(s)."
+      val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."
       editor.emitStatus(msg)
     }
   }

@@ -100,6 +100,9 @@ abstract class Project (val metaSvc :MetaService) {
   /** Returns the compiler that handles compilation for this project. Created on demand. */
   def compiler :Compiler = _compiler.get
 
+  /** Returns the tester that handles test running for this project. Created on demand. */
+  def tester :Tester = _tester.get
+
   /** Returns the runner that manages executions for this project. Created on demand. */
   def runner :Runner = _runner.get
 
@@ -136,6 +139,18 @@ abstract class Project (val metaSvc :MetaService) {
     override protected def nextError (buffer :Buffer, start :Loc) = None
   }
 
+  /** Creates and returns a new `Tester` instance. By default a NOOP tester is created. */
+  protected def createTester () :Tester = new Tester(this) {
+    // override def describeSelf (bb :BufferBuilder) {} // nada
+    // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
+    override def runAllTests (editor :Editor, iact :Boolean) =
+      if (iact) editor.emitStatus("${project.name} does not provide a tester.")
+    override def runTests (editor :Editor, file :Path, typess :Seq[Model.Element], iact :Boolean) =
+      if (iact) editor.emitStatus("${project.name} does not provide a tester.")
+    override def runTest (editor :Editor, file :Path, elem :Model.Element) =
+      editor.emitStatus("${project.name} does not provide a tester.")
+  }
+
   /** Creates and returns a new `Runner` instance. */
   protected def createRunner () = new Runner(this)
 
@@ -145,6 +160,10 @@ abstract class Project (val metaSvc :MetaService) {
 
   private val _compiler = new CloseBox[Compiler]() {
     override protected def create = createCompiler()
+    override protected def didCreate = note(this)
+  }
+  private val _tester = new CloseBox[Tester]() {
+    override protected def create = createTester()
     override protected def didCreate = note(this)
   }
   private val _runner = new CloseBox[Runner]() {
