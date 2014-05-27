@@ -61,6 +61,9 @@ abstract class Project (val metaSvc :MetaService) {
   /** The history ring for execution invocations. */
   val execHistory = new Ring(32)
 
+  /** The history ring for element completions. */
+  val elemHistory = new Ring(32)
+
   /** Completes files in this project. The string representation of the files should not be
     * prefixed with path information, but rather suffixed and only where necessary to avoid
     * name collisions.
@@ -159,7 +162,7 @@ abstract class Project (val metaSvc :MetaService) {
     override def doc (elem :Model.Element) = throw new NoSuchElementException()
     override def loc (elem :Model.Element) = None
     override def members (elem :Model.Element) = Seq()
-    override def find (kinds :Set[Model.Kind], namePre :String) = Seq()
+    override def find (kinds :Set[Model.Kind], name :String, prefix :Boolean) = Seq()
   }
 
   private var _refcount = 0 // see reference()/release()

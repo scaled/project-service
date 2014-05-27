@@ -72,6 +72,9 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c C-a"   -> "project-execute-again",
     "C-c S-C-e" -> "project-execute-in",
 
+    // codex fns
+    "C-c C-v" -> "project-visit-element",
+
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
     "S-C-x S-C-f" -> "find-file-default"
@@ -243,6 +246,17 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     bb.addBlank()
     val bname = s"*project:${project.name}*"
     editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
+  }
+
+  //
+  // Codex FNs
+
+  @Fn("Queries for an element (completed by the project's codex) and navigates to its definition.")
+  def projectVisitElement () {
+    val dflt = "" // TODO: sym at point
+    editor.miniRead("Type:", dflt, project.elemHistory, project.codex.completer) onSuccess { el =>
+      editor.popStatus(el.toString)
+    }
   }
 
   //

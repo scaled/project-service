@@ -59,6 +59,9 @@ object Model {
     * local variable. */
   case object Term extends Kind
 
+  /** The default set of kinds to seek when searching. */
+  val findKinds :Set[Kind] = Set(Module, Type, Func, Term)
+
   /** Defines a code element. */
   case class Element (
     /** This element's kind. */
@@ -73,7 +76,10 @@ object Model {
     isPub :Boolean,
     /** Zero or more language specific attributes. */
     attrs :Array[String] = NoAttrs
-  )
+  ) {
+    /** Returns this element's path combined with spaces. */
+    lazy val pathString = path.mkString(" ")
+  }
 
   /** An empty array for elements with no attributes. */
   val NoAttrs = new Array[String](0)
