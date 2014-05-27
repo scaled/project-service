@@ -106,6 +106,9 @@ abstract class Project (val metaSvc :MetaService) {
   /** Returns the runner that manages executions for this project. Created on demand. */
   def runner :Runner = _runner.get
 
+  /** Returns the Codex for this project. Created on demand. */
+  def codex :Codex = _codex.get
+
   /** Notes a closeable resource that should be freed when this project goes into hibernation. */
   def note (ac :AutoCloseable) :Unit = _toClose += ac
 
@@ -128,7 +131,6 @@ abstract class Project (val metaSvc :MetaService) {
     (sb.append(")").toString, tb.toString)
   }
 
-  /** Creates and returns a new `Compiler` instance. By default a NOOP compiler is created. */
   protected def createCompiler () :Compiler = new Compiler(this) {
     override def describeSelf (bb :BufferBuilder) {} // nada
     override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
@@ -139,7 +141,6 @@ abstract class Project (val metaSvc :MetaService) {
     override protected def nextError (buffer :Buffer, start :Loc) = None
   }
 
-  /** Creates and returns a new `Tester` instance. By default a NOOP tester is created. */
   protected def createTester () :Tester = new Tester(this) {
     // override def describeSelf (bb :BufferBuilder) {} // nada
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
@@ -150,8 +151,16 @@ abstract class Project (val metaSvc :MetaService) {
       editor.emitStatus("${project.name} does not provide a tester.")
   }
 
-  /** Creates and returns a new `Runner` instance. */
-  protected def createRunner () = new Runner(this)
+  protected def createRunner () :Runner = new Runner(this)
+
+  protected def createCodex () :Codex = new Codex() {
+    override def element (path :List[String]) = throw new NoSuchElementException()
+    override def sig (elem :Model.Element) = throw new NoSuchElementException()
+    override def doc (elem :Model.Element) = throw new NoSuchElementException()
+    override def loc (elem :Model.Element) = None
+    override def members (elem :Model.Element) = Seq()
+    override def find (kinds :Set[Model.Kind], namePre :String) = Seq()
+  }
 
   private var _refcount = 0 // see reference()/release()
   private val _metaDir = root.resolve(".scaled")
@@ -167,6 +176,10 @@ abstract class Project (val metaSvc :MetaService) {
   }
   private val _runner = new CloseBox[Runner]() {
     override protected def create = createRunner()
+    override protected def didCreate = note(this)
+  }
+  private val _codex = new CloseBox[Codex]() {
+    override protected def create = createCodex()
     override protected def didCreate = note(this)
   }
 }

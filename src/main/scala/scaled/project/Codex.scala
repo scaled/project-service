@@ -8,11 +8,17 @@ import scaled.LineV
 
 /** Provides metadata for a project's code. This metadata is in the form of [[Model]] information on
   * code [[Model.Element]]s.
+  *
+  * Methods which take an element will throw [[NoSuchElementException]] if they are passed an
+  * element that is invalid, or no longer exists.
   */
 abstract class Codex extends AutoCloseable {
   import Model._
 
-  /** Returns the element identified by `path`. */
+  /** Returns the element identified by `path`. The path should be in inner-most to outer-most
+    * order, in congruence with [[Element.path]].
+    * @throws NoSuchElementException if no element can be found for `path`.
+    */
   def element (path :List[String]) :Element
 
   /** Returns the element that encloses `elem`. If `elem` is a root element, [[Root]] will be
@@ -37,7 +43,7 @@ abstract class Codex extends AutoCloseable {
   def members (elem :Element) :Seq[Element]
 
   /** Returns all elements whose kind is included in `kinds` and whose simple name starts with
-    * `namePre`. */
+    * `namePre` (matched case-insensitively). */
   def find (kinds :Set[Kind], namePre :String) :Seq[Element]
 
   /** Called when this codex is no longer needed. This should terminate any external processes and

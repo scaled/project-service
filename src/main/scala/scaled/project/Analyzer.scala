@@ -42,6 +42,9 @@ abstract class Analyzer extends AutoCloseable {
   /** Returns information for the code element at `loc` in `buffer`. */
   def elementAt (buffer :Buffer, loc :Loc) :Future[Model.Element]
 
+  /** Returns the nearest enclosing `kind` around `loc` in `buffer`. */
+  def enclosing (buffer :Buffer, loc :Loc, kind :Model.Kind) :Future[Model.Element]
+
   /** Initiates analysis of the specified paths.
     * When the analysis is complete, [[notes]] will be updated with the results. */
   def analyze (editor :Editor, paths :Seq[Path]) {
