@@ -20,6 +20,9 @@ abstract class Tester (project :Project) extends AutoCloseable {
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default
 
+  /** Locates the test file that's associated with the specified source file. */
+  def findTestFile (file :Path) :Option[Path] = None
+
   /** Runs all tests in the project. Test output will be directed to [[buffer]].
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-all-on-save`.

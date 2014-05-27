@@ -161,24 +161,31 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   //
   // Test FNs
 
-  @Fn("""Runs all of this project's tests.
-         Output is displayed in a buffer named *test{project}*. Failures identified in said output
-         can be navigated using `project-next-failure` and `project-previous-failure`.""")
+  @Fn("""Runs all of this project's tests. Output is displayed in a buffer named *test{project}*.
+         Failures identified in said output can be navigated using `project-next-failure` and
+         `project-previous-failure`.""")
   def projectRunAllTests () {
     if (project.tester.runAllTests(editor, true)) maybeShowTestOutput()
     else editor.popStatus("No tests were found.")
   }
 
-  @Fn("""Runs all of the tests in the current buffer.
-         Output is displayed in a buffer named *test{project}*. Failures identified in said output
-         can be navigated using `project-next-failure` and `project-previous-failure`.""")
+  @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
+         itself if that file contains tests) and runs the tests in it. If no associated test buffer
+         can be located, we fall back to running all tests for the project.
+         See project-run-all-tests for info on test output and failure navigation.""")
   def projectRunFileTests () {
     buffer.store.file match {
       case None => editor.popStatus(
         "This buffer has no associated file. A file is needed to detect tests.")
       case Some(file) =>
-        if (project.tester.runTests(editor, true, file, Seq())) maybeShowTestOutput()
-        else editor.popStatus("No tests found in this file.")
+        val ran = project.tester.findTestFile(file) match {
+          case None        => project.tester.runAllTests(editor, true)
+          case Some(tfile) =>
+            val telems = Seq[Model.Element]() // TODO: ask project for test elements in file
+            project.tester.runTests(editor, true, tfile, telems)
+        }
+        if (ran) maybeShowTestOutput()
+        else editor.emitStatus("No tests were found.")
     }
   }
 
