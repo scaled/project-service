@@ -143,10 +143,9 @@ abstract class Project (val metaSvc :MetaService) {
   protected def createTester () :Tester = new Tester(this) {
     // override def describeSelf (bb :BufferBuilder) {} // nada
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def runAllTests (editor :Editor, iact :Boolean) =
-      if (iact) editor.emitStatus("${project.name} does not provide a tester.")
-    override def runTests (editor :Editor, file :Path, typess :Seq[Model.Element], iact :Boolean) =
-      if (iact) editor.emitStatus("${project.name} does not provide a tester.")
+    override def runAllTests (editor :Editor, iact :Boolean) = false
+    override def runTests (editor :Editor, iact :Boolean,
+                           file :Path, typess :Seq[Model.Element]) = false
     override def runTest (editor :Editor, file :Path, elem :Model.Element) =
       editor.emitStatus("${project.name} does not provide a tester.")
   }

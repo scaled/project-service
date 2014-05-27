@@ -17,6 +17,9 @@ object ProjectConfig extends Config.Defs {
   @Var("If true, the project will be automatically recompiled on file save.")
   val recompileOnSave = key(true)
 
+  @Var("If true, the test output buffer will be shown when tests are run interactively.")
+  val showOutputOnTest = key(false)
+
   /** Tracks the last project/execution pair. Used by `project-reexecute. */
   val lastExecution = fnKey(cfg => OptValue[(Project,Execution)]())
 
@@ -61,7 +64,8 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c C-r" -> "project-recompile",
 
     // test fns
-    "C-c C-t" -> "project-run-all-tests",
+    "C-c S-C-t" -> "project-run-all-tests",
+    "C-c C-t"   -> "project-run-file-tests",
 
     // execution fns
     "C-c C-e"   -> "project-execute",
@@ -157,11 +161,25 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   //
   // Test FNs
 
-  @Fn("""Runs all of this project's tests. Output is displayed in a buffer named *test{project}*
-         and failures identified in said output can be navigated using `project-next-failure` and
-         `project-previous-failure`.""")
+  @Fn("""Runs all of this project's tests.
+         Output is displayed in a buffer named *test{project}*. Failures identified in said output
+         can be navigated using `project-next-failure` and `project-previous-failure`.""")
   def projectRunAllTests () {
-    project.tester.runAllTests(editor, true)
+    if (project.tester.runAllTests(editor, true)) maybeShowTestOutput()
+    else editor.popStatus("No tests were found.")
+  }
+
+  @Fn("""Runs all of the tests in the current buffer.
+         Output is displayed in a buffer named *test{project}*. Failures identified in said output
+         can be navigated using `project-next-failure` and `project-previous-failure`.""")
+  def projectRunFileTests () {
+    buffer.store.file match {
+      case None => editor.popStatus(
+        "This buffer has no associated file. A file is needed to detect tests.")
+      case Some(file) =>
+        if (project.tester.runTests(editor, true, file, Seq())) maybeShowTestOutput()
+        else editor.popStatus("No tests found in this file.")
+    }
   }
 
   @Fn("""Visits the next test failure. The buffer containing the failing test code will be
@@ -222,6 +240,9 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   //
   // Implementation details
+
+  private def maybeShowTestOutput () =
+    if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))
 
   private def execute (project :Project, exec :Execution) {
     project.runner.execute(editor, exec)

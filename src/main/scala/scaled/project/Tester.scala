@@ -21,28 +21,30 @@ abstract class Tester (project :Project) extends AutoCloseable {
   def close () {} // nada by default
 
   /** Runs all tests in the project. Test output will be directed to [[buffer]].
-    * @param interactive if true the user manually requested this test run, if false, it was
+    * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-all-on-save`.
+    * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runAllTests (editor :Editor, interactive :Boolean) :Unit
+  def runAllTests (editor :Editor, interact :Boolean) :Boolean
 
   /** Runs all tests in `file`. If available, model information for all types (classes) in that
     * compilation unit will also be provided, to make life easier for the test framework. Test
     * output will be directed to [[buffer]].
-    * @param interactive if true the user manually requested this test run, if false, it was
+    * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-on-save`.
+    * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runTests (editor :Editor, file :Path, typess :Seq[Model.Element], interactive :Boolean) :Unit
+  def runTests (editor :Editor, interact :Boolean, file :Path, types :Seq[Model.Element]) :Boolean
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
-    * invoked interactively. Test output will be directed to [[buffer]].
+    * invoked interactly. Test output will be directed to [[buffer]].
     */
   def runTest (editor :Editor, file :Path, elem :Model.Element) :Unit
 
   /** Reports the results of a test run. */
-  protected def noteResults (editor :Editor, interactive :Boolean, succs :Int, fails :Seq[Error]) {
+  protected def noteResults (editor :Editor, interact :Boolean, succs :Int, fails :Seq[Error]) {
     _fails = failureRing(fails)
-    if (interactive) {
+    if (interact) {
       val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."
       editor.emitStatus(msg)
     }
