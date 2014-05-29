@@ -11,7 +11,7 @@ import scaled._
   * @param loc the location of the error in that compilation unit
   * @param descrip the description show to the user when the error is visited
   */
-case class Error (path :String, loc :Loc, descrip :String)
+case class Error (path :String, loc :Loc, descrip :Seq[String])
 
 /** Contains a list of errors and allows the user to visit them in turn, maintaining an internal
   * pointer which wraps around when either end is reached.
@@ -60,8 +60,11 @@ class ErrorRing (thing :String, errs :Seq[Error]) {
   }
 
   private def visitError (editor :Editor, err :Error) {
-    editor.visitFile(Store(err.path)).point() = err.loc
-    editor.popStatus(err.descrip)
+    val view = editor.visitFile(Store(err.path))
+    view.point() = err.loc
+    // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
+    // its position up or down, left or right to fit yet still point to loc
+    view.showPopup(Popup(err.descrip, Popup.UpRight(err.loc), true, true))
   }
 
   protected def onNone  = s"No ${thing}s."
