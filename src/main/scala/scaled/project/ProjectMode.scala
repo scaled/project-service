@@ -88,6 +88,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c C-v C-v" -> "codex-visit-value",
 
     "C-c C-d"     -> "codex-describe-element",
+    "M-."         -> "codex-visit-element",
 
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
@@ -295,16 +296,17 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
   def codexDescribeElement () {
-    index.getOption match {
-      case None => editor.popStatus("No Codex index available for this file.")
-      case Some(idx) => idx.elementAt(view.point()) match {
-        case None => editor.popStatus("No element could be found at the point.")
-        case Some(elem) =>
-          val dopt = project.codex.resolve(elem.ref)
-          if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
-          else view.popup() = mkDefPopup(elem, dopt.get)
-      }
-    }
+    onElemAt(view.point(), (elem, df) => view.popup() = mkDefPopup(elem, df))
+  }
+
+  @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
+         Codex.""")
+  def codexVisitElement () {
+    onElemAt(view.point(), (_, df) => {
+      val view = editor.visitFile(toStore(df.source()))
+      // TODO: push current loc onto a stack, M-, to pop stack
+      view.point() = view.buffer.loc(df.offset)
+    })
   }
 
   //
@@ -320,6 +322,19 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
         val info = infOpt.get
         val view = editor.visitFile(toStore(info.source))
         view.point() = view.buffer.loc(df.offset)
+      }
+    }
+  }
+
+  private def onElemAt (loc :Loc, fn :(Element, Def) => Unit) {
+    index.getOption match {
+      case None => editor.popStatus("No Codex index available for this file.")
+      case Some(idx) => idx.elementAt(loc) match {
+        case None => editor.popStatus("No element could be found at the point.")
+        case Some(elem) =>
+          val dopt = project.codex.resolve(elem.ref)
+          if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
+          else fn(elem, dopt.get)
       }
     }
   }
