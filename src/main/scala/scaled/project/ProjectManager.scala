@@ -18,10 +18,11 @@ import scaled.util.Errors
 class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginService)
     extends AbstractService with ProjectService {
   import scala.collection.convert.WrapAsScala._
+  import Project._
 
   // maps from id, srcurl to project root for all known projects
-  private val byID  = HashBiMap.create[String,Path]()
-  private val byURL = HashBiMap.create[String,Path]()
+  private val byID  = HashBiMap.create[RepoId,Path]()
+  private val byURL = HashBiMap.create[SrcURL,Path]()
   // map from root to name for all known projects (name is not necessarily unique)
   private val toName = MMap[Path,String]()
 
@@ -59,8 +60,11 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   def projectIn (root :Path) = projectInRoot(root) getOrElse {
     throw Errors.feedback(s"No project in $root")
   }
-  def projectForId (id :String) = projectInRoot(byID.get(id))
-  def projectForSrcURL (srcURL :String) = projectInRoot(byURL.get(srcURL))
+  def projectFor (dep :Project.Depend) = dep match {
+    // TODO: give project resolvers a chance to resolve projects by dependency
+    case RepoDepend(id) => projectInRoot(byID.get(id))
+    case SrcDepend(url) => projectInRoot(byURL.get(url))
+  }
   def loadedProjects = projects.values.toSeq
   def knownProjects = toName.toSeq
 
@@ -119,8 +123,8 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
           val root = Paths.get(rpath)
           if (!Files.exists(root)) log.log(s"Removing obsolete project: $rpath")
           else {
-            if (id   != "none") byID.put(id, root)
-            if (url  != "none") byURL.put(url, root)
+            if (id   != "none") repoIdFromString(id) foreach { byID.put(_, root) }
+            if (url  != "none") srcURLFromString(url) foreach { byURL.put(_, root) }
             if (name != "none") toName.put(root, name)
           }
         case _ => log.log(s"Invalid line in projects.txt: $line")
@@ -134,7 +138,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     val roots = byID.values ++ byURL.values ++ toName.keySet
     val out = new PrintWriter(Files.newBufferedWriter(mapFile, Charsets.UTF_8))
     try {
-      def orNone (str :String) = if (str == null) "none" else str
+      def orNone (obj :AnyRef) = if (obj == null) "none" else obj.toString
       roots foreach { root =>
         val id = byID.inverse.get(root)
         val url = byURL.inverse.get(root)

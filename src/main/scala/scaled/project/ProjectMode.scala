@@ -4,6 +4,8 @@
 
 package scaled.project
 
+import codex.Codex
+import codex.model.{Def, Kind, Source}
 import javafx.scene.control.Tooltip
 import reactual.{Value, OptValue}
 import scaled._
@@ -73,7 +75,10 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c S-C-e" -> "project-execute-in",
 
     // codex fns
-    "C-c C-v" -> "project-visit-element",
+    "C-c C-v C-m" -> "project-visit-module",
+    "C-c C-v C-t" -> "project-visit-type",
+    "C-c C-v C-f" -> "project-visit-func",
+    "C-c C-v C-v" -> "project-visit-value",
 
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
@@ -90,6 +95,21 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     editor.miniRead(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.fileCompleter
     ) onSuccess editor.visitFile
+  }
+
+  /** Returns a completer on elements of `kind` in this project's Codex. */
+  def codexCompleter (kind :Kind) :Completer[Def] = new Completer[Def]() {
+    import scala.collection.JavaConversions._
+    def complete (prefix :String) :Completion[Def] = prefix.split(":", 2) match {
+      case Array(name, path) =>
+        elemComp(project.codex.find(Codex.Query.name(name).kind(kind)) filter(
+          e => Completer.startsWithI(path)(pathString(e))))
+      case Array(name) =>
+        elemComp(project.codex.find(Codex.Query.prefix(name).kind(kind)))
+    }
+    private def elemComp (es :Seq[Def]) = completion(es, elemToString)
+    private def pathString (d :Def) = project.codex.ref(d).parent.toString
+    private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
   }
 
   //
@@ -251,16 +271,37 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   //
   // Codex FNs
 
-  @Fn("Queries for an element (completed by the project's codex) and navigates to its definition.")
-  def projectVisitElement () {
-    val dflt = "" // TODO: sym at point
-    editor.miniRead("Type:", dflt, project.elemHistory, project.codex.completer) onSuccess { el =>
-      editor.popStatus(el.toString)
-    }
-  }
+  @Fn("Queries for a module (completed by the project's Codex) and navigates to its definition.")
+  def projectVisitModule () :Unit = projectVisit("Module:", Kind.MODULE)
+
+  @Fn("Queries for a type (completed by the project's Codex) and navigates to its definition.")
+  def projectVisitType () :Unit = projectVisit("Type:", Kind.TYPE)
+
+  @Fn("Queries for a function (completed by the project's Codex) and navigates to its definition.")
+  def projectVisitFunc () :Unit = projectVisit("Function:", Kind.FUNC)
+
+  @Fn("Queries for a value (completed by the project's Codex) and navigates to its definition.")
+  def projectVisitValue () :Unit = projectVisit("Value:", Kind.VALUE)
 
   //
   // Implementation details
+
+  private def projectVisit (prompt :String, kind :Kind) {
+    val dflt = "" // TODO: sym at point
+    val hist = project.codexHistory(kind)
+    editor.miniRead(prompt, dflt, hist, codexCompleter(kind)) onSuccess { df =>
+      val infOpt = project.codex.resolve(df.ref)
+      if (!infOpt.isPresent) editor.popStatus(s"Unable to resolve $df?")
+      else {
+        val info = infOpt.get
+        val view = editor.visitFile(toStore(info.source))
+        view.point() = view.buffer.loc(df.offset)
+      }
+    }
+  }
+
+  // Source's toString representation is the same for expected by Store.apply
+  private def toStore (source :Source) :Store = Store(source.toString)
 
   private def maybeShowTestOutput () =
     if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))

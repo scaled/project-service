@@ -88,7 +88,7 @@ class Runner (project :Project) extends AutoCloseable {
   }
   // read our config and set up a file watch to re-read when it's modified
   readConfig(_configFile)
-  project.note(project.metaSvc.service[WatchService].watchFile(_configFile, readConfig(_)))
+  project.toClose += project.metaSvc.service[WatchService].watchFile(_configFile, readConfig(_))
 
   /** For great logging. */
   protected val log = project.metaSvc.log
