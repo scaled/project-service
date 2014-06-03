@@ -5,7 +5,7 @@
 package scaled.project
 
 import codex.Codex
-import codex.model.Kind
+import codex.model.{Kind, Source}
 import codex.store.{EphemeralStore, ProjectStore}
 import java.nio.file.{Files, Path}
 import java.util.{IdentityHashMap, ArrayList}
@@ -92,7 +92,7 @@ abstract class Project (val metaSvc :MetaService) {
 
   /** Notes that `ref` is no longer using this project. */
   def release (ref :Any) {
-    if (_refs.remove(ref) == null) log.log(s"Project released by unknown referent: $ref")
+    if (_refs.remove(ref) == null) log.log(s"$this released by unknown referent: $ref")
     if (_refs.isEmpty) hibernate()
   }
 
@@ -167,6 +167,9 @@ abstract class Project (val metaSvc :MetaService) {
 
   /** Returns the Codex project store for this project. Created on demand. */
   def projectStore :ProjectStore = _pstore.get
+
+  /** Requests that the specified source file be indexed. */
+  def indexSource (source :Source, buffer :BufferV) :Option[SourceIndex] = None
 
   override def toString = s"Project($root, $name, $id, $sourceURL)"
 

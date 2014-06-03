@@ -5,9 +5,10 @@
 package scaled.project
 
 import codex.Codex
-import codex.model.{Def, Kind, Source}
+import codex.model._
 import javafx.scene.control.Tooltip
 import reactual.{Value, OptValue}
+import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.major.EditingMode
 import scaled.util.BufferBuilder
@@ -47,6 +48,12 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // do we really want to handle that crazy case?
   val project :Project = psvc.projectFor(buffer.store).reference(buffer)
 
+  /** The most recent index for the buffer's source file, if any. */
+  val index = OptValue[SourceIndex]()
+  note(buffer.storeV.onValueNotify { store =>
+    index.update(project.indexSource(toSource(store), buffer))
+  })
+
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
 
@@ -75,10 +82,12 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c S-C-e" -> "project-execute-in",
 
     // codex fns
-    "C-c C-v C-m" -> "project-visit-module",
-    "C-c C-v C-t" -> "project-visit-type",
-    "C-c C-v C-f" -> "project-visit-func",
-    "C-c C-v C-v" -> "project-visit-value",
+    "C-c C-v C-m" -> "codex-visit-module",
+    "C-c C-v C-t" -> "codex-visit-type",
+    "C-c C-v C-f" -> "codex-visit-func",
+    "C-c C-v C-v" -> "codex-visit-value",
+
+    "C-c C-d"     -> "codex-describe-element",
 
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
@@ -108,7 +117,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
         elemComp(project.codex.find(Codex.Query.prefix(name).kind(kind)))
     }
     private def elemComp (es :Seq[Def]) = completion(es, elemToString)
-    private def pathString (d :Def) = project.codex.ref(d).parent.toString
+    private def pathString (d :Def) = d.qualifier
     private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
   }
 
@@ -272,21 +281,36 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // Codex FNs
 
   @Fn("Queries for a module (completed by the project's Codex) and navigates to its definition.")
-  def projectVisitModule () :Unit = projectVisit("Module:", Kind.MODULE)
+  def codexVisitModule () :Unit = codexVisit("Module:", Kind.MODULE)
 
   @Fn("Queries for a type (completed by the project's Codex) and navigates to its definition.")
-  def projectVisitType () :Unit = projectVisit("Type:", Kind.TYPE)
+  def codexVisitType () :Unit = codexVisit("Type:", Kind.TYPE)
 
   @Fn("Queries for a function (completed by the project's Codex) and navigates to its definition.")
-  def projectVisitFunc () :Unit = projectVisit("Function:", Kind.FUNC)
+  def codexVisitFunc () :Unit = codexVisit("Function:", Kind.FUNC)
 
   @Fn("Queries for a value (completed by the project's Codex) and navigates to its definition.")
-  def projectVisitValue () :Unit = projectVisit("Value:", Kind.VALUE)
+  def codexVisitValue () :Unit = codexVisit("Value:", Kind.VALUE)
+
+  @Fn("""Displays the documentation and signature for the element at the point, if it is known to
+         the project's Codex.""")
+  def codexDescribeElement () {
+    index.getOption match {
+      case None => editor.popStatus("No Codex index available for this file.")
+      case Some(idx) => idx.elementAt(view.point()) match {
+        case None => editor.popStatus("No element could be found at the point.")
+        case Some(elem) =>
+          val dopt = project.codex.resolve(elem.ref)
+          if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
+          else view.popup() = mkDefPopup(elem, dopt.get)
+      }
+    }
+  }
 
   //
   // Implementation details
 
-  private def projectVisit (prompt :String, kind :Kind) {
+  private def codexVisit (prompt :String, kind :Kind) {
     val dflt = "" // TODO: sym at point
     val hist = project.codexHistory(kind)
     editor.miniRead(prompt, dflt, hist, codexCompleter(kind)) onSuccess { df =>
@@ -300,8 +324,38 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     }
   }
 
+  private def mkDefPopup (elem :Element, df :Def) :Popup = {
+    val text = ArrayBuffer[String]()
+    df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
+      def accept (doc :Doc) :Unit = try {
+        val r = df.source().reader()
+        val buf = new Array[Char](doc.length)
+        r.skip(doc.offset)
+        r.read(buf)
+        r.close()
+        // TODO: trim leading whitespace up to start.col
+        text ++= new String(buf).split(System.lineSeparator)
+      } catch {
+        case e :Exception => text += e.toString
+      }
+    })
+    df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
+      def accept (sig :Sig) {
+        text ++= sig.text.split(System.lineSeparator)
+        // TODO: use defs and uses to style text
+      }
+    })
+    Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
+  }
+
   // Source's toString representation is the same for expected by Store.apply
   private def toStore (source :Source) :Store = Store(source.toString)
+
+  private def toSource (store :Store) :Source = store match {
+    case fs :FileStore => new Source.File(fs.path.toString)
+    case zes :ZipEntryStore => new Source.ArchiveEntry(zes.zipFile.toString, zes.entry)
+    case _ => throw new IllegalArgumentException(s"Can't convert $store to Codex Source.")
+  }
 
   private def maybeShowTestOutput () =
     if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))
