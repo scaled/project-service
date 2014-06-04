@@ -10,6 +10,7 @@ import codex.store.{EphemeralStore, ProjectStore}
 import java.util.ArrayList
 import reactual.Signal
 import scaled._
+import scaled.util.VisitStack
 
 /** [[ProjectCodex]] helpers and whatnot. */
 object ProjectCodex {
@@ -38,6 +39,9 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
 
   /** A signal emitted when a source has been reprocessed and indexed. */
   val indexed = Signal[SourceIndex]()
+
+  /** A stack used to track where we've gone when using visit-element. */
+  val visitStack = new VisitStack("Element visit")
 
   override def close () {
     projectStore.close()

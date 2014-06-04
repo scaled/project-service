@@ -90,6 +90,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
     "C-c C-d"     -> "codex-describe-element",
     "M-."         -> "codex-visit-element",
+    "M-,"         -> "codex-visit-pop",
 
     // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
@@ -304,10 +305,15 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
          Codex.""")
   def codexVisitElement () {
     onElemAt(view.point(), (_, df) => {
+      project.codex.visitStack.push(this.view) // push current loc to the visit stack
       val view = editor.visitFile(ProjectCodex.toStore(df.source()))
-      // TODO: push current loc onto a stack, M-, to pop stack
       view.point() = view.buffer.loc(df.offset)
     })
+  }
+
+  @Fn("Pops to the last place `codex-visit-foo` was invoked.")
+  def codexVisitPop () {
+    project.codex.visitStack.pop(editor)
   }
 
   //
@@ -320,6 +326,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
       val infOpt = project.codex.resolve(df.ref)
       if (!infOpt.isPresent) editor.popStatus(s"Unable to resolve $df?")
       else {
+        project.codex.visitStack.push(this.view) // push current loc to the visit stack
         val info = infOpt.get
         val view = editor.visitFile(ProjectCodex.toStore(info.source))
         view.point() = view.buffer.loc(df.offset)
