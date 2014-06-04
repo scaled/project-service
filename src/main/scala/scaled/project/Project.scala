@@ -5,10 +5,9 @@
 package scaled.project
 
 import codex.Codex
-import codex.model.{Kind, Source}
-import codex.store.{EphemeralStore, ProjectStore}
+import codex.model.Kind
 import java.nio.file.{Files, Path}
-import java.util.{IdentityHashMap, ArrayList}
+import java.util.IdentityHashMap
 import reactual.{Future, Value}
 import scala.collection.mutable.{Map => MMap}
 import scaled._
@@ -163,13 +162,7 @@ abstract class Project (val metaSvc :MetaService) {
   def runner :Runner = _runner.get
 
   /** Returns the Codex for this project. Created on demand. */
-  def codex :Codex = _codex.get
-
-  /** Returns the Codex project store for this project. Created on demand. */
-  def projectStore :ProjectStore = _pstore.get
-
-  /** Requests that the specified source file be indexed. */
-  def indexSource (source :Source, buffer :BufferV) :Option[SourceIndex] = None
+  def codex :ProjectCodex = _codex.get
 
   override def toString = s"Project($root, $name, $id, $sourceURL)"
 
@@ -190,48 +183,12 @@ abstract class Project (val metaSvc :MetaService) {
     (sb.append(")").toString, tb.toString)
   }
 
-  protected def createCompiler () :Compiler = new Compiler(this) {
-    override def describeSelf (bb :BufferBuilder) {} // nada
-    override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def recompile (editor :Editor, interactive :Boolean) {
-      if (interactive) editor.emitStatus("Compilation is not supported by this project.")
-    }
-    override protected def compile (buffer :Buffer) = Future.success(true)
-    override protected def nextError (buffer :Buffer, start :Loc) = None
-  }
-
-  protected def createTester () :Tester = new Tester(this) {
-    // override def describeSelf (bb :BufferBuilder) {} // nada
-    // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def runAllTests (editor :Editor, iact :Boolean) = false
-    override def runTests (editor :Editor, iact :Boolean,
-                           file :Path, typess :Seq[Model.Element]) = false
-    override def runTest (editor :Editor, file :Path, elem :Model.Element) =
-      editor.emitStatus("${project.name} does not provide a tester.")
-  }
-
-  protected def createRunner () :Runner = new Runner(this)
-
-  protected def createProjectStore () :ProjectStore = new EphemeralStore()
-
-  /** Resolves the project stores for our Codex. */
-  protected def resolveProjectStores :ArrayList[ProjectStore] = {
-    val list = new ArrayList[ProjectStore]()
-    list.add(projectStore)
-    for (dep <- depends) depend(dep) match {
-      case Some(p) => list.add(p.projectStore)
-      case None => resolveNonProjectStore(dep) foreach(list.add)
-    }
-    list
-  }
-
-  /** Resolves the project store for a dependency for which a Scaled project was unavailable. If
-    * `None` is returned, this dependency will be omitted from the Codex. */
-  protected def resolveNonProjectStore (depend :Depend) :Option[ProjectStore] = None
-
   private val _refs = new IdentityHashMap[Any,Any]() // see reference()/release()
   private val _metaDir = root.resolve(".scaled")
 
+  private val _depprojs = new Close.Box[DependMap](toClose) {
+    override protected def create = new DependMap() // ctor resolves projects
+  }
   class DependMap extends AutoCloseable {
     private val psvc = metaSvc.service[ProjectService]
     private val deps = MMap[Depend,Project]()
@@ -246,24 +203,42 @@ abstract class Project (val metaSvc :MetaService) {
 
     override def close () :Unit = deps.values foreach { _.release(Project.this) }
   }
-  private val _depprojs = new Close.Box[DependMap](toClose) {
-    override protected def create = new DependMap() // ctor resolves projects
-  }
 
+  protected def createCompiler () :Compiler = new NoopCompiler()
   private val _compiler = new Close.Box[Compiler](toClose) {
     override protected def create = createCompiler()
   }
+  class NoopCompiler extends Compiler(this) {
+    override def describeSelf (bb :BufferBuilder) {} // nada
+    override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
+    override def recompile (editor :Editor, interactive :Boolean) {
+      if (interactive) editor.emitStatus("Compilation is not supported by this project.")
+    }
+    override protected def compile (buffer :Buffer) = Future.success(true)
+    override protected def nextError (buffer :Buffer, start :Loc) = None
+  }
+
+  protected def createTester () :Tester = new NoopTester()
   private val _tester = new Close.Box[Tester](toClose) {
     override protected def create = createTester()
   }
+  class NoopTester extends Tester(this) {
+    // override def describeSelf (bb :BufferBuilder) {} // nada
+    // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
+    override def runAllTests (editor :Editor, iact :Boolean) = false
+    override def runTests (editor :Editor, iact :Boolean,
+                           file :Path, typess :Seq[Model.Element]) = false
+    override def runTest (editor :Editor, file :Path, elem :Model.Element) =
+      editor.emitStatus("${project.name} does not provide a tester.")
+  }
+
+  protected def createRunner () :Runner = new Runner(this)
   private val _runner = new Close.Box[Runner](toClose) {
     override protected def create = createRunner()
   }
 
-  private val _codex = new Close.Ref[Codex](toClose) {
-    override protected def create = new Codex(resolveProjectStores)
-  }
-  private val _pstore = new Close.Box[ProjectStore](toClose) {
-    override protected def create = createProjectStore()
+  protected def createProjectCodex () :ProjectCodex = new ProjectCodex(this)
+  private val _codex = new Close.Box[ProjectCodex](toClose) {
+    override protected def create = createProjectCodex()
   }
 }

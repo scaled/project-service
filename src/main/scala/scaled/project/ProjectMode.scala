@@ -50,9 +50,10 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   /** The most recent index for the buffer's source file, if any. */
   val index = OptValue[SourceIndex]()
-  note(buffer.storeV.onValueNotify { store =>
-    index.update(project.indexSource(toSource(store), buffer))
-  })
+  // if our store gets indexed, store it in `index`
+  note(project.codex.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
+  // request that our store be indexed (which should eventually populate `index`)
+  note(buffer.storeV.onValueNotify(project.codex.reindex))
 
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
@@ -303,7 +304,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
          Codex.""")
   def codexVisitElement () {
     onElemAt(view.point(), (_, df) => {
-      val view = editor.visitFile(toStore(df.source()))
+      val view = editor.visitFile(ProjectCodex.toStore(df.source()))
       // TODO: push current loc onto a stack, M-, to pop stack
       view.point() = view.buffer.loc(df.offset)
     })
@@ -320,7 +321,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
       if (!infOpt.isPresent) editor.popStatus(s"Unable to resolve $df?")
       else {
         val info = infOpt.get
-        val view = editor.visitFile(toStore(info.source))
+        val view = editor.visitFile(ProjectCodex.toStore(info.source))
         view.point() = view.buffer.loc(df.offset)
       }
     }
@@ -361,15 +362,6 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
       }
     })
     Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
-  }
-
-  // Source's toString representation is the same for expected by Store.apply
-  private def toStore (source :Source) :Store = Store(source.toString)
-
-  private def toSource (store :Store) :Source = store match {
-    case fs :FileStore => new Source.File(fs.path.toString)
-    case zes :ZipEntryStore => new Source.ArchiveEntry(zes.zipFile.toString, zes.entry)
-    case _ => throw new IllegalArgumentException(s"Can't convert $store to Codex Source.")
   }
 
   private def maybeShowTestOutput () =
