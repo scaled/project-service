@@ -39,9 +39,9 @@ trait ProjectService {
   /** Resolves (if necessary) and returns the project which is rooted at `root`. */
   def projectIn (root :Path) :Project
 
-  /** Resolves (if necessary) and returns the project for the specified dependency.
+  /** Resolves (if necessary) and returns the project for the specified id.
     * @return `None` if no project is known for `dep`, `Some(proj)` if one is. */
-  def projectFor (dep :Project.Depend) :Option[Project]
+  def projectFor (id :Project.Id) :Option[Project]
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project]

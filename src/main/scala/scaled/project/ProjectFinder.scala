@@ -6,6 +6,7 @@ package scaled.project
 
 import java.nio.file.{Files, Path}
 import scaled.AbstractPlugin
+import scaled.MetaService
 
 /** Finders are used to identify projects given only the location of a file somewhere in the bowels
   * of the project. This is generally done by searching up the directory hierarchy, looking for
@@ -28,9 +29,9 @@ import scaled.AbstractPlugin
   * argument (the root of the project). Using the dependency injection mechanism allows the project
   * to inject any Scaled services it may need.
   */
-abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
-                                    val projectClass :Class[_ <: Project])
-    extends AbstractPlugin {
+abstract class ProjectFinderPlugin (
+  val name :String, val intelligent :Boolean, projectClass :Class[_ <: Project]
+) extends AbstractPlugin {
 
   /** Checks whether `root` could be a root of a project of the type sought by this finder.
     *
@@ -47,8 +48,9 @@ abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
   def checkRoot (root :Path) :Int
 
   /** Applies this finder to the supplied path list.
-    * @return `Some(root,this)` if it matches, otherwise `None`. */
-  def apply (paths :List[Path]) :Option[(Path,ProjectFinderPlugin)] = {
+    * @return `Some(root,intelligent,thunk)` if it matches, otherwise `None`.
+    */
+  def apply (paths :List[Path]) :Option[(Path,Boolean,MetaService => Project)] = {
     var best :Path = null ; var cur = paths
     while (!cur.isEmpty) {
       checkRoot(cur.head) match {
@@ -57,7 +59,22 @@ abstract class ProjectFinderPlugin (val name :String, val intelligent :Boolean,
         case  1 => best = cur.head ; cur = Nil      // stop the search
       }
     }
-    if (best == null) None else Some(best -> this)
+    if (best == null) None else Some((best, intelligent, createProjectIn(best)))
+  }
+
+  /** Applies this finder to the supplied id.
+    * @return `Some(thunk)` if this project finder knows how to provide a project for `id`, `None`
+    * otherwise.
+    */
+  def apply (id :Project.Id) :Option[MetaService => Project] = None
+
+  /** Returns a thunk that will create our project, which we identified as being rooted at `root`.
+    * The default passes the root as an injection argument (and nothing else). */
+  protected def createProjectIn (root :Path) = createProject(root)
+
+  /** Returns a thunk that will inject our project with the supplied arguments. */
+  protected def createProject (args :Any*) = (metaSvc :MetaService) => {
+    metaSvc.injectInstance(projectClass, args.toList)
   }
 
   protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))

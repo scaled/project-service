@@ -16,6 +16,25 @@ import scaled.util.{BufferBuilder, Close}
 /** [[Project]]-related helper types &c. */
 object Project {
 
+  /** Represents different kinds of universal project identifiers. */
+  sealed abstract class Id {
+    /** Converts this Id to a string which can later be [[inflated]]. */
+    def deflate :String
+    protected def deflate (k :String, data :String*) = {
+      val sb = new StringBuilder(k)
+      for (d <- data) sb.append(Sep).append(d)
+      sb.toString
+    }
+  }
+
+  /** Inflates an [[Id]] from `string`. `string` must be the result of a call to [[Id.deflate]]. */
+  def inflateId (string :String) = string split(Sep) match {
+    case Array("r", repo, groupId, artifId, vers) => Some(RepoId(repo, groupId, artifId, vers))
+    case Array("s", vcs, url) => Some(SrcURL(vcs, url))
+    case Array("p", platform, vers) => Some(PlatformId(platform, vers))
+    case _ => None
+  }
+
   /** An id string to use for [[RepoId.repo]] for the Maven repository. */
   final val MavenRepo = "mvn"
   /** An id string to use for [[RepoId.repo]] for the Ivy repository. */
@@ -23,14 +42,9 @@ object Project {
 
   /** Identifies a project via an artifact repository identifier.
     * The canonical example of this kind of ID is a Maven/Ivy style dependency. */
-  case class RepoId (repo :String, groupId :String, artifactId :String, version :String) {
-    override def toString = s"$repo:$groupId:$artifactId:$version"
-  }
-
-  /** Parses `str` into a `RepoId`. `str` must be the result of [[RepoId.toString]]. */
-  def repoIdFromString (str :String) :Option[RepoId] = str.split(":", 4) match {
-    case Array(r, g, a, v) => Some(RepoId(r, g, a, v))
-    case _ => None
+  case class RepoId (repo :String, groupId :String, artifactId :String,
+                     version :String) extends Id {
+    def deflate = deflate("r", repo, groupId, artifactId, version)
   }
 
   /** Identifies a project via its version control system URL. Examples:
@@ -39,22 +53,24 @@ object Project {
     * - `SrcURL(hg, https://ooo-maven.googlecode.com/hg/)`
     * - `SrcURL(svn, https://ooo-gwt-utils.googlecode.com/svn)`
     */
-  case class SrcURL (vcs :String, url :String) {
-    override def toString = s"$vcs:$url"
+  case class SrcURL (vcs :String, url :String) extends Id {
+    def deflate = deflate("s", vcs, url)
   }
 
-  /** Parses `str` into a `SrcURL`. `str` must be the result of [[SrcURL.toString]]. */
-  def srcURLFromString (str :String) :Option[SrcURL] = str.split(":", 2) match {
-    case Array(v, u) => Some(SrcURL(v, u))
-    case _ => None
+  /** An id string to use for [[PlatformId.platform]] for the Java/JDK platform. Versions for this
+    * platform should be of the form: `"6"`, `"7"`, `"8"`. */
+  final val JavaPlatform = "jdk"
+
+  /** Identifies a platform project. This is generally an implicit dependency added by the build
+    * system, like a particular version of the JDK for a Java or Scala project, or a particular
+    * version of the Ruby standard libraries for a Ruby project. */
+  case class PlatformId (platform :String, version :String) extends Id {
+    def deflate = deflate("p", platform, version)
   }
 
-  /** Enumerates project dependency types. */
-  sealed trait Depend {}
-  /** A dependency resolved by artifact repository id. */
-  case class RepoDepend (id :RepoId) extends Depend
-  /** A dependency resolved by source URL. */
-  case class SrcDepend (url :SrcURL) extends Depend
+  // separate Id components by VT; they will be embedded in strings that are themselves separated by
+  // HT, so we want to play nicely with that
+  private final val Sep = 11.toChar
 }
 
 /** Provides services for a particular project. See [[ProjectService]] for a more detailed
@@ -72,16 +88,13 @@ abstract class Project (val metaSvc :MetaService) {
   /** Returns the root of this project. */
   def root :Path
 
-  /** Returns the artifact repository identifier for this project, if it has one. */
-  def id :Option[RepoId] = None
+  /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
+  def ids :Seq[Id] = Seq()
 
-  /** Returns the version control source URL for this project, if it has one. */
-  def sourceURL :Option[SrcURL] = None
-
-  /** Returns this project's dependencies. These should be returned in highest to lowest precedence
-    * order. Do not look up project dependencies manually, instead use [[depend]] which will
-    * properly reference the dependent project and release it when this project hibernates. */
-  def depends :Seq[Depend] = Seq()
+  /** Returns the ids of project's dependencies. These should be returned in highest to lowest
+    * precedence order. Do not look up project dependencies manually, instead use [[depend]] which
+    * will properly reference the dependent project and release it when this project hibernates. */
+  def depends :Seq[Id] = Seq()
 
   /** Notes that `ref` is now using this project. */
   def reference (ref :Any) :this.type = {
@@ -136,8 +149,7 @@ abstract class Project (val metaSvc :MetaService) {
 
     val info = Seq.newBuilder[(String,String)]
     info += ("Root: " -> root.toString)
-    id.foreach { id => info += ("ID: " -> id.toString) }
-    sourceURL.foreach { url => info += ("Source: " -> url.toString) }
+    ids.foreach { id => info += ("ID: " -> id.toString) }
     bb.addKeysValues(info.result :_*)
 
     // add info on our helpers
@@ -150,7 +162,7 @@ abstract class Project (val metaSvc :MetaService) {
   def updateStatus () :Unit = status() = makeStatus
 
   /** Resolves (if needed), and returns the projects that correspond to `depend`. */
-  def depend (depend :Depend) :Option[Project] = _depprojs.get.resolve(depend)
+  def depend (depend :Id) :Option[Project] = _depprojs.get.resolve(depend)
 
   /** Returns the compiler that handles compilation for this project. Created on demand. */
   def compiler :Compiler = _compiler.get
@@ -164,7 +176,7 @@ abstract class Project (val metaSvc :MetaService) {
   /** Returns the Codex for this project. Created on demand. */
   def codex :ProjectCodex = _codex.get
 
-  override def toString = s"Project($root, $name, $id, $sourceURL)"
+  override def toString = s"Project($root, $name, $ids)"
 
   /** Shuts down all helper services and frees as much memory as possible.
     * A project hibernates when it is no longer referenced by project-mode using buffers. */
@@ -191,9 +203,9 @@ abstract class Project (val metaSvc :MetaService) {
   }
   class DependMap extends AutoCloseable {
     private val psvc = metaSvc.service[ProjectService]
-    private val deps = MMap[Depend,Project]()
+    private val deps = MMap[Id,Project]()
 
-    def resolve (depend :Depend) :Option[Project] = deps.get(depend) match {
+    def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
       case None => psvc.projectFor(depend) match {
         case sp @ Some(p) => deps.put(depend, p) ; sp
         case None => None

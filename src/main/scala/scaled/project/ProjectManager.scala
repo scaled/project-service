@@ -5,7 +5,6 @@
 package scaled.project
 
 import com.google.common.base.Charsets
-import com.google.common.collect.HashBiMap
 import java.io.PrintWriter
 import java.nio.file.{Files, Path, Paths}
 import scala.annotation.tailrec
@@ -20,9 +19,8 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   import scala.collection.convert.WrapAsScala._
   import Project._
 
-  // maps from id, srcurl to project root for all known projects
-  private val byID  = HashBiMap.create[RepoId,Path]()
-  private val byURL = HashBiMap.create[SrcURL,Path]()
+  // maps from id to project root for all known projects
+  private val byId  = MMap[Id,Path]()
   // map from root to name for all known projects (name is not necessarily unique)
   private val toName = MMap[Path,String]()
 
@@ -60,11 +58,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   def projectIn (root :Path) = projectInRoot(root) getOrElse {
     throw Errors.feedback(s"No project in $root")
   }
-  def projectFor (dep :Project.Depend) = dep match {
-    // TODO: give project resolvers a chance to resolve projects by dependency
-    case RepoDepend(id) => projectInRoot(byID.get(id))
-    case SrcDepend(url) => projectInRoot(byURL.get(url))
-  }
+  def projectFor (id :Project.Id) = byId.get(id).flatMap(projectInRoot).orElse(resolveProject(id))
   def loadedProjects = projects.values.toSeq
   def knownProjects = toName.toSeq
 
@@ -74,34 +68,45 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     else projects.get(root) orElse Some(resolveProject(List(root)))
 
   private def resolveProject (paths :List[Path]) :Project = {
-    // apply each of our finders to the path tree
-    val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._2.intelligent)
+    val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._2)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
       if (iprojs.size > 1) log.log(s"Multiple intelligent project matches: ${iprojs.mkString(" ")}")
-      openProject(iprojs.head._1, iprojs.head._2.projectClass)
+      openProject(iprojs.head._1, iprojs.head._3)
     }
     // if there are any non-intelligent project matches, use the deepest match
     else if (!dprojs.isEmpty) {
       val deep = dprojs.maxBy(_._1.getNameCount)
-      openProject(deep._1, deep._2.projectClass)
+      openProject(deep._1, deep._3)
     }
-    else openProject(paths.last, classOf[FileProject])
+    // if all else fails, create a FileProject for the root
+    else openProject(paths.last, _.injectInstance(classOf[FileProject], List(paths.last)))
   }
 
-  private def openProject (root :Path, clazz :Class[_ <: Project]) = projects.getOrElse(root, {
+  private def resolveProject (id :Project.Id) :Option[Project] = {
+    val iter = finders.plugins.iterator
+    while (iter.hasNext) iter.next.apply(id) match {
+      case Some(thunk) => return Some(thunk(metaSvc))
+      case None => // keep on keepin' on
+    }
+    None
+  }
+
+  private def openProject (root :Path, thunk :(MetaService => Project)) = projects.getOrElse(root, {
     // println(s"Creating $clazz project in $root")
-    val proj = metaSvc.injectInstance(clazz, List(root))
-    projects += (root -> proj)
+    val proj = thunk(metaSvc)
+    projects += (proj.root -> proj)
 
     // add this project to our all-projects maps, and save them if it's new; note that we use
     // forcePut to ensure that if a project previously mapped to some other id or url, we replace
     // it rather than throw an exception
-    val newID = proj.id.map(id => byID.forcePut(id, root) != root).getOrElse(false)
-    val newURL = proj.sourceURL.map(url => byURL.forcePut(url, root) != root).getOrElse(false)
-    val newName = toName.put(root, proj.name) != Some(proj.name)
-    if (newID || newURL || newName) {
-      log.log(s"New project in '$root', updating '${mapFile.getFileName}'.")
+    var newID = false
+    proj.ids.foreach { id =>
+      if (byId.put(id, proj.root) != Some(proj.root)) newID = true
+    }
+    val newName = toName.put(proj.root, proj.name) != Some(proj.name)
+    if (newID || newName) {
+      log.log(s"New project in '${proj.root}', updating '${mapFile.getFileName}'.")
       writeProjectMap()
     }
 
@@ -119,13 +124,12 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   private def readProjectMap () {
     if (Files.exists(mapFile)) try {
       Files.readAllLines(mapFile).foreach { line => line.split("\t") match {
-        case Array(rpath, id, url, name) =>
+        case Array(rpath, name, ids @ _*) =>
           val root = Paths.get(rpath)
           if (!Files.exists(root)) log.log(s"Removing obsolete project: $rpath")
           else {
-            if (id   != "none") repoIdFromString(id) foreach { byID.put(_, root) }
-            if (url  != "none") srcURLFromString(url) foreach { byURL.put(_, root) }
             if (name != "none") toName.put(root, name)
+            ids flatMap(inflateId) foreach { id => byId.put(id, root) }
           }
         case _ => log.log(s"Invalid line in projects.txt: $line")
       }}
@@ -135,16 +139,19 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   private def writeProjectMap () {
-    val roots = byID.values ++ byURL.values ++ toName.keySet
+    val roots = Set() ++ byId.values ++ toName.keySet
+    val rootToIds = byId.keys.groupBy(byId)
     val out = new PrintWriter(Files.newBufferedWriter(mapFile, Charsets.UTF_8))
     try {
-      def orNone (obj :AnyRef) = if (obj == null) "none" else obj.toString
       roots foreach { root =>
-        val id = byID.inverse.get(root)
-        val url = byURL.inverse.get(root)
-        val name = toName.getOrElse(root, null)
-        if (id != null || url != null || name != null) {
-          out.println(s"$root\t${orNone(id)}\t${orNone(url)}\t${orNone(name)}")
+        val ids = rootToIds.getOrElse(root, Seq())
+        val name = toName.get(root)
+        if (!ids.isEmpty || !name.isEmpty) {
+          out.print(root)
+          out.print("\t")
+          out.print(name.getOrElse("none"))
+          ids foreach { id => out.print("\t") ; out.print(id.deflate) }
+          out.println()
         }
       }
     } finally {

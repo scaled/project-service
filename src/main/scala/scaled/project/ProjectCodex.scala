@@ -88,5 +88,5 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
 
   /** Resolves the project store for a dependency for which a Scaled project was unavailable. If
     * `None` is returned, this dependency will be omitted from the Codex. */
-  protected def resolveNonProjectStore (depend :Project.Depend) :Option[ProjectStore] = None
+  protected def resolveNonProjectStore (depend :Project.Id) :Option[ProjectStore] = None
 }
