@@ -12,9 +12,23 @@ import scaled._
 /** Exposes the contents of one or more zip files as a project. This is dumb like [[FileProject]],
   * but can at least do project-wide file completion using all the files in the zip file(s).
   */
-class ZipFileProject (val zipPaths :Seq[Path], metaSvc :MetaService) extends Project(metaSvc) {
-  import scala.collection.convert.WrapAsScala._
+final class ZipFileProject (val zipPaths :Seq[Path], msvc :MetaService)
+    extends AbstractZipFileProject(msvc) {
   def this (zipPath :Path, metaSvc :MetaService) = this(Seq(zipPath), metaSvc)
+
+  override def isIncidental = true
+  override def name = root.getFileName.toString
+  override def root = zipPaths.head
+}
+
+/** A base class for projects that get their contents from a zip file. Provides a completer over all
+  * entries in the zip file.
+  */
+abstract class AbstractZipFileProject (msvc :MetaService) extends Project(msvc) {
+  import scala.collection.convert.WrapAsScala._
+
+  /** The zip files that make up this project. */
+  val zipPaths :Seq[Path]
 
   // map the zip entries into a faux file system
   abstract class Node {
@@ -56,10 +70,6 @@ class ZipFileProject (val zipPaths :Seq[Path], metaSvc :MetaService) extends Pro
     val cs = path.split("/", -1)
     (cs.dropRight(1).map(c => s"$c/") :+ cs.last).toList
   }
-
-  override def isIncidental = true
-  override def name = root.getFileName.toString
-  override def root = zipPaths.head
 
   val fileCompleter = new Completer[Store]() {
     import Completer._

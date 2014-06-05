@@ -15,7 +15,15 @@ import scaled.util.BufferBuilder
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
   * of the root of a project.
   */
-class FileProject (val root :Path, metaSvc :MetaService) extends Project(metaSvc) {
+final class FileProject (val root :Path, msvc :MetaService) extends AbstractFileProject(msvc) {
+  override def isIncidental = true
+  override def name = root.getFileName.toString
+}
+
+/** A base class for projects that are rooted in a directory. Provides a completer over all files in
+  * the directory tree.
+  */
+abstract class AbstractFileProject (msvc :MetaService) extends Project(msvc) {
 
   private class Dir (dir :Path) {
     import scala.collection.convert.WrapAsScala._
@@ -71,9 +79,6 @@ class FileProject (val root :Path, metaSvc :MetaService) extends Project(metaSvc
       sortedCompletion(allFiles.filter(fileFilter(prefix)).map(Store.apply), f => defang(f.name))
     }
   }
-
-  override def isIncidental = true
-  override def name = root.getFileName.toString
 
   override def describeSelf (bb :BufferBuilder) {
     super.describeSelf(bb)
