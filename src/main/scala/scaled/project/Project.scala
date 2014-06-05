@@ -82,6 +82,9 @@ abstract class Project (val metaSvc :MetaService) {
   // keep a logger around for ourselves and children
   protected val log = metaSvc.log
 
+  /** Indicates that this project should be omitted from lookup by name. */
+  def isIncidental = false
+
   /** Returns the name of this project. */
   def name :String
 

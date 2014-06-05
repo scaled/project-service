@@ -57,8 +57,9 @@ class ZipFileProject (val zipPaths :Seq[Path], metaSvc :MetaService) extends Pro
     (cs.dropRight(1).map(c => s"$c/") :+ cs.last).toList
   }
 
-  def root = zipPaths.head
-  def name = root.getFileName.toString
+  override def isIncidental = true
+  override def name = root.getFileName.toString
+  override def root = zipPaths.head
 
   val fileCompleter = new Completer[Store]() {
     import Completer._

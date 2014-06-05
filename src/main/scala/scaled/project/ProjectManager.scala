@@ -31,11 +31,18 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   private val projects = MMap[Path,Project]() // TODO: use concurrent maps? need we worry?
 
   private val finders = pluginSvc.resolvePlugins[ProjectFinderPlugin]("project-finder")
+  // a special resolver for our config file directory
+  private val configFinder = new FileProject.FinderPlugin("scaled-config") {
+    val configRoot = metaSvc.metaFile("Config")
+    def checkRoot (root :Path) = if (root == configRoot) 1 else -1
+  }
+  private def finderPlugins = finders.plugins :+ configFinder
 
   private val unknownProject = new Project(metaSvc) {
     val fileCompleter = Completer.file
-    def name = "<unknown>"
-    def root = Paths.get("")
+    override def isIncidental = true
+    override def name = "<unknown>"
+    override def root = Paths.get("")
   }
 
   // TODO: have projects export names, allow switching between projects by names
@@ -71,7 +78,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     def open (root :Path, thunk :(MetaService => Project)) =
       projects.getOrElse(root, mapProject(thunk(metaSvc)))
 
-    val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._2)
+    val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_._2)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
       if (iprojs.size > 1) log.log(s"Multiple intelligent project matches: ${iprojs.mkString(" ")}")
@@ -87,7 +94,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   private def resolveById (id :Project.Id) :Option[Project] = {
-    val iter = finders.plugins.iterator
+    val iter = finderPlugins.iterator
     while (iter.hasNext) iter.next.apply(id) match {
       case Some(thunk) => return Some(mapProject(thunk(metaSvc)))
       case None => // keep on keepin' on
@@ -98,17 +105,18 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   private def mapProject (proj :Project) :Project = {
     projects += (proj.root -> proj)
 
-    // add this project to our all-projects maps, and save them if it's new; note that we use
-    // forcePut to ensure that if a project previously mapped to some other id or url, we replace
-    // it rather than throw an exception
-    var newID = false
+    var newId = false
     proj.ids.foreach { id =>
-      if (byId.put(id, proj.root) != Some(proj.root)) newID = true
+      if (byId.put(id, proj.root) != Some(proj.root)) newId = true
     }
-    val newName = toName.put(proj.root, proj.name) != Some(proj.name)
-    if (newID || newName) {
-      log.log(s"New project in '${proj.root}', updating '${mapFile.getFileName}'.")
-      writeProjectMap()
+    // if this project is not incidental, map it by name
+    if (!proj.isIncidental) {
+      val newName = toName.put(proj.root, proj.name) != Some(proj.name)
+      println(s"Mapped ${proj.name}")
+      if (newId || newName) {
+        log.log(s"New project in '${proj.root}', updating '${mapFile.getFileName}'.")
+        writeProjectMap()
+      }
     }
 
     // println(s"Created $proj")
@@ -129,7 +137,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
           val root = Paths.get(rpath)
           if (!Files.exists(root)) log.log(s"Removing obsolete project: $rpath")
           else {
-            if (name != "none") toName.put(root, name)
+            toName.put(root, name)
             ids flatMap(inflateId) foreach { id => byId.put(id, root) }
           }
         case _ => log.log(s"Invalid line in projects.txt: $line")
@@ -140,17 +148,16 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   private def writeProjectMap () {
-    val roots = Set() ++ byId.values ++ toName.keySet
     val rootToIds = byId.keys.groupBy(byId)
     val out = new PrintWriter(Files.newBufferedWriter(mapFile, Charsets.UTF_8))
     try {
-      roots foreach { root =>
+      // only projects that have a name are written to the project map
+      toName foreach { case (root, name) =>
         val ids = rootToIds.getOrElse(root, Seq())
-        val name = toName.get(root)
         if (!ids.isEmpty || !name.isEmpty) {
           out.print(root)
           out.print("\t")
-          out.print(name.getOrElse("none"))
+          out.print(name)
           ids foreach { id => out.print("\t") ; out.print(id.deflate) }
           out.println()
         }

@@ -72,7 +72,8 @@ class FileProject (val root :Path, metaSvc :MetaService) extends Project(metaSvc
     }
   }
 
-  def name = root.getFileName.toString
+  override def isIncidental = true
+  override def name = root.getFileName.toString
 
   override def describeSelf (bb :BufferBuilder) {
     super.describeSelf(bb)
@@ -95,22 +96,22 @@ object FileProject {
 
   /** Creates file projects rooted at .git directories. */
   @Plugin(tag="project-finder")
-  class GitFinderPlugin extends FileProjectFinderPlugin("git") {
+  class GitFinderPlugin extends FinderPlugin("git") {
     def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".git"))) 1 else -1
   }
 
   /** Creates file projects rooted at .hg directories. */
   @Plugin(tag="project-finder")
-  class MercurialFinderPlugin extends FileProjectFinderPlugin("mercurial") {
+  class MercurialFinderPlugin extends FinderPlugin("mercurial") {
     def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".hg"))) 1 else -1
   }
 
   /** Creates file projects rooted at the highest .svn directory. */
   @Plugin(tag="project-finder")
-  class SubversionFinderPlugin extends FileProjectFinderPlugin("subversion") {
+  class SubversionFinderPlugin extends FinderPlugin("subversion") {
     def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".svn"))) 0 else -1
   }
 
-  abstract class FileProjectFinderPlugin (nm :String)
+  abstract class FinderPlugin (nm :String)
       extends ProjectFinderPlugin(nm, false, classOf[FileProject])
 }
