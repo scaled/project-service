@@ -152,6 +152,10 @@ abstract class Project (val metaSvc :MetaService) {
     ids.foreach { id => info += ("ID: " -> id.toString) }
     bb.addKeysValues(info.result :_*)
 
+    bb.addSubHeader("Depends:")
+    depends foreach { d => bb.add(d.toString) } // TODO
+    if (depends.isEmpty) bb.add("<none>")
+
     // add info on our helpers
     compiler.describeSelf(bb)
     runner.describeSelf(bb)
@@ -176,7 +180,7 @@ abstract class Project (val metaSvc :MetaService) {
   /** Returns the Codex for this project. Created on demand. */
   def codex :ProjectCodex = _codex.get
 
-  override def toString = s"Project($root, $name, $ids)"
+  override def toString = s"$name ($root)"
 
   /** Shuts down all helper services and frees as much memory as possible.
     * A project hibernates when it is no longer referenced by project-mode using buffers. */
