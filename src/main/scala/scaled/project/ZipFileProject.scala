@@ -9,11 +9,12 @@ import java.util.zip.ZipFile
 import scala.collection.mutable.{Map => MMap}
 import scaled._
 
-/** Exposes the contents of a zip file as a project. This is dumb like [[FileProject]], but can at
-  * least do project-wide file completion using all the files in the zip file.
+/** Exposes the contents of one or more zip files as a project. This is dumb like [[FileProject]],
+  * but can at least do project-wide file completion using all the files in the zip file(s).
   */
-class ZipFileProject (val zipPath :Path, metaSvc :MetaService) extends Project(metaSvc) {
+class ZipFileProject (val zipPaths :Seq[Path], metaSvc :MetaService) extends Project(metaSvc) {
   import scala.collection.convert.WrapAsScala._
+  def this (zipPath :Path, metaSvc :MetaService) = this(Seq(zipPath), metaSvc)
 
   // map the zip entries into a faux file system
   abstract class Node {
@@ -41,8 +42,10 @@ class ZipFileProject (val zipPath :Path, metaSvc :MetaService) extends Project(m
       case _ => Seq()
     }
   }
-  private lazy val rootNode = {
-    val node = new DirNode()
+  class RootNode (val zipPath :Path) extends DirNode
+
+  private lazy val rootNodes = zipPaths map { zipPath =>
+    val node = new RootNode(zipPath)
     new ZipFile(zipPath.toFile).entries.foreach(
       e => if (!e.isDirectory) node.insert(splitPath(e.getName)))
     node
@@ -54,18 +57,19 @@ class ZipFileProject (val zipPath :Path, metaSvc :MetaService) extends Project(m
     (cs.dropRight(1).map(c => s"$c/") :+ cs.last).toList
   }
 
-  def root = zipPath
+  def root = zipPaths.head
   def name = root.getFileName.toString
 
   val fileCompleter = new Completer[Store]() {
     import Completer._
     def complete (prefix :String) = {
       val comps = splitPath(prefix)
-      val files = rootNode.lookup(comps)
-      val matches = files.filter(startsWithI(comps.last))
       val pathpre = (if (prefix endsWith "/") comps else comps.dropRight(1)).mkString
-      sortedCompletion(matches.map(m => ZipEntryStore(zipPath, pathpre + m)),
-                       _.asInstanceOf[ZipEntryStore].entry)
+      val matches = rootNodes.flatMap { root =>
+        root.lookup(comps).filter(startsWithI(comps.last)).map(
+          m => ZipEntryStore(root.zipPath, pathpre + m))
+      }
+      sortedCompletion(matches, _.asInstanceOf[ZipEntryStore].entry)
     }
     override def pathSeparator = Some("/")
   }
