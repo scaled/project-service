@@ -82,14 +82,14 @@ abstract class Project (val metaSvc :MetaService) {
   // keep a logger around for ourselves and children
   protected val log = metaSvc.log
 
+  /** Returns the root of this project. */
+  val root :Path
+
   /** Indicates that this project should be omitted from lookup by name. */
   def isIncidental = false
 
   /** Returns the name of this project. */
   def name :String
-
-  /** Returns the root of this project. */
-  def root :Path
 
   /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
   def ids :Seq[Id] = Seq()

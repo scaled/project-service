@@ -40,9 +40,9 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
 
   private val unknownProject = new Project(metaSvc) {
     val fileCompleter = Completer.file
+    override val root = Paths.get("")
     override def isIncidental = true
     override def name = "<unknown>"
-    override def root = Paths.get("")
   }
 
   // TODO: have projects export names, allow switching between projects by names

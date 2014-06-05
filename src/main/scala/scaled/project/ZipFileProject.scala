@@ -16,9 +16,9 @@ final class ZipFileProject (val zipPaths :Seq[Path], msvc :MetaService)
     extends AbstractZipFileProject(msvc) {
   def this (zipPath :Path, metaSvc :MetaService) = this(Seq(zipPath), metaSvc)
 
+  override val root = zipPaths.head
   override def isIncidental = true
   override def name = root.getFileName.toString
-  override def root = zipPaths.head
 }
 
 /** A base class for projects that get their contents from a zip file. Provides a completer over all
