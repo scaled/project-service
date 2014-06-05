@@ -51,50 +51,51 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
   }
 
   def projectFor (store :Store) = store match {
-    case FileStore(path)       => resolveProject(parents(path.getParent))
+    case FileStore(path)       => resolveByPaths(parents(path.getParent))
     case ZipEntryStore(zip, _) => projects.getOrElseUpdate(zip, new ZipFileProject(zip, metaSvc))
     case _                     => unknownProject
   }
   def projectIn (root :Path) = projectInRoot(root) getOrElse {
     throw Errors.feedback(s"No project in $root")
   }
-  def projectFor (id :Project.Id) = byId.get(id).flatMap(projectInRoot).orElse(resolveProject(id))
+  def projectFor (id :Project.Id) = byId.get(id).flatMap(projectInRoot).orElse(resolveById(id))
   def loadedProjects = projects.values.toSeq
   def knownProjects = toName.toSeq
 
   // the root passed here may have disappeared in the fullness of time, so validate it
   private def projectInRoot (root :Path) =
     if (root == null || !Files.exists(root)) None
-    else projects.get(root) orElse Some(resolveProject(List(root)))
+    else projects.get(root) orElse Some(resolveByPaths(List(root)))
 
-  private def resolveProject (paths :List[Path]) :Project = {
+  private def resolveByPaths (paths :List[Path]) :Project = {
+    def open (root :Path, thunk :(MetaService => Project)) =
+      projects.getOrElse(root, mapProject(thunk(metaSvc)))
+
     val (iprojs, dprojs) = finders.plugins.flatMap(_.apply(paths)).partition(_._2)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
       if (iprojs.size > 1) log.log(s"Multiple intelligent project matches: ${iprojs.mkString(" ")}")
-      openProject(iprojs.head._1, iprojs.head._3)
+      open(iprojs.head._1, iprojs.head._3)
     }
     // if there are any non-intelligent project matches, use the deepest match
     else if (!dprojs.isEmpty) {
       val deep = dprojs.maxBy(_._1.getNameCount)
-      openProject(deep._1, deep._3)
+      open(deep._1, deep._3)
     }
     // if all else fails, create a FileProject for the root
-    else openProject(paths.last, _.injectInstance(classOf[FileProject], List(paths.last)))
+    else open(paths.last, _.injectInstance(classOf[FileProject], List(paths.last)))
   }
 
-  private def resolveProject (id :Project.Id) :Option[Project] = {
+  private def resolveById (id :Project.Id) :Option[Project] = {
     val iter = finders.plugins.iterator
     while (iter.hasNext) iter.next.apply(id) match {
-      case Some(thunk) => return Some(thunk(metaSvc))
+      case Some(thunk) => return Some(mapProject(thunk(metaSvc)))
       case None => // keep on keepin' on
     }
     None
   }
 
-  private def openProject (root :Path, thunk :(MetaService => Project)) = projects.getOrElse(root, {
-    // println(s"Creating $clazz project in $root")
-    val proj = thunk(metaSvc)
+  private def mapProject (proj :Project) :Project = {
     projects += (proj.root -> proj)
 
     // add this project to our all-projects maps, and save them if it's new; note that we use
@@ -112,7 +113,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
 
     // println(s"Created $proj")
     proj
-  })
+  }
 
   @tailrec private def parents (file :Path, accum :List[Path] = Nil) :List[Path] =
     file.getParent match {
