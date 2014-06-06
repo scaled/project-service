@@ -59,7 +59,7 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
 
   def projectFor (store :Store) = store match {
     case FileStore(path)       => resolveByPaths(parents(path.getParent))
-    case ZipEntryStore(zip, _) => projects.getOrElseUpdate(zip, new ZipFileProject(zip, metaSvc))
+    case ZipEntryStore(zip, _) => resolveByPaths(List(zip))
     case _                     => unknownProject
   }
   def projectIn (root :Path) = projectInRoot(root) getOrElse {
@@ -90,7 +90,11 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
       open(deep._1, deep._3)
     }
     // if all else fails, create a FileProject for the root
-    else open(paths.last, _.injectInstance(classOf[FileProject], List(paths.last)))
+    else {
+      val root = paths.last ; val file = root.getFileName.toString
+      if ((file endsWith ".zip") || (file endsWith ".jar")) open(root, new ZipFileProject(root, _))
+      else open(root, new FileProject(root, _))
+    }
   }
 
   private def resolveById (id :Project.Id) :Option[Project] = {
