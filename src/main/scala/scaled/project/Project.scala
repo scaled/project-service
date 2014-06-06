@@ -140,8 +140,7 @@ abstract class Project (val metaSvc :MetaService) {
 
   /** Returns the file named `name` in this project's metadata directory. */
   def metaFile (name :String) :Path = {
-    val metaDir = root.resolve(".scaled")
-    if (!Files.exists(metaDir)) Files.createDirectory(metaDir)
+    if (!Files.exists(metaDir)) Files.createDirectories(metaDir)
     metaDir.resolve(name)
   }
 
@@ -185,6 +184,16 @@ abstract class Project (val metaSvc :MetaService) {
   def codex :ProjectCodex = _codex.get
 
   override def toString = s"$name ($root)"
+
+  /** Returns the directory in which this project will store metadata.
+    * The default is to store it in `root/.scaled`. */
+  protected def metaDir = root.resolve(".scaled")
+
+  /** Returns a metadata directory in the `Projects` subdirectory of Scaled's main metadata
+    * location. This is useful for projects which cannot write to their project root, though said
+    * projects need to be careful not to step on one another's toes.
+    */
+  protected def globalMetaDir (id :String) :Path = metaSvc.metaFile("Projects").resolve(id)
 
   /** Shuts down all helper services and frees as much memory as possible.
     * A project hibernates when it is no longer referenced by project-mode using buffers. */
