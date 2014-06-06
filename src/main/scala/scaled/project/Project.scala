@@ -189,6 +189,7 @@ abstract class Project (val metaSvc :MetaService) {
   /** Shuts down all helper services and frees as much memory as possible.
     * A project hibernates when it is no longer referenced by project-mode using buffers. */
   protected def hibernate () {
+    println(s"$this hibernating")
     toClose.close()
   }
 
