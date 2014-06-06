@@ -112,7 +112,6 @@ class ProjectManager (log :Logger, metaSvc :MetaService, pluginSvc :PluginServic
     // if this project is not incidental, map it by name
     if (!proj.isIncidental) {
       val newName = toName.put(proj.root, proj.name) != Some(proj.name)
-      println(s"Mapped ${proj.name}")
       if (newId || newName) {
         log.log(s"New project in '${proj.root}', updating '${mapFile.getFileName}'.")
         writeProjectMap()
