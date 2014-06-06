@@ -140,8 +140,9 @@ abstract class Project (val metaSvc :MetaService) {
 
   /** Returns the file named `name` in this project's metadata directory. */
   def metaFile (name :String) :Path = {
-    if (!Files.exists(_metaDir)) Files.createDirectory(_metaDir)
-    _metaDir.resolve(name)
+    val metaDir = root.resolve(".scaled")
+    if (!Files.exists(metaDir)) Files.createDirectory(metaDir)
+    metaDir.resolve(name)
   }
 
   /** Emits a description of this project to `bb`. The default project adds basic metadata, and
@@ -203,7 +204,6 @@ abstract class Project (val metaSvc :MetaService) {
   }
 
   private val _refs = new IdentityHashMap[Any,Any]() // see reference()/release()
-  private val _metaDir = root.resolve(".scaled")
 
   private val _depprojs = new Close.Box[DependMap](toClose) {
     override protected def create = new DependMap() // ctor resolves projects
