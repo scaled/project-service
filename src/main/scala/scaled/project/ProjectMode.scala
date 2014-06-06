@@ -306,7 +306,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   def codexVisitElement () {
     onElemAt(view.point(), (_, df) => {
       project.codex.visitStack.push(this.view) // push current loc to the visit stack
-      val view = editor.visitFile(ProjectCodex.toStore(df.source()))
+      val view = editor.visitFile(ProjectCodex.toStore(df.source))
       view.point() = view.buffer.loc(df.offset)
     })
   }
