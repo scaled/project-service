@@ -6,4 +6,5 @@ descrip: Provides a framework for grokking projects.
 license: New BSD
  srcdir: src/main/scala
  bindir: target/classes
+ depend: git:https://github.com/scaled/scaled-api.git
  depend: mvn:com.samskivert.codex:codex-core:1.0-SNAPSHOT
