@@ -1,8 +1,8 @@
    name: project-service
+ source: git:https://github.com/scaled/project-service.git
 version: 1.0
 descrip: Provides a framework for grokking projects.
  weburl: https://github.com/scaled/project-service
- srcurl: git:https://github.com/scaled/project-service.git
 license: New BSD
  srcdir: src/main/scala
  bindir: target/classes
