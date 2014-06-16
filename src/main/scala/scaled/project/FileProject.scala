@@ -4,6 +4,7 @@
 
 package scaled.project
 
+import java.nio.file.LinkOption
 import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path}
 import scala.collection.immutable.TreeMap
@@ -36,7 +37,7 @@ abstract class AbstractFileProject (msvc :MetaService) extends Project(msvc) {
       if (lm.compareTo(lastRefresh) > 0) {
         lastRefresh = lm
         val fs = Seq() ++ Files.list(dir).iterator
-        val (nd, nf) = fs.partition(Files.isDirectory(_))
+        val (nd, nf) = fs.partition(Files.isDirectory(_, LinkOption.NOFOLLOW_LINKS))
         val nfiles = nf.toSet
         if (files != nfiles) {
           files = nfiles
