@@ -5,4 +5,4 @@ descrip: Provides a framework for grokking projects.
  weburl: https://github.com/scaled/project-service
 license: New BSD
  depend: git:https://github.com/scaled/scaled-api.git
- depend: mvn:com.samskivert.codex:codex-core:1.0-SNAPSHOT
+ depend: git:https://github.com/scaled/codex.git#core
