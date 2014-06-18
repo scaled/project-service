@@ -199,7 +199,10 @@ abstract class Project (val metaSvc :MetaService) {
     * A project hibernates when it is no longer referenced by project-mode using buffers. */
   protected def hibernate () {
     println(s"$this hibernating")
-    toClose.close()
+    try toClose.close()
+    catch {
+      case e :Throwable => log.log("$this hibernate failure", e)
+    }
   }
 
   /** Populates our status line (`sb`) and status line tooltip (`tb`) strings. */
