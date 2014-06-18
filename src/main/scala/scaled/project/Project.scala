@@ -227,7 +227,7 @@ abstract class Project (val metaSvc :MetaService) {
 
     def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
       case None => psvc.projectFor(depend) match {
-        case sp @ Some(p) => deps.put(depend, p) ; sp
+        case sp @ Some(p) => deps.put(depend, p) ; p.reference(Project.this) ; sp
         case None => None
       }
       case sp @ Some(p) => sp
