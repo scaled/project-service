@@ -6,7 +6,7 @@ package scaled.project
 
 import codex.Codex
 import codex.model.{Kind, Source}
-import codex.store.{EphemeralStore, ProjectStore}
+import codex.store.{MapDBStore, ProjectStore}
 import java.util.ArrayList
 import reactual.Signal
 import scaled._
@@ -44,6 +44,8 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
   val visitStack = new VisitStack("Element visit")
 
   override def close () {
+    // TODO: replace projectStore with Closes.Box to avoid situation where we resolve at close time
+    // just to shut the projectStore down
     projectStore.close()
   }
 
@@ -73,7 +75,7 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
     else project.metaSvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
   }
 
-  protected def createProjectStore () :ProjectStore = new EphemeralStore()
+  protected def createProjectStore () :ProjectStore = new MapDBStore() // TODO: persist
 
   /** Resolves the project stores for our Codex. */
   protected def resolveProjectStores :ArrayList[ProjectStore] = {
