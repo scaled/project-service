@@ -90,6 +90,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c C-v C-v" -> "codex-visit-value",
 
     "C-c C-d"     -> "codex-describe-element",
+    "C-c S-C-d"   -> "codex-debug-element",
     "M-."         -> "codex-visit-element",
     "M-,"         -> "codex-visit-pop",
 
@@ -322,6 +323,11 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     onElemAt(view.point(), (elem, df) => view.popup() = mkDefPopup(elem, df))
   }
 
+  @Fn("Displays debugging info for the Codex element at the point.")
+  def codexDebugElement () {
+    onElemAt(view.point(), (elem, df) => view.popup() = mkDebugPopup(elem, df))
+  }
+
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
   def codexVisitElement () {
@@ -389,6 +395,20 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
         // TODO: use defs and uses to style text
       }
     })
+    Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
+  }
+
+  private def mkDebugPopup (elem :Element, df :Def) :Popup = {
+    def safeGet (thunk : => Any) = try thunk.toString catch { case e :Exception => e.toString }
+    val text = ArrayBuffer[String]()
+    text += s"ID:    ${df.id}"
+    text += s"Outer: ${df.outerId}"
+    text += s"Kind:  ${df.kind}"
+    text += s"Exp:   ${df.exported}"
+    text += s"Name:  ${df.name}"
+    text += s"Off:   ${df.offset}"
+    text += s"Src:   ${safeGet(df.source)}"
+    text += s"GID:   ${safeGet(df.globalRef)}"
     Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
   }
 
