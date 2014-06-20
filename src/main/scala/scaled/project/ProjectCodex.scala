@@ -75,7 +75,7 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
     else project.metaSvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
   }
 
-  protected def createProjectStore () :ProjectStore = new MapDBStore() // TODO: persist
+  protected def createProjectStore () :ProjectStore = new MapDBStore(project.metaFile("codex"))
 
   /** Resolves the project stores for our Codex. */
   protected def resolveProjectStores :ArrayList[ProjectStore] = {
