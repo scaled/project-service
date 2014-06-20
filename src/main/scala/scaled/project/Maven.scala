@@ -11,6 +11,9 @@ import java.nio.file.{Path, Paths}
 object Maven {
   import Project._
 
+  /** The user's local Maven repository. */
+  val m2repo = Paths.get(System.getProperty("user.home"), ".m2", "repository")
+
   /** Resolves the `.pom` file for `id`. */
   def resolvePOM (id :RepoId) = resolve(id, "pom", None)
 
@@ -27,6 +30,4 @@ object Maven {
     m2repo.resolve(id.groupId.replace('.', File.separatorChar)).resolve(id.artifactId).resolve(
       id.version).resolve(artifactName)
   }
-
-  private val m2repo = Paths.get(System.getProperty("user.home"), ".m2", "repository")
 }
