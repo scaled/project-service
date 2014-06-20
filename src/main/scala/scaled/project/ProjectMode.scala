@@ -93,7 +93,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "M-."         -> "codex-visit-element",
     "M-,"         -> "codex-visit-pop",
 
-    // TODO: this doens't work, we need to wire up major:find-file to route to major mode fn
+    // TODO: this doesn't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
     "S-C-x S-C-f" -> "find-file-default"
   )
