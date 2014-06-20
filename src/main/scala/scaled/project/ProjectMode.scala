@@ -60,8 +60,8 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
-    "C-h p" -> "describe-project",
-    "C-h P" -> "show-projects",
+    "C-h p"   -> "describe-project",
+    "C-h C-p" -> "show-projects",
 
     // file fns
     "C-x C-f" -> "project-find-file",
