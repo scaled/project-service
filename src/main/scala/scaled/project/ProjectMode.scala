@@ -61,6 +61,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
     "C-h p" -> "describe-project",
+    "C-h P" -> "show-projects",
 
     // file fns
     "C-x C-f" -> "project-find-file",
@@ -277,6 +278,26 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     project.describeSelf(bb)
     bb.addBlank()
     val bname = s"*project:${project.name}*"
+    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
+  }
+
+  @Fn("Displays summary info for all known projects.")
+  def showProjects () {
+    val bb = new BufferBuilder(view.width()-1)
+    bb.addHeader("Loaded Projects")
+    for (p <- psvc.loadedProjects) {
+      bb.addSubHeader(p.name)
+      bb.addKeysValues("Kind: " -> p.getClass.getName,
+                       "Root: " -> p.root.toString(),
+                       "Ids: "  -> p.ids.mkString,
+                       "Deps: " -> p.depends.size.toString,
+                       "Refs: " -> p.references.toString)
+    }
+
+    bb.addHeader("Known Projects")
+    bb.addKeysValues(psvc.knownProjects.map(p => (p._2, p._1.toString)) :_*)
+
+    val bname = s"*projects*"
     editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
   }
 

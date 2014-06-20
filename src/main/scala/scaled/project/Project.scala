@@ -105,6 +105,9 @@ abstract class Project (val metaSvc :MetaService) {
     this
   }
 
+  /** Returns the number of active references to this project. */
+  def references :Int = _refs.size
+
   /** Notes that `ref` is no longer using this project. */
   def release (ref :Any) {
     if (_refs.remove(ref) == null) log.log(s"$this released by unknown referent: $ref")
