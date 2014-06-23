@@ -11,6 +11,7 @@ import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.major.EditingMode
+import scaled.util.Chars
 
 /** A minor mode which provides fns for interacting with a project's Codex.
   *
@@ -19,7 +20,7 @@ import scaled.major.EditingMode
 @Minor(name="codex",
        tags=Array("project"),
        desc="""A minor mode that provides project-codex fns.""")
-class CodexMode (env :Env, psvc :ProjectService) extends MinorMode(env) {
+class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends MinorMode(env) {
 
   val project :Project = psvc.projectFor(buffer.store).reference(buffer)
 
@@ -39,6 +40,7 @@ class CodexMode (env :Env, psvc :ProjectService) extends MinorMode(env) {
     "C-c C-v C-v" -> "codex-visit-value",
 
     // TEMP: implement local key bindings
+    "C-c C-i"     -> "codex-import-type",
     "C-c C-k"     -> "codex-visit-type",
 
     "C-c C-d"     -> "codex-describe-element",
@@ -108,35 +110,105 @@ class CodexMode (env :Env, psvc :ProjectService) extends MinorMode(env) {
     project.codex.visitStack.pop(editor)
   }
 
+  @Fn("Queries for a type (completed by the project's Codex) and adds an import for it.")
+  def codexImportType () {
+    codexRead("Type:", Kind.TYPE)(insertImport)
+  }
+
   //
   // Implementation details
 
-  private def codexVisit (prompt :String, kind :Kind) {
-    val dflt = "" // TODO: sym at point
-    val hist = project.codexHistory(kind)
-    editor.miniRead(prompt, dflt, hist, codexCompleter(kind)) onSuccess { df =>
-      val infOpt = project.codex.resolve(df.ref)
-      if (!infOpt.isPresent) editor.popStatus(s"Unable to resolve $df?")
-      else {
-        project.codex.visitStack.push(this.view) // push current loc to the visit stack
-        val info = infOpt.get
-        val view = editor.visitFile(ProjectCodex.toStore(info.source))
-        view.point() = view.buffer.loc(df.offset)
-      }
+  private def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
+    editor.miniRead(prompt, wordAt(view.point()), project.codexHistory(kind), codexCompleter(kind)).
+           onSuccess(fn)
+  }
+
+  private def codexVisit (prompt :String, kind :Kind) :Unit = codexRead(prompt, kind) { df =>
+    project.codex.visitStack.push(this.view) // push current loc to the visit stack
+    val view = editor.visitFile(ProjectCodex.toStore(df.source))
+    view.point() = view.buffer.loc(df.offset)
+  }
+
+  private def onElemAt (loc :Loc, fn :(Element, Def) => Unit) :Unit = index.getOption match {
+    case None => editor.popStatus("No Codex index available for this file.")
+    case Some(idx) => idx.elementAt(loc) match {
+      case None => editor.popStatus("No element could be found at the point.")
+      case Some(elem) =>
+        val dopt = project.codex.resolve(elem.ref)
+        if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
+        else fn(elem, dopt.get)
     }
   }
 
-  private def onElemAt (loc :Loc, fn :(Element, Def) => Unit) {
-    index.getOption match {
-      case None => editor.popStatus("No Codex index available for this file.")
-      case Some(idx) => idx.elementAt(loc) match {
-        case None => editor.popStatus("No element could be found at the point.")
-        case Some(elem) =>
-          val dopt = project.codex.resolve(elem.ref)
-          if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
-          else fn(elem, dopt.get)
+  // TODO: this should be in java-mode and/or scala-mode...
+  private val importM = Matcher.regexp("^import ")
+  private val packageM = Matcher.regexp("^package ")
+  private val firstDefM = Matcher.regexp("(class|interface|object|trait)")
+  private def insertImport (df :Def) {
+    val suff = if (major.name == "scala") "" else ";"
+    val fqName = df.fqName
+    val text = s"import $fqName$suff"
+
+    editor.popStatus("Importing $fqName")
+    // first figure out where we're going to stop looking
+    val firstDef = buffer.findForward(firstDefM, buffer.start) match {
+      case Loc.None => buffer.end
+      case loc => loc
+    }
+
+    // TODO: handle fancy scala grouped imports...
+
+    // look for an existing "import " statement in the buffer and scan down from there to find the
+    // position at which to insert the new statement
+    def loop (prev :Loc) :Loc = {
+      val next = buffer.findForward(importM, prev.nextStart, firstDef)
+      // if we see no more import statements...
+      if (next == Loc.None) {
+        // if we saw at least one import statement, then insert after the last one we saw
+        if (prev != buffer.start) prev.nextStart
+        // otherwise fail the search and fall back to inserting after 'package'
+        else Loc.None
+      }
+      else {
+        val ltext = buffer.line(next).asString
+        // if we have this exact import, abort (we'll catch and report this below)
+        if (ltext == text) throw new IllegalStateException(s"$fqName already imported.")
+        // if our import sorts earlier than this import, insert here
+          else if (text < ltext) next
+        // otherwise check the next import statement
+          else loop(next)
       }
     }
+    try {
+      val (loc, lines) = loop(buffer.start) match {
+        // if we failed to find existing import statements, look for a package statement
+        case Loc.None => buffer.findForward(packageM, buffer.start, firstDef) match {
+          case Loc.None =>
+            // fuck's sake, put the import at the top of the file (with a blank line after)
+            (buffer.start, List(text, "", ""))
+          case loc =>
+            // insert a blank line after 'package' and then our import
+            (loc.nextStart, List("", text, ""))
+        }
+        case loc =>
+        // put the import at the specified location
+        (loc, List(text, ""))
+      }
+      buffer.insert(loc, lines map (Line.apply))
+    } catch {
+      case ie :IllegalStateException => editor.popStatus(ie.getMessage)
+    }
+  }
+
+  /** Returns the "word" at the specified location in the buffer. */
+  private def wordAt (loc :Loc) :String = {
+    import Chars._
+    val p = view.point()
+    val pstart = buffer.scanBackward(isNotWord, p)
+    val start = if (isWord(buffer.charAt(pstart))) pstart else buffer.forward(pstart, 1)
+    val end = if (!isWord(buffer.charAt(start))) start
+              else buffer.scanForward(isNotWord, p)
+    buffer.region(start, end).map(_.asString).mkString
   }
 
   private def mkDefPopup (elem :Element, df :Def) :Popup = {
