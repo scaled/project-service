@@ -149,7 +149,6 @@ class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends Min
     val fqName = df.fqName
     val text = s"import $fqName$suff"
 
-    editor.popStatus("Importing $fqName")
     // first figure out where we're going to stop looking
     val firstDef = buffer.findForward(firstDefM, buffer.start) match {
       case Loc.None => buffer.end
