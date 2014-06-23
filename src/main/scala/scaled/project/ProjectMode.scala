@@ -4,8 +4,6 @@
 
 package scaled.project
 
-import codex.Codex
-import codex.model._
 import javafx.scene.control.Tooltip
 import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
@@ -48,13 +46,6 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   // do we really want to handle that crazy case?
   val project :Project = psvc.projectFor(buffer.store).reference(buffer)
 
-  /** The most recent index for the buffer's source file, if any. */
-  val index = OptValue[SourceIndex]()
-  // if our store gets indexed, store it in `index`
-  note(project.codex.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
-  // request that our store be indexed (which should eventually populate `index`)
-  note(buffer.storeV.onValueNotify(project.codex.reindex))
-
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
 
@@ -83,17 +74,6 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     "C-c C-a"   -> "project-execute-again",
     "C-c S-C-e" -> "project-execute-in",
 
-    // codex fns
-    "C-c C-v C-m" -> "codex-visit-module",
-    "C-c C-v C-t" -> "codex-visit-type",
-    "C-c C-v C-f" -> "codex-visit-func",
-    "C-c C-v C-v" -> "codex-visit-value",
-
-    "C-c C-d"     -> "codex-describe-element",
-    "C-c S-C-d"   -> "codex-debug-element",
-    "M-."         -> "codex-visit-element",
-    "M-,"         -> "codex-visit-pop",
-
     // TODO: this doesn't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
     "S-C-x S-C-f" -> "find-file-default"
@@ -109,21 +89,6 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
     editor.miniRead(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.fileCompleter
     ) onSuccess editor.visitFile
-  }
-
-  /** Returns a completer on elements of `kind` in this project's Codex. */
-  def codexCompleter (kind :Kind) :Completer[Def] = new Completer[Def]() {
-    import scala.collection.JavaConversions._
-    def complete (prefix :String) :Completion[Def] = prefix.split(":", 2) match {
-      case Array(name, path) =>
-        elemComp(project.codex.find(Codex.Query.name(name).kind(kind)) filter(
-          e => Completer.startsWithI(path)(pathString(e))))
-      case Array(name) =>
-        elemComp(project.codex.find(Codex.Query.prefix(name).kind(kind)))
-    }
-    private def elemComp (es :Seq[Def]) = completion(es, elemToString)
-    private def pathString (d :Def) = d.qualifier
-    private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
   }
 
   //
@@ -303,114 +268,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   }
 
   //
-  // Codex FNs
-
-  @Fn("Queries for a module (completed by the project's Codex) and navigates to its definition.")
-  def codexVisitModule () :Unit = codexVisit("Module:", Kind.MODULE)
-
-  @Fn("Queries for a type (completed by the project's Codex) and navigates to its definition.")
-  def codexVisitType () :Unit = codexVisit("Type:", Kind.TYPE)
-
-  @Fn("Queries for a function (completed by the project's Codex) and navigates to its definition.")
-  def codexVisitFunc () :Unit = codexVisit("Function:", Kind.FUNC)
-
-  @Fn("Queries for a value (completed by the project's Codex) and navigates to its definition.")
-  def codexVisitValue () :Unit = codexVisit("Value:", Kind.VALUE)
-
-  @Fn("""Displays the documentation and signature for the element at the point, if it is known to
-         the project's Codex.""")
-  def codexDescribeElement () {
-    onElemAt(view.point(), (elem, df) => view.popup() = mkDefPopup(elem, df))
-  }
-
-  @Fn("Displays debugging info for the Codex element at the point.")
-  def codexDebugElement () {
-    onElemAt(view.point(), (elem, df) => view.popup() = mkDebugPopup(elem, df))
-  }
-
-  @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
-         Codex.""")
-  def codexVisitElement () {
-    onElemAt(view.point(), (_, df) => {
-      project.codex.visitStack.push(this.view) // push current loc to the visit stack
-      val view = editor.visitFile(ProjectCodex.toStore(df.source))
-      view.point() = view.buffer.loc(df.offset)
-    })
-  }
-
-  @Fn("Pops to the last place `codex-visit-foo` was invoked.")
-  def codexVisitPop () {
-    project.codex.visitStack.pop(editor)
-  }
-
-  //
   // Implementation details
-
-  private def codexVisit (prompt :String, kind :Kind) {
-    val dflt = "" // TODO: sym at point
-    val hist = project.codexHistory(kind)
-    editor.miniRead(prompt, dflt, hist, codexCompleter(kind)) onSuccess { df =>
-      val infOpt = project.codex.resolve(df.ref)
-      if (!infOpt.isPresent) editor.popStatus(s"Unable to resolve $df?")
-      else {
-        project.codex.visitStack.push(this.view) // push current loc to the visit stack
-        val info = infOpt.get
-        val view = editor.visitFile(ProjectCodex.toStore(info.source))
-        view.point() = view.buffer.loc(df.offset)
-      }
-    }
-  }
-
-  private def onElemAt (loc :Loc, fn :(Element, Def) => Unit) {
-    index.getOption match {
-      case None => editor.popStatus("No Codex index available for this file.")
-      case Some(idx) => idx.elementAt(loc) match {
-        case None => editor.popStatus("No element could be found at the point.")
-        case Some(elem) =>
-          val dopt = project.codex.resolve(elem.ref)
-          if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
-          else fn(elem, dopt.get)
-      }
-    }
-  }
-
-  private def mkDefPopup (elem :Element, df :Def) :Popup = {
-    val text = ArrayBuffer[String]()
-    df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
-      def accept (doc :Doc) :Unit = try {
-        val r = df.source().reader()
-        val buf = new Array[Char](doc.length)
-        r.skip(doc.offset)
-        r.read(buf)
-        r.close()
-        // TODO: trim leading whitespace up to start.col
-        text ++= new String(buf).split(System.lineSeparator)
-      } catch {
-        case e :Exception => text += e.toString
-      }
-    })
-    df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
-      def accept (sig :Sig) {
-        text ++= sig.text.split(System.lineSeparator)
-        // TODO: use defs and uses to style text
-      }
-    })
-    Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
-  }
-
-  private def mkDebugPopup (elem :Element, df :Def) :Popup = {
-    def safeGet (thunk : => Any) = try thunk.toString catch { case t :Throwable => t.toString }
-    val text = ArrayBuffer[String]()
-    text += s"ID:    ${df.idToString}"
-    text += s"Outer: ${df.outerIdToString}"
-    text += s"Kind:  ${df.kind}"
-    text += s"Exp:   ${df.exported}"
-    text += s"Name:  ${df.name}"
-    text += s"Off:   ${df.offset}"
-    text += s"Src:   ${safeGet(df.source)}"
-    text += s"GID:   ${safeGet(df.globalRef)}"
-    Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
-  }
 
   private def maybeShowTestOutput () =
     if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))
