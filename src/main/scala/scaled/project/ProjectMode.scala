@@ -399,10 +399,10 @@ class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends M
   }
 
   private def mkDebugPopup (elem :Element, df :Def) :Popup = {
-    def safeGet (thunk : => Any) = try thunk.toString catch { case e :Exception => e.toString }
+    def safeGet (thunk : => Any) = try thunk.toString catch { case t :Throwable => t.toString }
     val text = ArrayBuffer[String]()
-    text += s"ID:    ${df.id}"
-    text += s"Outer: ${df.outerId}"
+    text += s"ID:    ${df.idToString}"
+    text += s"Outer: ${df.outerIdToString}"
     text += s"Kind:  ${df.kind}"
     text += s"Exp:   ${df.exported}"
     text += s"Name:  ${df.name}"
