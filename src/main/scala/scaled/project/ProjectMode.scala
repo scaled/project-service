@@ -8,7 +8,7 @@ import javafx.scene.control.Tooltip
 import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
 import scaled._
-import scaled.major.EditingMode
+import scaled.major.ReadingMode
 import scaled.util.BufferBuilder
 
 /** Provides configuration for [[ProjectMode]]. */
@@ -39,12 +39,15 @@ object ProjectConfig extends Config.Defs {
 @Minor(name="project",
        tags=Array("project"),
        desc="""A minor mode that provides project-centric fns.""")
-class ProjectMode (env :Env, psvc :ProjectService, major :EditingMode) extends MinorMode(env) {
+class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends MinorMode(env) {
   import ProjectConfig._
 
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
-  val project :Project = psvc.projectFor(buffer.store).reference(buffer)
+  val project :Project = (major match {
+    case pmode :HasProjectMode => pmode.project
+    case _                     => psvc.projectFor(buffer.store)
+  }).reference(buffer)
 
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))

@@ -38,7 +38,7 @@ abstract class AbstractFileProject (msvc :MetaService) extends Project(msvc) {
         lastRefresh = lm
         val fs = Seq() ++ Files.list(dir).iterator
         val (nd, nf) = fs.partition(Files.isDirectory(_, LinkOption.NOFOLLOW_LINKS))
-        val nfiles = nf.toSet
+        val nfiles = nf.filter(Files.isRegularFile(_)).toSet
         if (files != nfiles) {
           files = nfiles
           _allFiles = null

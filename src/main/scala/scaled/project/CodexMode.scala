@@ -10,7 +10,7 @@ import javafx.scene.control.Tooltip
 import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
 import scaled._
-import scaled.major.EditingMode
+import scaled.major.ReadingMode
 import scaled.util.Chars
 
 /** A minor mode which provides fns for interacting with a project's Codex.
@@ -20,16 +20,22 @@ import scaled.util.Chars
 @Minor(name="codex",
        tags=Array("project"),
        desc="""A minor mode that provides project-codex fns.""")
-class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends MinorMode(env) {
+class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends MinorMode(env) {
 
-  val project :Project = psvc.projectFor(buffer.store).reference(buffer)
+  val project :Project = (major match {
+    case pmode :HasProjectMode => pmode.project
+    case _                     => psvc.projectFor(buffer.store)
+  }).reference(buffer)
 
   /** The most recent index for the buffer's source file, if any. */
   val index = OptValue[SourceIndex]()
   // if our store gets indexed, store it in `index`
   note(project.codex.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
   // request that our store be indexed (which should eventually populate `index`)
-  note(buffer.storeV.onValueNotify(project.codex.reindex))
+  note(buffer.storeV.onValueNotify { store =>
+    // don't attempt to index non- or not-yet-existent files
+    if (buffer.store.exists) project.codex.reindex(store)
+  })
 
   override def keymap = Seq(
     // "C-h c"   -> "describe-codex", // TODO:?
@@ -38,6 +44,9 @@ class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends Min
     "C-c C-v C-t" -> "codex-visit-type",
     "C-c C-v C-f" -> "codex-visit-func",
     "C-c C-v C-v" -> "codex-visit-value",
+
+    "C-c C-s C-m" -> "codex-summarize-module",
+    "C-c C-s C-t" -> "codex-summarize-type",
 
     // TEMP: implement local key bindings
     "C-c C-i"     -> "codex-import-type",
@@ -84,6 +93,14 @@ class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends Min
   @Fn("Queries for a value (completed by the project's Codex) and navigates to its definition.")
   def codexVisitValue () :Unit = codexVisit("Value:", Kind.VALUE)
 
+  @Fn("""Queries for a module (completed by the project's Codex) and displays a summary of
+         its members.""")
+  def codexSummarizeModule () :Unit = codexSummarize("Module:", Kind.MODULE);
+
+  @Fn("""Queries for a type (completed by the project's Codex) and displays a summary of
+         its members.""")
+  def codexSummarizeType () :Unit = codexSummarize("Type:", Kind.TYPE);
+
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
   def codexDescribeElement () {
@@ -98,11 +115,7 @@ class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends Min
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
   def codexVisitElement () {
-    onElemAt(view.point(), (_, df) => {
-      project.codex.visitStack.push(this.view) // push current loc to the visit stack
-      val view = editor.visitFile(ProjectCodex.toStore(df.source))
-      view.point() = view.buffer.loc(df.offset)
-    })
+    onElemAt(view.point(), (_, df) => project.codex.visit(editor, view, df))
   }
 
   @Fn("Pops to the last place `codex-visit-foo` was invoked.")
@@ -123,11 +136,11 @@ class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends Min
            onSuccess(fn)
   }
 
-  private def codexVisit (prompt :String, kind :Kind) :Unit = codexRead(prompt, kind) { df =>
-    project.codex.visitStack.push(this.view) // push current loc to the visit stack
-    val view = editor.visitFile(ProjectCodex.toStore(df.source))
-    view.point() = view.buffer.loc(df.offset)
-  }
+  private def codexVisit (prompt :String, kind :Kind) :Unit =
+    codexRead(prompt, kind)(df => project.codex.visit(editor, view, df))
+
+  private def codexSummarize (prompt :String, kind :Kind) :Unit =
+    codexRead(prompt, kind)(df => project.codex.summarize(editor, view, df))
 
   private def onElemAt (loc :Loc, fn :(Element, Def) => Unit) :Unit = index.getOption match {
     case None => editor.popStatus("No Codex index available for this file.")
@@ -247,5 +260,4 @@ class CodexMode (env :Env, psvc :ProjectService, major :EditingMode) extends Min
     text += s"GID:   ${safeGet(df.globalRef)}"
     Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
   }
-
 }

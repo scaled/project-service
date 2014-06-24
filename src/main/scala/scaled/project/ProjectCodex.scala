@@ -5,7 +5,7 @@
 package scaled.project
 
 import codex.Codex
-import codex.model.{Kind, Source}
+import codex.model.{Def, Kind, Source}
 import codex.store.{MapDBStore, ProjectStore}
 import java.util.ArrayList
 import reactual.Signal
@@ -57,6 +57,21 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
   def reindex (store :Store) {
     // invoke the reindex in the background
     project.metaSvc.exec.runInBG { reindex(toSource(store)) }
+  }
+
+  /** Visits the source of `df` in a buffer in `editor`. Pushes `curview` onto the visit stack. */
+  def visit (editor :Editor, curview :BufferView, df :Def) {
+    visitStack.push(curview) // push current loc to the visit stack
+    val view = editor.visitFile(toStore(df.source))
+    view.point() = view.buffer.loc(df.offset)
+  }
+
+  /** Displays a summary of `df` in a new buffer. Pushes `curview` onto the visit stack. */
+  def summarize (editor :Editor, curview :BufferView, df :Def) {
+    visitStack.push(curview) // push current loc to the visit stack
+    val view = editor.createBuffer(s"${df.name}:${df.qualifier}", true,
+                                   ModeInfo("codex-summary", List(df, project)))
+    editor.visitBuffer(view.buffer)
   }
 
   /** Performs the actual reindexing of `source`. This should call [[reindexComplete]] when the
