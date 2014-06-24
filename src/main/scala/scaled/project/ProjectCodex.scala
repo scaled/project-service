@@ -59,6 +59,19 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
     project.metaSvc.exec.runInBG { reindex(toSource(store)) }
   }
 
+  /** Returns a completer on elements of `kind` in this project's Codex. */
+  def completer (kind :Kind) :Completer[Def] = new Completer[Def]() {
+    import scala.collection.JavaConversions._
+    def complete (prefix :String) :Completion[Def] = prefix.split(":", 2) match {
+      case Array(name, path) => elemComp(find(Codex.Query.name(name).kind(kind)) filter(
+        e => Completer.startsWithI(path)(pathString(e))))
+      case Array(name      ) => elemComp(find(Codex.Query.prefix(name).kind(kind)))
+    }
+    private def elemComp (es :Seq[Def]) = completion(es, elemToString)
+    private def pathString (d :Def) = d.qualifier
+    private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
+  }
+
   /** Visits the source of `df` in a buffer in `editor`. Pushes `curview` onto the visit stack. */
   def visit (editor :Editor, curview :BufferView, df :Def) {
     visitStack.push(curview) // push current loc to the visit stack

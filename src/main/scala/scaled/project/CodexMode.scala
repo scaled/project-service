@@ -63,21 +63,6 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
     project.release(buffer)
   }
 
-  /** Returns a completer on elements of `kind` in this project's Codex. */
-  def codexCompleter (kind :Kind) :Completer[Def] = new Completer[Def]() {
-    import scala.collection.JavaConversions._
-    def complete (prefix :String) :Completion[Def] = prefix.split(":", 2) match {
-      case Array(name, path) =>
-        elemComp(project.codex.find(Codex.Query.name(name).kind(kind)) filter(
-          e => Completer.startsWithI(path)(pathString(e))))
-      case Array(name) =>
-        elemComp(project.codex.find(Codex.Query.prefix(name).kind(kind)))
-    }
-    private def elemComp (es :Seq[Def]) = completion(es, elemToString)
-    private def pathString (d :Def) = d.qualifier
-    private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
-  }
-
   //
   // FNs
 
@@ -132,8 +117,8 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
   // Implementation details
 
   private def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
-    editor.miniRead(prompt, wordAt(view.point()), project.codexHistory(kind), codexCompleter(kind)).
-           onSuccess(fn)
+    editor.miniRead(prompt, wordAt(view.point()), project.codexHistory(kind),
+                    project.codex.completer(kind)).onSuccess(fn)
   }
 
   private def codexVisit (prompt :String, kind :Kind) :Unit =
