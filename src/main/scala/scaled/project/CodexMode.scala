@@ -47,6 +47,7 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
 
     "C-c C-s C-m" -> "codex-summarize-module",
     "C-c C-s C-t" -> "codex-summarize-type",
+    "C-c C-z"     -> "codex-summarize-enclosing-type",
 
     // TEMP: implement local key bindings
     "C-c C-i"     -> "codex-import-type",
@@ -78,13 +79,25 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
   @Fn("Queries for a value (completed by the project's Codex) and navigates to its definition.")
   def codexVisitValue () :Unit = codexVisit("Value:", Kind.VALUE)
 
-  @Fn("""Queries for a module (completed by the project's Codex) and displays a summary of
-         its members.""")
+  @Fn("""Queries for a module (completed by the project's Codex) and displays its summary.""")
   def codexSummarizeModule () :Unit = codexSummarize("Module:", Kind.MODULE);
 
-  @Fn("""Queries for a type (completed by the project's Codex) and displays a summary of
-         its members.""")
+  @Fn("""Queries for a type (completed by the project's Codex) and displays its summary.""")
   def codexSummarizeType () :Unit = codexSummarize("Type:", Kind.TYPE);
+
+  @Fn("Displays a summary of the type that encloses the point. 'Zooming out.'")
+  def codexSummarizeEnclosingType () :Unit = index.getOption match {
+    case None => editor.popStatus("No Codex index available for this file.")
+    case Some(idx) => idx.encloser(buffer.offset(view.point())) match {
+      case None => editor.popStatus("Could not find enclosing type.")
+      case Some(df) =>
+        def loop (df :Def) :Unit =
+          if (df == null) editor.popStatus("Could not find enclosing type.")
+          else if (df.kind == Kind.TYPE) project.codex.summarize(editor, view, df)
+          else loop(df.project.`def`(df.outerId))
+        loop(df)
+    }
+  }
 
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
