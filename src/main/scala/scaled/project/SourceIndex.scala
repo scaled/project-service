@@ -4,8 +4,8 @@
 
 package scaled.project
 
-import codex.model.Element
-import java.util.TreeMap
+import codex.model.{Element, Def, Kind}
+import java.util.{Map, TreeMap}
 import java.util.function.Consumer
 import scaled._
 
@@ -17,26 +17,28 @@ object SourceIndex {
   /** Used to build [[SourceIndex]] instances. */
   class Builder (store :Store) extends Consumer[Element] {
     private val lineOffsets = readLineOffsets(store)
-    private val rows = new Array[Row](lineOffsets.size)
+    private val rows = Array.fill(lineOffsets.size)(new Row())
+    private val encls = new TreeMap[Int,Def]()
 
     override def accept (elem :Element) {
       lineOffsets.floorEntry(elem.offset) match {
         case null => println(s"No row entry for elem offset: $elem")
         case rowent =>
           val rowoff = rowent.getKey ; val row = rowent.getValue
-          (rows(row) match {
-            case null => val r = new Row() ; rows(row) = r ; r
-            case r    => r
-          }).add(elem.offset-rowoff, elem)
+          rows(row).add(elem.offset-rowoff, elem)
+      }
+      elem match {
+        case df :Def if (df.kind != Kind.VALUE) => encls.put(df.offset, df)
+        case _ => // nada
       }
     }
 
     /** Builds the source index based on the consumed elements. */
-    def build () :SourceIndex = new SourceIndex(store, rows)
+    def build () :SourceIndex = new SourceIndex(store, rows, encls)
   }
 
   private class Row {
-    val elems = new TreeMap[Int,Element]()
+    lazy val elems = new TreeMap[Int,Element]()
 
     def add (col :Int, elem :Element) {
       elems.put(col, elem)
@@ -84,11 +86,22 @@ object SourceIndex {
   * organized in a way that makes it efficiently available to Scaled.
   * @param store the store from which the source code came.
   */
-class SourceIndex (val store :Store, rows :Array[SourceIndex.Row]) {
+class SourceIndex (val store :Store, rows :Array[SourceIndex.Row], encls :TreeMap[Int,Def]) {
 
   /** Returns the element at the specified source location, if any. */
-  def elementAt (loc :Loc) :Option[Element] = rows(loc.row) match {
+  def elementAt (loc :Loc) :Option[Element] =
+    if (loc.row >= rows.length) None else rows(loc.row).elementAt(loc.col)
+
+  /** Returns the def that encloses the specified character offset, if any. */
+  def encloser (offset :Int) :Option[Def] = encls.floorEntry(offset) match {
     case null => None
-    case row  => row.elementAt(loc.col)
+    case ent  =>
+      def encloses (df :Def) = offset >= df.offset && offset <= df.bodyEnd
+      def check (ent :Map.Entry[Int,Def]) :Option[Def] = {
+        if (ent == null) None
+        else if (encloses(ent.getValue())) Some(ent.getValue())
+        else check(encls.lowerEntry(ent.getKey()))
+      }
+      check(ent)
   }
 }
