@@ -71,8 +71,15 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
     infs += new ProjectInfo()
     val docr = new DocReader()
     def add (defs :Seq[Def]) {
-      for (mem <- defs.sortBy(d => (d.kind, d.name))) {
-        if (mem.exported) infs += new DefInfo(mem, docr, "  ")
+      // group defs by access, then within access sort them by flavor, then name
+      val byAcc = defs.groupBy(_.access)
+      for (acc <- Access.values) {
+        byAcc.get(acc) foreach { defs =>
+          if (acc != Access.PUBLIC) infs += new AccessInfo(acc)
+          for (mem <- defs.sortBy(d => (d.flavor, d.name))) {
+            /*if (mem.exported)*/ infs += new DefInfo(mem, docr, "  ")
+          }
+        }
       }
     }
     tgt match {
@@ -117,6 +124,18 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
     def visit () {} // TODO?
     def visitOrZoom () {} // TODO?
     def toggle (off :Int) {} // TODO?
+    def length = 1
+  }
+
+  class AccessInfo (acc :Access) extends Info {
+    // if we're not public, append a string representation to the buffer
+    buffer.append(Seq(Line(s" ${acc.toString.toLowerCase}:")))
+    buffer.split(buffer.end)
+
+    def zoomIn () {} // noop
+    def visit () {} // noop
+    def visitOrZoom () {} // noop
+    def toggle (off :Int) {} // noop
     def length = 1
   }
 
