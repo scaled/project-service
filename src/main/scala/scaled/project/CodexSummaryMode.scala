@@ -12,18 +12,10 @@ import scaled.code.CodeConfig
 import scaled.major.ReadingMode
 import scaled.util.BufferBuilder
 
-object CodexSummaryMode {
-
-  sealed trait Target
-  case class DefTarget (df :Def) extends Target
-  case object TopLevelDefs extends Target
-  // case object Workspace extends Target // shows all projects in workspace?
-}
-
 @Major(name="codex-summary",
        tags=Array("project", "codex"),
        desc="""A major mode that displays a summary of a def and its members.""")
-class CodexSummaryMode (env :Env, val project :Project, df :Def)
+class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
     extends ReadingMode(env) with HasProjectMode {
   import scala.collection.convert.WrapAsScala._
 
@@ -49,9 +41,15 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
   // FNs
 
   @Fn("Displays a summary of the def that encloses the def summarized in this buffer.")
-  def zoomOut () :Unit = df.outer match {
-    case null => editor.popStatus("This def is not enclosed by another def.")
-    case odef => project.codex.summarize(editor, view, odef)
+  def zoomOut () :Unit = tgt match {
+    case None => project.visitDescription(editor, view.width())
+    case Some(df) => df.outer match {
+      case null =>
+        val view = editor.createBuffer(s"${project.name} defs", true,
+                                       ModeInfo("codex-summary", List(None, project)))
+        editor.visitBuffer(view.buffer)
+      case odef => project.codex.summarize(editor, view, odef)
+    }
   }
 
   @Fn("Displays a summary of the member def at the point.")
@@ -71,16 +69,22 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
 
   val infs = ArrayBuffer[Info]() ; {
     infs += new ProjectInfo()
-
     val docr = new DocReader()
-    def addParent (df :Def) :Unit = if (df != null) {
-      addParent(df.outer)
-      infs += new DefInfo(df, docr, "")
+    def add (defs :Seq[Def]) {
+      for (mem <- defs.sortBy(d => (d.kind, d.name))) {
+        if (mem.exported) infs += new DefInfo(mem, docr, "  ")
+      }
     }
-    addParent(df)
-
-    for (mem <- df.members.toSeq.sortBy(d => (d.kind, d.name))) {
-      if (mem.exported) infs += new DefInfo(mem, docr, "  ")
+    tgt match {
+      case Some(df) => // if we have a def, show it and its members
+        def addParent (df :Def) :Unit = if (df != null) {
+          addParent(df.outer)
+          infs += new DefInfo(df, docr, "")
+        }
+        addParent(df)
+        add(df.members.toSeq)
+      case None => // otherwise show the top-level members
+        add(project.codex.projectStore.topLevelDefs.toSeq)
     }
     view.point() = Loc.Zero
   }
@@ -150,7 +154,7 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
     def zoomIn () = project.codex.summarize(editor, view, df)
     def visit () = project.codex.visit(editor, view, df)
     def visitOrZoom () = df.kind match {
-      case Kind.MODULE | Kind.TYPE if (df != CodexSummaryMode.this.df) => zoomIn()
+      case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
       case _ => visit()
     }
 

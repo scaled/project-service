@@ -243,11 +243,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
 
   @Fn("Describes the current project.")
   def describeProject () {
-    val bb = new BufferBuilder(view.width()-1)
-    project.describeSelf(bb)
-    bb.addBlank()
-    val bname = s"*project:${project.name}*"
-    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
+    project.visitDescription(editor, view.width()) // TODO: have the editor expose width/height?
   }
 
   @Fn("Displays summary info for all known projects.")

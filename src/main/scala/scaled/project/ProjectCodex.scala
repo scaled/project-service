@@ -83,7 +83,7 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
   def summarize (editor :Editor, curview :BufferView, df :Def) {
     visitStack.push(curview) // push current loc to the visit stack
     val view = editor.createBuffer(s"${df.name}:${df.qualifier}", true,
-                                   ModeInfo("codex-summary", List(df, project)))
+                                   ModeInfo("codex-summary", List(Some(df), project)))
     editor.visitBuffer(view.buffer)
   }
 

@@ -149,6 +149,15 @@ abstract class Project (val metaSvc :MetaService) {
     metaDir.resolve(name)
   }
 
+  /** Visits a buffer containing a description of this project. */
+  def visitDescription (editor :Editor, width :Int) {
+    val bb = new BufferBuilder(width-1)
+    describeSelf(bb)
+    bb.addBlank()
+    val bname = s"*project:${name}*"
+    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
+  }
+
   /** Emits a description of this project to `bb`. The default project adds basic metadata, and
     * derived project implementations undoubtedly have useful things to add. */
   def describeSelf (bb :BufferBuilder) {
