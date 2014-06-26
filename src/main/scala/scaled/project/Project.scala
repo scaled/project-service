@@ -102,7 +102,7 @@ abstract class Project (val metaSvc :MetaService) {
   /** Notes that `ref` is now using this project. */
   def reference (ref :Any) :this.type = {
     _refs.put(ref, ref)
-    log.log("$this reffed by $ref") // TEMP: debug
+    log.log(s"$this reffed by $ref") // TEMP: debug
     this
   }
 
@@ -112,7 +112,7 @@ abstract class Project (val metaSvc :MetaService) {
   /** Notes that `ref` is no longer using this project. */
   def release (ref :Any) {
     if (_refs.remove(ref) == null) log.log(s"$this released by unknown referent: $ref")
-    else log.log("$this released by $ref") // TEMP: debug
+    else log.log(s"$this released by $ref") // TEMP: debug
     if (_refs.isEmpty) hibernate()
   }
 
