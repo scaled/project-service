@@ -5,6 +5,7 @@
 package scaled.project
 
 import codex.model._
+import codex.store.ProjectStore
 import java.util.Optional
 import scala.collection.mutable.ArrayBuffer
 import scaled._
@@ -12,12 +13,39 @@ import scaled.code.CodeConfig
 import scaled.major.ReadingMode
 import scaled.util.BufferBuilder
 
+object CodexSummaryMode {
+
+  sealed trait Target {
+    def name :String
+  }
+  case class DefMembers (df :Def) extends Target {
+    def name = s"${df.name}:${df.qualifier}"
+  }
+  case class TopLevelMembers (store :ProjectStore) extends Target {
+    def name = s"${store.name} defs"
+  }
+
+  def visitDef (editor :Editor, project :Project, df :Def) {
+    visit(editor, project, DefMembers(df))
+  }
+
+  def visitTopLevel (editor :Editor, project :Project, store :ProjectStore) {
+    visit(editor, project, TopLevelMembers(store))
+  }
+
+  private def visit (editor :Editor, proj :Project, tgt :Target) {
+    val view = editor.createBuffer(tgt.name, true, ModeInfo("codex-summary", List(proj, tgt)))
+    editor.visitBuffer(view.buffer)
+  }
+}
+
 @Major(name="codex-summary",
        tags=Array("project", "codex"),
        desc="""A major mode that displays a summary of a def and its members.""")
-class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
+class CodexSummaryMode (env :Env, val project :Project, tgt :CodexSummaryMode.Target)
     extends ReadingMode(env) with HasProjectMode {
   import scala.collection.convert.WrapAsScala._
+  import CodexSummaryMode._
 
   // reference our target project, and release it when we're disposed
   project.reference(buffer)
@@ -42,13 +70,13 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
 
   @Fn("Displays a summary of the def that encloses the def summarized in this buffer.")
   def zoomOut () :Unit = tgt match {
-    case None => project.visitDescription(editor, view.width())
-    case Some(df) => df.outer match {
-      case null =>
-        val view = editor.createBuffer(s"${project.name} defs", true,
-                                       ModeInfo("codex-summary", List(None, project)))
-        editor.visitBuffer(view.buffer)
-      case odef => project.codex.summarize(editor, view, odef)
+    case TopLevelMembers(store) => project.codex.projectFor(store) match {
+      case Some(stp) => stp.visitDescription(editor, view.width())
+      case None      => editor.popStatus("Unable to determine project for this Codex.")
+    }
+    case DefMembers (df) => df.outer match {
+      case null => visitTopLevel(editor, project, df.project)
+      case odef => visitDef(editor, project, odef)
     }
   }
 
@@ -68,7 +96,6 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
   // Implementation details
 
   val infs = ArrayBuffer[Info]() ; {
-    infs += new ProjectInfo()
     val docr = new DocReader()
     def add (defs :Seq[Def]) {
       // group defs by access, then within access sort them by flavor, then name
@@ -83,15 +110,17 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
       }
     }
     tgt match {
-      case Some(df) => // if we have a def, show it and its members
+      case TopLevelMembers(store) => // otherwise show the top-level members
+        infs += new ProjectInfo(store)
+        add(store.topLevelDefs.toSeq)
+      case DefMembers(df) => // if we have a def, show it and its members
         def addParent (df :Def) :Unit = if (df != null) {
           addParent(df.outer)
           infs += new DefInfo(df, docr, "")
         }
+        infs += new ProjectInfo(df.project)
         addParent(df)
         add(df.members.toSeq)
-      case None => // otherwise show the top-level members
-        add(project.codex.projectStore.topLevelDefs.toSeq)
     }
     view.point() = Loc.Zero
   }
@@ -115,16 +144,17 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :Option[Def])
     def length :Int
   }
 
-  class ProjectInfo extends Info {
-    // append our project summary and name
-    buffer.append(Seq(Line(s"project ${project.name}")))
+  class ProjectInfo (store :ProjectStore) extends Info {
+    val title = s"project ${store.name}"
+    buffer.append(Seq(Line(title), Line("-" * title.length)))
+    buffer.split(buffer.end)
     buffer.split(buffer.end)
 
     def zoomIn () {} // TODO?
     def visit () {} // TODO?
     def visitOrZoom () {} // TODO?
     def toggle (off :Int) {} // TODO?
-    def length = 1
+    def length = 3
   }
 
   class AccessInfo (acc :Access) extends Info {

@@ -82,10 +82,16 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
   /** Displays a summary of `df` in a new buffer. Pushes `curview` onto the visit stack. */
   def summarize (editor :Editor, curview :BufferView, df :Def) {
     visitStack.push(curview) // push current loc to the visit stack
-    val view = editor.createBuffer(s"${df.name}:${df.qualifier}", true,
-                                   ModeInfo("codex-summary", List(Some(df), project)))
-    editor.visitBuffer(view.buffer)
+    CodexSummaryMode.visitDef(editor, project, df)
   }
+
+  /** Returns the `Project` from whence came `store`. `None` is returned if no project can be found
+    * for the store. */
+  def projectFor (store :ProjectStore) :Option[Project] =
+    if (store == projectStore) Some(project)
+    else project.depends.flatMap(project.depend) collectFirst {
+      case p if (p.codex.projectStore == store) => p
+    }
 
   /** Performs the actual reindexing of `source`. This should call [[reindexComplete]] when the
     * indexing is complete.
@@ -103,7 +109,8 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
     else project.metaSvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
   }
 
-  protected def createProjectStore () :ProjectStore = new MapDBStore(project.metaFile("codex"))
+  protected def createProjectStore () :ProjectStore =
+    new MapDBStore(project.name, project.metaFile("codex"))
 
   /** Resolves the project stores for our Codex. */
   protected def resolveProjectStores :ArrayList[ProjectStore] = {
