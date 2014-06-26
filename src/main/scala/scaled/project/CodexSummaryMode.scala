@@ -12,6 +12,14 @@ import scaled.code.CodeConfig
 import scaled.major.ReadingMode
 import scaled.util.BufferBuilder
 
+object CodexSummaryMode {
+
+  sealed trait Target
+  case class DefTarget (df :Def) extends Target
+  case object TopLevelDefs extends Target
+  // case object Workspace extends Target // shows all projects in workspace?
+}
+
 @Major(name="codex-summary",
        tags=Array("project", "codex"),
        desc="""A major mode that displays a summary of a def and its members.""")
@@ -47,58 +55,68 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
   }
 
   @Fn("Displays a summary of the member def at the point.")
-  def zoomIn () {
-    val (inf, _) = find(view.point().row)
-    project.codex.summarize(editor, view, inf.df)
-  }
+  def zoomIn () :Unit = act(view.point(), (i,_) => i.zoomIn())
 
   @Fn("Visit the def at the point.")
-  def visit () {
-    val (inf, _) = find(view.point().row)
-    inf.visit()
-  }
+  def visit () :Unit = act(view.point(), (i,_) => i.visit())
 
   @Fn("Zooms in on modules and types and visits funcs and values.")
-  def visitOrZoom () {
-    val (inf, _) = find(view.point().row)
-    inf.df.kind match {
-      case Kind.MODULE | Kind.TYPE => project.codex.summarize(editor, view, inf.df)
-      case _ => inf.visit()
-    }
-  }
+  def visitOrZoom () :Unit = act(view.point(), (i,_) => i.visitOrZoom())
 
   @Fn("Expands or contracts the documentation of the def at the point.")
-  def toggleDocs () {
-    val (inf, off) = find(view.point().row)
-    inf.toggle(off)
-  }
+  def toggleDocs () :Unit = act(view.point(), _.toggle(_))
 
   //
   // Implementation details
 
-  val infs = ArrayBuffer[DefInfo]() ; {
+  val infs = ArrayBuffer[Info]() ; {
+    infs += new ProjectInfo()
+
     val docr = new DocReader()
     def addParent (df :Def) :Unit = if (df != null) {
       addParent(df.outer)
       infs += new DefInfo(df, docr, "")
     }
     addParent(df)
+
     for (mem <- df.members.toSeq.sortBy(d => (d.kind, d.name))) {
       if (mem.exported) infs += new DefInfo(mem, docr, "  ")
     }
     view.point() = Loc.Zero
   }
 
-  def find (line :Int, ii :Int = 0, off :Int = 0) :(DefInfo, Int) = {
-    if (ii == infs.length) (infs(ii-1), off)
-    else {
-      val inf = infs(ii)
-      if (line < inf.length) (inf, off)
-      else find(line-inf.length, ii+1, off+inf.length)
-    }
+  def act (p :Loc, fn :(Info, Int) => Unit) {
+    def loop (line :Int, ii :Int, off :Int) :Unit =
+      if (ii == infs.length) fn(infs(ii-1), off)
+      else {
+        val inf = infs(ii)
+        if (line < inf.length) fn(inf, off)
+        else loop(line-inf.length, ii+1, off+inf.length)
+      }
+    loop(p.row, 0, 0)
   }
 
-  class DefInfo (val df :Def, docr :DocReader, indent :String) {
+  trait Info {
+    def zoomIn () :Unit
+    def visit () :Unit
+    def visitOrZoom () :Unit
+    def toggle (off :Int) :Unit
+    def length :Int
+  }
+
+  class ProjectInfo extends Info {
+    // append our project summary and name
+    buffer.append(Seq(Line(s"project ${project.name}")))
+    buffer.split(buffer.end)
+
+    def zoomIn () {} // TODO?
+    def visit () {} // TODO?
+    def visitOrZoom () {} // TODO?
+    def toggle (off :Int) {} // TODO?
+    def length = 1
+  }
+
+  class DefInfo (val df :Def, docr :DocReader, indent :String) extends Info {
     val source = df.source
 
     val doc :Seq[LineV] = df.doc match {
@@ -129,15 +147,18 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
 
     def length :Int = (if (docExpanded) doc.length else 1) + sig.length
 
+    def zoomIn () = project.codex.summarize(editor, view, df)
+    def visit () = project.codex.visit(editor, view, df)
+    def visitOrZoom () = df.kind match {
+      case Kind.MODULE | Kind.TYPE if (df != CodexSummaryMode.this.df) => zoomIn()
+      case _ => visit()
+    }
+
     def toggle (offset :Int) :Unit = if (doc.length > 0) {
       val (rows, nlines) = if (docExpanded) (doc.length, Seq(firstDoc)) else (1, doc)
       val start = Loc(offset, 0)
       buffer.replace(start, start + (rows, 0), nlines :+ Line.Empty)
       docExpanded = !docExpanded
-    }
-
-    def visit () {
-      project.codex.visit(editor, view, df)
     }
 
     // start by appending our first doc line and signature to the buffer
