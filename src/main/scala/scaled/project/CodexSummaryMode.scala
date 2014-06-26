@@ -41,9 +41,9 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
   // FNs
 
   @Fn("Displays a summary of the def that encloses the def summarized in this buffer.")
-  def zoomOut () {
-    if (df.outerId == null) editor.popStatus("This def is not enclosed by another def.")
-    else project.codex.summarize(editor, view, df.project.`def`(df.outerId))
+  def zoomOut () :Unit = df.outer match {
+    case null => editor.popStatus("This def is not enclosed by another def.")
+    case odef => project.codex.summarize(editor, view, odef)
   }
 
   @Fn("Displays a summary of the member def at the point.")
@@ -78,7 +78,11 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
 
   val infs = ArrayBuffer[DefInfo]() ; {
     val docr = new DocReader()
-    infs += new DefInfo(df, docr, "")
+    def addParent (df :Def) :Unit = if (df != null) {
+      addParent(df.outer)
+      infs += new DefInfo(df, docr, "")
+    }
+    addParent(df)
     for (mem <- df.members.toSeq.sortBy(d => (d.kind, d.name))) {
       if (mem.exported) infs += new DefInfo(mem, docr, "  ")
     }
@@ -158,7 +162,7 @@ class CodexSummaryMode (env :Env, val project :Project, df :Def)
   }
 
   private def stylesFor (kind :Kind) = kind match {
-    case Kind.MODULE => Styles(CodeConfig.preprocessorStyle)
+    case Kind.MODULE => Styles(CodeConfig.moduleStyle)
     case Kind.TYPE   => Styles(CodeConfig.typeStyle)
     case Kind.FUNC   => Styles(CodeConfig.functionStyle)
     case Kind.VALUE  => Styles(CodeConfig.variableStyle)
