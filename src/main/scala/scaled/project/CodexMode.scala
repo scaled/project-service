@@ -51,6 +51,7 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
 
     // TEMP: implement local key bindings
     "C-c C-i"     -> "codex-import-type",
+    "C-c C-j"     -> "codex-summarize-type",
     "C-c C-k"     -> "codex-visit-type",
 
     "C-c C-d"     -> "codex-describe-element",
