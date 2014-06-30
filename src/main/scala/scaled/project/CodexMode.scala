@@ -104,18 +104,18 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
   def codexDescribeElement () {
-    onElemAt(view.point(), (elem, df) => view.popup() = mkDefPopup(elem, df))
+    onElemAt(view.point(), (elem, loc, df) => view.popup() = mkDefPopup(elem, loc, df))
   }
 
   @Fn("Displays debugging info for the Codex element at the point.")
   def codexDebugElement () {
-    onElemAt(view.point(), (elem, df) => view.popup() = mkDebugPopup(elem, df))
+    onElemAt(view.point(), (elem, loc, df) => view.popup() = mkDebugPopup(elem, loc, df))
   }
 
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
   def codexVisitElement () {
-    onElemAt(view.point(), (_, df) => project.codex.visit(editor, view, df))
+    onElemAt(view.point(), (_, _, df) => project.codex.visit(editor, view, df))
   }
 
   @Fn("Pops to the last place `codex-visit-foo` was invoked.")
@@ -142,14 +142,18 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
   private def codexSummarize (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(df => project.codex.summarize(editor, view, df))
 
-  private def onElemAt (loc :Loc, fn :(Element, Def) => Unit) :Unit = index.getOption match {
-    case None => editor.popStatus("No Codex index available for this file.")
-    case Some(idx) => idx.elementAt(loc) match {
+  private def onElemAt (loc :Loc, fn :(Element, Loc, Def) => Unit) :Unit = {
+    val elloc = buffer.tagsAt(classOf[Element], loc) match {
+      case el :: _ => Some(el.tag -> loc.atCol(el.start))
+      case Nil     => index.getOption.flatMap(_.elementAt(loc) map(
+        el => (el, buffer.loc(el.offset))))
+    }
+    elloc match {
       case None => editor.popStatus("No element could be found at the point.")
-      case Some(elem) =>
+      case Some((elem, loc)) =>
         val dopt = project.codex.resolve(elem.ref)
         if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
-        else fn(elem, dopt.get)
+        else fn(elem, loc, dopt.get)
     }
   }
 
@@ -223,7 +227,7 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
     buffer.region(start, end).map(_.asString).mkString
   }
 
-  private def mkDefPopup (elem :Element, df :Def) :Popup = {
+  private def mkDefPopup (elem :Element, loc :Loc, df :Def) :Popup = {
     val text = ArrayBuffer[String]()
     df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
       def accept (doc :Doc) :Unit = try {
@@ -244,10 +248,10 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
         // TODO: use defs and uses to style text
       }
     })
-    Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
+    Popup(text, Popup.UpRight(loc))
   }
 
-  private def mkDebugPopup (elem :Element, df :Def) :Popup = {
+  private def mkDebugPopup (elem :Element, loc :Loc, df :Def) :Popup = {
     def safeGet (thunk : => Any) = try thunk.toString catch { case t :Throwable => t.toString }
     val text = ArrayBuffer[String]()
     text += s"ID:    ${df.idToString}"
@@ -258,6 +262,6 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
     text += s"Off:   ${df.offset}"
     text += s"Src:   ${safeGet(df.source)}"
     text += s"GID:   ${safeGet(df.globalRef)}"
-    Popup(text, Popup.UpRight(buffer.loc(elem.offset)))
+    Popup(text, Popup.UpRight(loc))
   }
 }

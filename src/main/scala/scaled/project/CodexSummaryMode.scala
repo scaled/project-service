@@ -190,7 +190,8 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :CodexSummaryMode.Ta
           for (el <- sig.defs ++ sig.uses) {
             val off = el.offset - start
             if (off >= 0 && off < len) styleFor(el.kind) foreach {
-              s => lb.withStyle(s, indent.length+off, indent.length+off+el.length)
+              val start = indent.length+off ; val end = start+el.length
+              s => lb.withStyle(s, start, end).withTag(el, start, end)
             }
           }
           start += len + System.lineSeparator.length
