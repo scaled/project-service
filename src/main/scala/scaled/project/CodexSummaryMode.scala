@@ -189,8 +189,8 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :CodexSummaryMode.Ta
           val lb = Line.builder(indent + l)
           for (el <- sig.defs ++ sig.uses) {
             val off = el.offset - start
-            if (off >= 0 && off < len) {
-              lb.withStyles(stylesFor(el.kind), indent.length+off, indent.length+off+el.length)
+            if (off >= 0 && off < len) styleFor(el.kind) foreach {
+              s => lb.withStyle(s, indent.length+off, indent.length+off+el.length)
             }
           }
           start += len + System.lineSeparator.length
@@ -232,14 +232,14 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :CodexSummaryMode.Ta
     }
 
     private def toDocLine (line :String) =
-      Line.builder(indent + line).withStyles(Styles(CodeConfig.docStyle)).build()
+      Line.builder(indent + line).withStyle(CodeConfig.docStyle).build()
   }
 
-  private def stylesFor (kind :Kind) = kind match {
-    case Kind.MODULE => Styles(CodeConfig.moduleStyle)
-    case Kind.TYPE   => Styles(CodeConfig.typeStyle)
-    case Kind.FUNC   => Styles(CodeConfig.functionStyle)
-    case Kind.VALUE  => Styles(CodeConfig.variableStyle)
-    case _           => Styles.None
+  private def styleFor (kind :Kind) = kind match {
+    case Kind.MODULE => Some(CodeConfig.moduleStyle)
+    case Kind.TYPE   => Some(CodeConfig.typeStyle)
+    case Kind.FUNC   => Some(CodeConfig.functionStyle)
+    case Kind.VALUE  => Some(CodeConfig.variableStyle)
+    case _           => None
   }
 }
