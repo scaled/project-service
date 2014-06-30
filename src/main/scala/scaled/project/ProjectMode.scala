@@ -47,7 +47,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
   val project :Project = (major match {
     case pmode :HasProjectMode => pmode.project
     case _                     => psvc.projectFor(buffer.store)
-  }).reference(buffer)
+  }).reference(this)
 
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
@@ -84,7 +84,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
 
   override def dispose () {
     super.dispose()
-    project.release(buffer)
+    project.release(this)
   }
 
   /** Finds a file in `proj` and visits it. */
