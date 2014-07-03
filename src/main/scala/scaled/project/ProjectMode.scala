@@ -89,7 +89,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
 
   /** Finds a file in `proj` and visits it. */
   def findFileIn (proj :Project) {
-    editor.miniRead(
+    editor.mini.read(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.fileCompleter
     ) onSuccess editor.visitFile
   }
@@ -112,7 +112,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
          completion), and visits it.""")
   def projectFindFileOther () {
     val pcomp = Completer.from(psvc.knownProjects)(_._2)
-    editor.miniRead(s"Project:", "", config(projectHistory), pcomp) onSuccess { case pt =>
+    editor.mini.read(s"Project:", "", config(projectHistory), pcomp) onSuccess { case pt =>
       findFileIn(psvc.projectIn(pt._1))
     }
   }
@@ -218,8 +218,8 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
   def projectExecute () {
     val exns = project.runner.executions
     if (exns.isEmpty) editor.popStatus(s"${project.name} defines no executions.")
-    else editor.miniRead(s"Execute:", "", project.execHistory,
-                         Completer.from(exns)(_.name)) onSuccess { e => execute(project, e) }
+    else editor.mini.read(s"Execute:", "", project.execHistory,
+                          Completer.from(exns)(_.name)) onSuccess { e => execute(project, e) }
   }
 
   @Fn("""Reinvokes the last invoked execution. Note that the last execution may have been in a

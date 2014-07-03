@@ -132,8 +132,8 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
   // Implementation details
 
   private def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
-    editor.miniRead(prompt, wordAt(view.point()), project.codexHistory(kind),
-                    project.codex.completer(kind)).onSuccess(fn)
+    editor.mini.read(prompt, wordAt(view.point()), project.codexHistory(kind),
+                     project.codex.completer(kind)).onSuccess(fn)
   }
 
   private def codexVisit (prompt :String, kind :Kind) :Unit =
