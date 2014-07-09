@@ -56,8 +56,8 @@ abstract class Compiler (project :Project) extends AutoCloseable {
   }
 
   /** Returns the buffer in which we record compiler output. It will be created if needed. */
-  def buffer (editor :Editor) :Buffer = editor.createBuffer(
-    s"*compile:${project.name}*", true, Some("log" /*project-compile*/), project.asState).buffer
+  def buffer (editor :Editor) :Buffer = editor.bufferConfig(s"*compile:${project.name}*").
+    mode("log" /*project-compile*/).tags("project").state(project.asState).reuse().create().buffer
 
   /** The latest compilation errors in a navigable ring. */
   def errors :ErrorRing = _errs

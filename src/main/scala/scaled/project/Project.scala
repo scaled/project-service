@@ -163,7 +163,8 @@ abstract class Project (val metaSvc :MetaService) {
     describeSelf(bb)
     bb.addBlank()
     val bname = s"*project:${name}*"
-    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, Some("help"), asState)))
+    editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").
+                                  tags("project").state(asState).create()))
   }
 
   /** Emits a description of this project to `bb`. The default project adds basic metadata, and

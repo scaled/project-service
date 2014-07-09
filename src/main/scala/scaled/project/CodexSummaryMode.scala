@@ -34,13 +34,13 @@ object CodexSummaryMode {
   }
 
   private def visit (editor :Editor, proj :Project, tgt :Target) {
-    val view = editor.createBuffer(tgt.name, true, Some("codex-summary"), proj.asState, tgt)
+    val view = editor.bufferConfig(tgt.name).reuse().mode("codex-summary", tgt).
+      state(proj.asState).create()
     editor.visitBuffer(view.buffer)
   }
 }
 
-@Major(name="codex-summary",
-       tags=Array("project", "codex"),
+@Major(name="codex-summary", tags=Array("project"),
        desc="""A major mode that displays a summary of a def and its members.""")
 class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingMode(env) {
   import scala.collection.convert.WrapAsScala._

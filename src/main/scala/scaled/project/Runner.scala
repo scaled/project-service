@@ -110,7 +110,8 @@ class Runner (project :Project) extends AutoCloseable {
   /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
   def execute (editor :Editor, exec :Execution) {
     val bufname = s"*exec:${project.name}-${exec.name}*"
-    val buffer = editor.createBuffer(bufname, true, Some("log"), project.asState).buffer
+    val buffer = editor.bufferConfig(bufname).reuse().mode("log").tags("project").
+      state(project.asState).create().buffer
     SubProcess(config(exec), editor, project.metaSvc.exec, buffer)
     // TODO: associate the subprocess with the buffer, kill the subprocess (if it's still alive)
     // when the buffer is killed?

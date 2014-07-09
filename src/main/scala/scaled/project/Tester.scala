@@ -14,8 +14,8 @@ abstract class Tester (project :Project) extends AutoCloseable {
   def failures :ErrorRing = _fails
 
   /** Returns the buffer in which we record test output. It will be created if needed. */
-  def buffer (editor :Editor) :Buffer = editor.createBuffer(
-    s"*test:${project.name}*", true, Some("log" /*project-test*/), project.asState).buffer
+  def buffer (editor :Editor) :Buffer = editor.bufferConfig(s"*test:${project.name}*").
+    reuse().mode("log" /*project-test*/).tags("project").state(project.asState).create().buffer
 
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default

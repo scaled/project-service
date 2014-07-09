@@ -36,8 +36,7 @@ object ProjectConfig extends Config.Defs {
   *
   * Any major mode that includes the `project` tag will trigger the activation of this minor mode.
   */
-@Minor(name="project",
-       tags=Array("project"),
+@Minor(name="project", tags=Array("project"),
        desc="""A minor mode that provides project-centric fns.""")
 class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends MinorMode(env) {
   import ProjectConfig._
@@ -256,7 +255,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
     bb.addKeysValues(psvc.knownProjects.map(p => (p._2, p._1.toString)) :_*)
 
     val bname = s"*projects*"
-    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, Some("help"))))
+    editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").create()))
   }
 
   //
