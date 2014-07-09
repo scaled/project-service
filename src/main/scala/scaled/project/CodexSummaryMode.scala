@@ -34,7 +34,7 @@ object CodexSummaryMode {
   }
 
   private def visit (editor :Editor, proj :Project, tgt :Target) {
-    val view = editor.createBuffer(tgt.name, true, ModeInfo("codex-summary", List(proj, tgt)))
+    val view = editor.createBuffer(tgt.name, true, Some("codex-summary"), proj.asState, tgt)
     editor.visitBuffer(view.buffer)
   }
 }
@@ -42,12 +42,12 @@ object CodexSummaryMode {
 @Major(name="codex-summary",
        tags=Array("project", "codex"),
        desc="""A major mode that displays a summary of a def and its members.""")
-class CodexSummaryMode (env :Env, val project :Project, tgt :CodexSummaryMode.Target)
-    extends ReadingMode(env) with HasProjectMode {
+class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingMode(env) {
   import scala.collection.convert.WrapAsScala._
   import CodexSummaryMode._
 
   // reference our target project, and release it when we're disposed
+  val project = buffer.state.req(classOf[Project])
   note(project.reference(buffer))
 
   override def keymap = super.keymap ++ Seq(

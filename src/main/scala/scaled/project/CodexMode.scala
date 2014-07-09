@@ -22,10 +22,7 @@ import scaled.util.Chars
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends MinorMode(env) {
 
-  val project :Project = (major match {
-    case pmode :HasProjectMode => pmode.project
-    case _                     => psvc.projectFor(buffer.store)
-  })
+  val project :Project = buffer.state(classOf[Project]) getOrElse psvc.projectFor(buffer.store)
   note(project.reference(this))
 
   /** The most recent index for the buffer's source file, if any. */

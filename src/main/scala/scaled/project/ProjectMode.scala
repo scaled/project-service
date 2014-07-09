@@ -44,10 +44,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
 
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
-  val project :Project = (major match {
-    case pmode :HasProjectMode => pmode.project
-    case _                     => psvc.projectFor(buffer.store)
-  })
+  val project :Project = buffer.state(classOf[Project]) getOrElse psvc.projectFor(buffer.store)
   note(project.reference(this))
 
   // display the project status in the modeline
@@ -259,7 +256,7 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
     bb.addKeysValues(psvc.knownProjects.map(p => (p._2, p._1.toString)) :_*)
 
     val bname = s"*projects*"
-    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, ModeInfo("help", Nil))))
+    editor.visitBuffer(bb.applyTo(editor.createBuffer(bname, true, Some("help"))))
   }
 
   //
