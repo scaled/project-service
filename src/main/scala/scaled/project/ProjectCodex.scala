@@ -43,10 +43,11 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
   /** A stack used to track where we've gone when using visit-element. */
   val visitStack = new VisitStack("Element visit")
 
+  // TODO: replace projectStore with Closes.Box to avoid situation where we resolve at close time
+  // just to shut the projectStore down
   override def close () {
-    // TODO: replace projectStore with Closes.Box to avoid situation where we resolve at close time
-    // just to shut the projectStore down
-    projectStore.close()
+    // close our project store in the background; MapDB closure is oddly expensive
+    msvc.exec.runInBG { projectStore.close() }
   }
 
   /** Requests that `store` be reindexed by this project's Codex. This requests that the code be
@@ -56,7 +57,7 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
     */
   def reindex (store :Store) {
     // invoke the reindex in the background
-    project.metaSvc.exec.runInBG { reindex(toSource(store)) }
+    msvc.exec.runInBG { reindex(toSource(store)) }
   }
 
   /** Returns a completer on elements of `kind` in this project's Codex. */
@@ -105,8 +106,8 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
     * thread. */
   protected def reindexComplete (source :Source) {
     val ib = SourceIndex.builder(toStore(source))
-    if (projectStore.visit(source, ib)) project.metaSvc.exec.runOnUI { indexed.emit(ib.build()) }
-    else project.metaSvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
+    if (projectStore.visit(source, ib)) msvc.exec.runOnUI { indexed.emit(ib.build()) }
+    else msvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
   }
 
   protected def createProjectStore () :ProjectStore =
@@ -126,4 +127,6 @@ class ProjectCodex (project :Project) extends Codex with AutoCloseable {
   /** Resolves the project store for a dependency for which a Scaled project was unavailable. If
     * `None` is returned, this dependency will be omitted from the Codex. */
   protected def resolveNonProjectStore (depend :Project.Id) :Option[ProjectStore] = None
+
+  private def msvc = project.metaSvc
 }
