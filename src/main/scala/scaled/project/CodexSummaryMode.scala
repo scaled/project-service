@@ -48,11 +48,7 @@ class CodexSummaryMode (env :Env, val project :Project, tgt :CodexSummaryMode.Ta
   import CodexSummaryMode._
 
   // reference our target project, and release it when we're disposed
-  project.reference(buffer)
-  override def dispose () {
-    super.dispose()
-    project.release(buffer)
-  }
+  note(project.reference(buffer))
 
   override def keymap = super.keymap ++ Seq(
     "o"     -> "zoom-out",

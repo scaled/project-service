@@ -25,7 +25,8 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
   val project :Project = (major match {
     case pmode :HasProjectMode => pmode.project
     case _                     => psvc.projectFor(buffer.store)
-  }).reference(this)
+  })
+  note(project.reference(this))
 
   /** The most recent index for the buffer's source file, if any. */
   val index = OptValue[SourceIndex]()
@@ -59,11 +60,6 @@ class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends Min
     "M-."         -> "codex-visit-element",
     "M-,"         -> "codex-visit-pop"
   )
-
-  override def dispose () {
-    super.dispose()
-    project.release(this)
-  }
 
   //
   // FNs

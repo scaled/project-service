@@ -99,22 +99,27 @@ abstract class Project (val metaSvc :MetaService) {
     * will properly reference the dependent project and release it when this project hibernates. */
   def depends :Seq[Id] = Seq()
 
-  /** Notes that `ref` is now using this project. */
-  def reference (ref :Any) :this.type = {
-    _refs.put(ref, ref)
-    log.log(s"$this reffed by $ref") // TEMP: debug
-    this
+  /** Notes that `ref` is now using this project.
+    * @return a handle that should be used to release this project. */
+  def reference (ref :Any) :AutoCloseable = {
+    val handle = new AutoCloseable() {
+      override def close () {
+        if (_refs.remove(this) == null) log.log(s"double release: $this!")
+        else {
+          log.log(s"release: $this") // TEMP: debug
+          if (_refs.isEmpty()) hibernate()
+        }
+      }
+      override def toString = s"$name <= $ref"
+    }
+    _refs.put(handle, ref)
+    log.log(s"ref: $handle") // TEMP: debug
+    handle
   }
 
   /** Returns the number of active references to this project. */
   def references :Int = _refs.size
-
-  /** Notes that `ref` is no longer using this project. */
-  def release (ref :Any) {
-    if (_refs.remove(ref) == null) log.log(s"$this released by unknown referent: $ref")
-    else log.log(s"$this released by $ref") // TEMP: debug
-    if (_refs.isEmpty) hibernate()
-  }
+  private val _refs = new IdentityHashMap[Any,Any]()
 
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
@@ -230,24 +235,20 @@ abstract class Project (val metaSvc :MetaService) {
     (sb.append(")").toString, tb.toString)
   }
 
-  private val _refs = new IdentityHashMap[Any,Any]() // see reference()/release()
-
-  private val _depprojs = new Close.Box[DependMap](toClose) {
+  private val _depprojs = new Close.Ref[DependMap](toClose) {
     override protected def create = new DependMap() // ctor resolves projects
   }
-  class DependMap extends AutoCloseable {
+  class DependMap {
     private val psvc = metaSvc.service[ProjectService]
     private val deps = MMap[Id,Project]()
 
     def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
       case None => psvc.projectFor(depend) match {
-        case sp @ Some(p) => deps.put(depend, p) ; p.reference(Project.this) ; sp
+        case sp @ Some(p) => deps.put(depend, p) ; toClose += p.reference(Project.this) ; sp
         case None => None
       }
       case sp @ Some(p) => sp
     }
-
-    override def close () :Unit = deps.values foreach { _.release(Project.this) }
   }
 
   protected def createCompiler () :Compiler = new NoopCompiler()
