@@ -19,9 +19,9 @@ import scaled.util.Chars
   */
 @Minor(name="codex", tags=Array("project"),
        desc="""A minor mode that provides project-codex fns.""")
-class CodexMode (env :Env, psvc :ProjectService, major :ReadingMode) extends MinorMode(env) {
+class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
-  val project :Project = buffer.state(classOf[Project]) getOrElse psvc.projectFor(buffer.store)
+  val project = ProjectSpace(env).project(buffer)
   note(project.reference(this))
 
   /** The most recent index for the buffer's source file, if any. */

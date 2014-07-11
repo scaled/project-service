@@ -6,7 +6,6 @@ package scaled.project
 
 import java.nio.file.{Files, Path}
 import scaled.AbstractPlugin
-import scaled.MetaService
 
 /** Finders are used to identify projects given only the location of a file somewhere in the bowels
   * of the project. This is generally done by searching up the directory hierarchy, looking for
@@ -24,13 +23,13 @@ import scaled.MetaService
   * structure, one will be chosen arbitrarily and a warning will be issued. The user can then
   * override the chosen project type, if desired, in the `.scaled/config.properties` file placed
   * in the project root.
-  * @param projectClass the class that implements projects identified by this finder. This class
-  * will be instantiated using the Scaled dependency injection mechanism, with a single `Path`
-  * argument (the root of the project). Using the dependency injection mechanism allows the project
-  * to inject any Scaled services it may need.
+  * @param clazz the class that implements projects identified by this finder. This class will be
+  * instantiated using the Scaled dependency injection mechanism, with a single `Path` argument (the
+  * root of the project). Using the dependency injection mechanism allows the project to inject any
+  * Scaled services it may need.
   */
 abstract class ProjectFinderPlugin (
-  val name :String, val intelligent :Boolean, projectClass :Class[_ <: Project]
+  val name :String, intelligent :Boolean, clazz :Class[_ <: Project]
 ) extends AbstractPlugin {
 
   /** Checks whether `root` could be a root of a project of the type sought by this finder.
@@ -48,9 +47,9 @@ abstract class ProjectFinderPlugin (
   def checkRoot (root :Path) :Int
 
   /** Applies this finder to the supplied path list.
-    * @return `Some(root,intelligent,thunk)` if it matches, otherwise `None`.
+    * @return a project seed if a match is found, otherwise `None`.
     */
-  def apply (paths :List[Path]) :Option[(Path,Boolean,MetaService => Project)] = {
+  def apply (paths :List[Path]) :Option[Project.Seed] = {
     var best :Path = null ; var cur = paths
     while (!cur.isEmpty) {
       checkRoot(cur.head) match {
@@ -59,23 +58,21 @@ abstract class ProjectFinderPlugin (
         case  1 => best = cur.head ; cur = Nil      // stop the search
       }
     }
-    if (best == null) None else Some((best, intelligent, createProjectIn(best)))
+    if (best == null) None else Some(seed(best, injectArgs(best)))
   }
 
   /** Applies this finder to the supplied id.
-    * @return `Some(thunk)` if this project finder knows how to provide a project for `id`, `None`
+    * @return a project seed if this project finder knows how to provide a project for `id`, `None`
     * otherwise.
     */
-  def apply (id :Project.Id) :Option[MetaService => Project] = None
+  def apply (id :Project.Id) :Option[Project.Seed] = None
 
-  /** Returns a thunk that will create our project, which we identified as being rooted at `root`.
-    * The default passes the root as an injection argument (and nothing else). */
-  protected def createProjectIn (root :Path) = createProject(root)
+  /** Returns any additional injection args for a project created in `root`. */
+  protected def injectArgs (root :Path) :List[Any] = root :: Nil
 
-  /** Returns a thunk that will inject our project with the supplied arguments. */
-  protected def createProject (args :Any*) = (metaSvc :MetaService) => {
-    metaSvc.injectInstance(projectClass, args.toList)
-  }
+  /** Returns a seed for a project in `root`, with injection args `args`. */
+  protected def seed (root :Path, args :List[Any]) = Project.Seed(root, intelligent, clazz, args)
 
+  /** Returns true if `dir/file` exists. Helpy helper! */
   protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))
 }

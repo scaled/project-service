@@ -7,11 +7,10 @@ package scaled.project
 import codex.Codex
 import codex.model.Kind
 import java.nio.file.{Files, Path}
-import java.util.IdentityHashMap
 import reactual.{Future, Value}
 import scala.collection.mutable.{Map => MMap}
 import scaled._
-import scaled.util.{BufferBuilder, Close}
+import scaled.util.{BufferBuilder, Close, Reffed}
 
 /** [[Project]]-related helper types &c. */
 object Project {
@@ -68,6 +67,10 @@ object Project {
     def deflate = deflate("p", platform, version)
   }
 
+  /** A seed which can be used to instantiate a project. These are returned by
+    * [[ProjectFinderPlugin]]s when resolving a project. */
+  case class Seed (root :Path, intelligent :Boolean, clazz :Class[_ <: Project], args :List[Any])
+
   // separate Id components by VT; they will be embedded in strings that are themselves separated by
   // HT, so we want to play nicely with that
   private final val Sep = 11.toChar
@@ -76,11 +79,8 @@ object Project {
 /** Provides services for a particular project. See [[ProjectService]] for a more detailed
   * description of what Scaled defines to be a project.
   */
-abstract class Project (val metaSvc :MetaService) {
+abstract class Project (val pspace :ProjectSpace) extends Reffed {
   import Project._
-
-  // keep a logger around for ourselves and children
-  protected val log = metaSvc.log
 
   /** Returns the root of this project. */
   val root :Path
@@ -91,6 +91,11 @@ abstract class Project (val metaSvc :MetaService) {
   /** Returns the name of this project. */
   def name :String
 
+  /** Returns a unique name to use for this project when it has been resolved automatically as a
+    * dependency of another project and has no user-facing name. This is used to create a directory,
+    * so the name must not include non-filesystem-safe characters. */
+  def idName :String
+
   /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
   def ids :Seq[Id] = Seq()
 
@@ -98,28 +103,6 @@ abstract class Project (val metaSvc :MetaService) {
     * precedence order. Do not look up project dependencies manually, instead use [[depend]] which
     * will properly reference the dependent project and release it when this project hibernates. */
   def depends :Seq[Id] = Seq()
-
-  /** Notes that `ref` is now using this project.
-    * @return a handle that should be used to release this project. */
-  def reference (ref :Any) :AutoCloseable = {
-    val handle = new AutoCloseable() {
-      override def close () {
-        if (_refs.remove(this) == null) log.log(s"double release: $this!")
-        else {
-          log.log(s"release: $this") // TEMP: debug
-          if (_refs.isEmpty()) hibernate()
-        }
-      }
-      override def toString = s"$name <= $ref"
-    }
-    _refs.put(handle, ref)
-    log.log(s"ref: $handle") // TEMP: debug
-    handle
-  }
-
-  /** Returns the number of active references to this project. */
-  def references :Int = _refs.size
-  private val _refs = new IdentityHashMap[Any,Any]()
 
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
@@ -145,8 +128,8 @@ abstract class Project (val metaSvc :MetaService) {
     */
   val fileCompleter :Completer[Store]
 
-  /** A bag of closeables that will be closed when this project hibernates. */
-  val toClose = Close.bag()
+  /** The meta service, for easy access. */
+  def metaSvc :MetaService = pspace.msvc
 
   /** Returns the file named `name` in this project's metadata directory. */
   def metaFile (name :String) :Path = {
@@ -174,6 +157,7 @@ abstract class Project (val metaSvc :MetaService) {
     bb.addBlank()
 
     val info = Seq.newBuilder[(String,String)]
+    info += ("Impl: " -> getClass.getName)
     info += ("Root: " -> root.toString)
     ids.foreach { id => info += ("ID: " -> id.toString) }
     bb.addKeysValues(info.result :_*)
@@ -207,26 +191,10 @@ abstract class Project (val metaSvc :MetaService) {
   def codex :ProjectCodex = _codex.get
 
   override def toString = s"$name ($root)"
+  override protected def log = metaSvc.log
 
-  /** Returns the directory in which this project will store metadata.
-    * The default is to store it in `root/.scaled`. */
-  protected def metaDir = root.resolve(".scaled")
-
-  /** Returns a metadata directory in the `Projects` subdirectory of Scaled's main metadata
-    * location. This is useful for projects which cannot write to their project root, though said
-    * projects need to be careful not to step on one another's toes.
-    */
-  protected def globalMetaDir (id :String) :Path = metaSvc.metaFile("Projects").resolve(id)
-
-  /** Shuts down all helper services and frees as much memory as possible.
-    * A project hibernates when it is no longer referenced by project-mode using buffers. */
-  protected def hibernate () {
-    println(s"$this hibernating")
-    try toClose.close()
-    catch {
-      case e :Throwable => log.log("$this hibernate failure", e)
-    }
-  }
+  /** Returns the directory in which this project will store metadata. */
+  protected def metaDir = pspace.metaDir(this)
 
   /** Populates our status line (`sb`) and status line tooltip (`tb`) strings. */
   protected def makeStatus (sb :StringBuilder, tb :StringBuilder) {
@@ -243,11 +211,10 @@ abstract class Project (val metaSvc :MetaService) {
     override protected def create = new DependMap() // ctor resolves projects
   }
   class DependMap {
-    private val psvc = metaSvc.service[ProjectService]
     private val deps = MMap[Id,Project]()
 
     def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
-      case None => psvc.projectFor(depend) match {
+      case None => pspace.projectFor(depend) match {
         case sp @ Some(p) => deps.put(depend, p) ; toClose += p.reference(Project.this) ; sp
         case None => None
       }

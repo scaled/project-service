@@ -38,12 +38,13 @@ object ProjectConfig extends Config.Defs {
   */
 @Minor(name="project", tags=Array("project"),
        desc="""A minor mode that provides project-centric fns.""")
-class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends MinorMode(env) {
+class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   import ProjectConfig._
 
+  val pspace = ProjectSpace(env)
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
-  val project :Project = buffer.state(classOf[Project]) getOrElse psvc.projectFor(buffer.store)
+  val project = pspace.project(buffer)
   note(project.reference(this))
 
   // display the project status in the modeline
@@ -103,9 +104,9 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
   @Fn("""Reads a project name from the minibuffer, then reads a file from that project (with smart
          completion), and visits it.""")
   def projectFindFileOther () {
-    val pcomp = Completer.from(psvc.knownProjects)(_._2)
+    val pcomp = Completer.from(pspace.allProjects)(_._2)
     editor.mini.read(s"Project:", "", config(projectHistory), pcomp) onSuccess { case pt =>
-      findFileIn(psvc.projectIn(pt._1))
+      findFileIn(pspace.projectIn(pt._1))
     }
   }
 
@@ -238,11 +239,11 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
     project.visitDescription(editor, view.width()) // TODO: have the editor expose width/height?
   }
 
-  @Fn("Displays summary info for all known projects.")
+  @Fn("Displays summary info for all projects in this workspace.")
   def showProjects () {
     val bb = new BufferBuilder(view.width()-1)
     bb.addHeader("Loaded Projects")
-    for (p <- psvc.loadedProjects) {
+    for (p <- pspace.loadedProjects) {
       bb.addSubHeader(p.name)
       bb.addKeysValues("Kind: " -> p.getClass.getName,
                        "Root: " -> p.root.toString(),
@@ -251,8 +252,10 @@ class ProjectMode (env :Env, psvc :ProjectService, major :ReadingMode) extends M
                        "Refs: " -> p.references.toString)
     }
 
-    bb.addHeader("Known Projects")
-    bb.addKeysValues(psvc.knownProjects.map(p => (p._2, p._1.toString)) :_*)
+    bb.addHeader(s"'${pspace.name}' Workspace Projects")
+    val allps = pspace.allProjects
+    if (allps.isEmpty) bb.add("<none>")
+    else bb.addKeysValues(allps.map(p => (p._2, p._1.toString)) :_*)
 
     val bname = s"*projects*"
     editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").create()))

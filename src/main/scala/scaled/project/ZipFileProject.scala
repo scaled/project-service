@@ -12,19 +12,20 @@ import scaled._
 /** Exposes the contents of one or more zip files as a project. This is dumb like [[FileProject]],
   * but can at least do project-wide file completion using all the files in the zip file(s).
   */
-final class ZipFileProject (val zipPaths :Seq[Path], msvc :MetaService)
-    extends AbstractZipFileProject(msvc) {
-  def this (zipPath :Path, metaSvc :MetaService) = this(Seq(zipPath), metaSvc)
+final class ZipFileProject (val zipPaths :Seq[Path], ps :ProjectSpace)
+    extends AbstractZipFileProject(ps) {
+  def this (zipPath :Path, ps :ProjectSpace) = this(Seq(zipPath), ps)
 
   override val root = zipPaths.head
   override def isIncidental = true
   override def name = root.getFileName.toString
+  override def idName = s"zip-$name" // TODO: use whole path?
 }
 
 /** A base class for projects that get their contents from a zip file. Provides a completer over all
   * entries in the zip file.
   */
-abstract class AbstractZipFileProject (msvc :MetaService) extends Project(msvc) {
+abstract class AbstractZipFileProject (ps :ProjectSpace) extends Project(ps) {
   import scala.collection.convert.WrapAsScala._
 
   /** The zip files that make up this project. */
