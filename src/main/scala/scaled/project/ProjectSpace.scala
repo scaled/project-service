@@ -128,7 +128,6 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
 
   private def resolveBySeed (seed :Project.Seed) = projects.getOrElse(seed.root, {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
-    println(s"${##}.grow(${seed.root}) => ${proj.root}")
     projects.put(proj.root, proj)
     // TODO: check project ids against byId and if any have changed, remap and updateInfo
     proj
