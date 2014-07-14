@@ -27,7 +27,7 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
   import scala.collection.convert.WrapAsScala._
   import Project._
 
-  workspace.toClose += this
+  workspace.toClose += this // our lifecycle matches that of our workspace
   private val pres = msvc.service[ResolverService]
   private def root = workspace.root
   private def log = msvc.log
@@ -37,7 +37,7 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
   // currently resolved projects
   private val projects = MMap[Path,Project]()
   // metadata on all projects added to this workspace; lazily resolved
-  lazy val (byId, toName) = {
+  lazy private val (byId, toName) = {
     val byId = MMap[Id,Path]()
     val toName = MMap[Path,String]()
     Files.list(psdir).collect(Collectors.toList[Path]).foreach { dir =>
