@@ -24,7 +24,6 @@ class ResolverService (metaSvc :MetaService) extends AbstractService {
   private def finderPlugins = finders.plugins :+ configFinder
 
   def resolveByPaths (paths :List[Path]) :Project.Seed = {
-    finderPlugins foreach println
     val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
