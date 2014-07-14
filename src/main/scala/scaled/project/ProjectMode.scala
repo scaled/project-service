@@ -265,7 +265,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("Adds the current project to the current workspace.")
   def addToWorkspace () {
     pspace.addProject(project)
-    editor.emitStatus(s"Project added to '${pspace.name}' workspace.")
+    editor.popStatus(s"'${project.name}' added to '${pspace.name}' workspace.")
   }
 
   //
