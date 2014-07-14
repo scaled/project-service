@@ -6,7 +6,7 @@ package scaled.project
 
 import codex.model.{Def, Kind, Ref, Source}
 import codex.store.{MapDBStore, ProjectStore, Query}
-import java.util.{ArrayList, Optional}
+import java.util.{ArrayList, Optional, LinkedHashSet}
 import reactual.Signal
 import scaled._
 import scaled.util.VisitStack
@@ -74,19 +74,19 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
 
   // returns the store for `project`, stores for all top-level projects in this workspace, and then
   // all the stores for the dependencies of `project`
-  protected def stores (project :Project) :ArrayList[ProjectStore] = {
+  protected def stores (project :Project) :LinkedHashSet[ProjectStore] = {
     // TODO: determine whether we want to cache these results and also whether we want to reference
     // the underlying projects...
-    val list = new ArrayList[ProjectStore]()
-    list.add(project.store)
+    val stores = new LinkedHashSet[ProjectStore]()
+    stores.add(project.store)
     pspace.allProjects map(_._1) map(pspace.projectIn) foreach { proj =>
-      if (proj != project) list.add(proj.store)
+      if (proj != project) stores.add(proj.store)
     }
     for (dep <- project.depends) project.depend(dep) match {
-      case Some(p) => list.add(p.store)
-      case None => resolveNonProjectStore(dep) foreach(list.add)
+      case Some(p) => stores.add(p.store)
+      case None => resolveNonProjectStore(dep) foreach(stores.add)
     }
-    list
+    stores
   }
 
   /** Resolves the project store for a dependency for which a Scaled project was unavailable. If
