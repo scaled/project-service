@@ -11,7 +11,6 @@ import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.code.CodeConfig
 import scaled.major.ReadingMode
-import scaled.util.BufferBuilder
 
 object CodexSummaryMode {
 

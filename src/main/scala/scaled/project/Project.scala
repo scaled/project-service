@@ -138,7 +138,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   def visitDescription (editor :Editor, width :Int) {
     val bb = new BufferBuilder(width-1)
     describeSelf(bb)
-    bb.addBlank()
     val bname = s"*project:${name}*"
     editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").
                                   tags("project").state(asState).create()))
