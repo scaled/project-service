@@ -243,6 +243,11 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("Displays summary info for all projects in this workspace.")
   def showProjects () {
     val bb = new BufferBuilder(view.width()-1)
+    bb.addHeader(s"'${pspace.name}' Workspace Projects")
+    val allps = pspace.allProjects
+    if (allps.isEmpty) bb.add("<none>")
+    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)) :_*)
+
     bb.addHeader("Loaded Projects")
     for (p <- pspace.loadedProjects) {
       bb.addSubHeader(p.name)
@@ -252,11 +257,6 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
                        "Deps: " -> p.depends.size.toString,
                        "Refs: " -> p.references.toString)
     }
-
-    bb.addHeader(s"'${pspace.name}' Workspace Projects")
-    val allps = pspace.allProjects
-    if (allps.isEmpty) bb.add("<none>")
-    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)) :_*)
 
     val bname = s"*projects*"
     editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").create()))
