@@ -236,7 +236,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   @Fn("Describes the current project.")
   def describeProject () {
-    project.visitDescription(editor, view.width()) // TODO: have the editor expose width/height?
+    project.visitDescription(editor)
   }
 
   // TODO: make "describe-workspace" and have projectspace participate in that?

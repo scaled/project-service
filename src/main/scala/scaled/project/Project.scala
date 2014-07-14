@@ -135,12 +135,13 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   def asState = State.init(classOf[Project], this)
 
   /** Visits a buffer containing a description of this project. */
-  def visitDescription (editor :Editor, width :Int) {
-    val bb = new BufferBuilder(width-1)
-    describeSelf(bb)
+  def visitDescription (editor :Editor) {
     val bname = s"*project:${name}*"
-    editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").
-                                  tags("project").state(asState).create()))
+    val view = editor.bufferConfig(bname).
+      reuse().mode("help").tags("project").state(asState).create()
+    val bb = new BufferBuilder(view.width()-1)
+    describeSelf(bb)
+    editor.visitBuffer(bb.applyTo(view))
   }
 
   /** Emits a description of this project to `bb`. The default project adds basic metadata, and

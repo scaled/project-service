@@ -68,7 +68,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
   @Fn("Displays a summary of the def that encloses the def summarized in this buffer.")
   def zoomOut () :Unit = tgt match {
-    case TopLevelMembers(_) => project.visitDescription(editor, view.width())
+    case TopLevelMembers(_) => project.visitDescription(editor)
     case DefMembers(df) => df.outer match {
       case null => visitTopLevel(editor, df.project)
       case odef => visitDef(editor, odef)
