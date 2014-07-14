@@ -239,6 +239,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     project.visitDescription(editor, view.width()) // TODO: have the editor expose width/height?
   }
 
+  // TODO: make "describe-workspace" and have projectspace participate in that?
   @Fn("Displays summary info for all projects in this workspace.")
   def showProjects () {
     val bb = new BufferBuilder(view.width()-1)
@@ -255,10 +256,16 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     bb.addHeader(s"'${pspace.name}' Workspace Projects")
     val allps = pspace.allProjects
     if (allps.isEmpty) bb.add("<none>")
-    else bb.addKeysValues(allps.map(p => (p._2, p._1.toString)) :_*)
+    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)) :_*)
 
     val bname = s"*projects*"
     editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").create()))
+  }
+
+  @Fn("Adds the current project to the current workspace.")
+  def addToWorkspace () {
+    pspace.addProject(project)
+    editor.emitStatus(s"Project added to '${pspace.name}' workspace.")
   }
 
   //
