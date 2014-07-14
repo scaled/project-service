@@ -72,7 +72,7 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
 
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    byId.get(id).flatMap(projectInRoot).orElse(pres.resolveById(id).map(grow))
+    byId.get(id).flatMap(projectInRoot).orElse(pres.resolveById(id).map(resolveBySeed))
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project] = projects.values.toSeq
@@ -123,17 +123,16 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
     if (root == null || !Files.exists(root)) None
     else projects.get(root) orElse Some(resolveByPaths(List(root)))
 
-  private def resolveByPaths (paths :List[Path]) :Project = {
-    val seed = pres.resolveByPaths(paths)
-    projects.getOrElse(seed.root, grow(seed))
-  }
+  private def resolveByPaths (paths :List[Path]) :Project =
+    resolveBySeed(pres.resolveByPaths(paths))
 
-  private def grow (seed :Project.Seed) = {
+  private def resolveBySeed (seed :Project.Seed) = projects.getOrElse(seed.root, {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
-    projects += (proj.root -> proj)
+    println(s"${##}.grow(${seed.root}) => ${proj.root}")
+    projects.put(proj.root, proj)
     // TODO: check project ids against byId and if any have changed, remap and updateInfo
     proj
-  }
+  })
 
   private def updateInfo (proj :Project) {
     import scala.collection.convert.WrapAsJava._
