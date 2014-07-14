@@ -25,17 +25,16 @@ object CodexSummaryMode {
     def name = s"${store.name} defs"
   }
 
-  def visitDef (editor :Editor, project :Project, df :Def) {
-    visit(editor, project, DefMembers(df))
+  def visitDef (editor :Editor, df :Def) {
+    visit(editor, DefMembers(df))
   }
 
-  def visitTopLevel (editor :Editor, project :Project, store :ProjectStore) {
-    visit(editor, project, TopLevelMembers(store))
+  def visitTopLevel (editor :Editor, store :ProjectStore) {
+    visit(editor, TopLevelMembers(store))
   }
 
-  private def visit (editor :Editor, proj :Project, tgt :Target) {
-    val view = editor.bufferConfig(tgt.name).reuse().mode("codex-summary", tgt).
-      state(proj.asState).create()
+  private def visit (editor :Editor, tgt :Target) {
+    val view = editor.bufferConfig(tgt.name).reuse().mode("codex-summary", tgt).create()
     editor.visitBuffer(view.buffer)
   }
 }
@@ -46,9 +45,13 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   import scala.collection.convert.WrapAsScala._
   import CodexSummaryMode._
 
-  // reference our target project, and release it when we're disposed
-  val project = buffer.state.req(classOf[Project])
-  note(project.reference(buffer))
+  val pspace = ProjectSpace(env)
+  val project = (tgt match {
+    case TopLevelMembers(store) => store
+    case DefMembers(df) => df.project
+  }).asInstanceOf[Project#CodexStore].owner
+  // resolve our project and store it in the buffer for our project and codex minor modes
+  buffer.state[Project].update(project)
 
   override def keymap = super.keymap ++ Seq(
     "o"     -> "zoom-out",
@@ -66,13 +69,10 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
   @Fn("Displays a summary of the def that encloses the def summarized in this buffer.")
   def zoomOut () :Unit = tgt match {
-    case TopLevelMembers(store) => project.codex.projectFor(store) match {
-      case Some(stp) => stp.visitDescription(editor, view.width())
-      case None      => editor.popStatus("Unable to determine project for this Codex.")
-    }
-    case DefMembers (df) => df.outer match {
-      case null => visitTopLevel(editor, project, df.project)
-      case odef => visitDef(editor, project, odef)
+    case TopLevelMembers(_) => project.visitDescription(editor, view.width())
+    case DefMembers(df) => df.outer match {
+      case null => visitTopLevel(editor, df.project)
+      case odef => visitDef(editor, odef)
     }
   }
 
@@ -197,8 +197,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
     def length :Int = (if (docExpanded) doc.length else 1) + sig.length
 
-    def zoomIn () = project.codex.summarize(editor, view, df)
-    def visit () = project.codex.visit(editor, view, df)
+    def zoomIn () = pspace.codex.summarize(editor, view, df)
+    def visit () = pspace.codex.visit(editor, view, df)
     def visitOrZoom () = df.kind match {
       case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
       case _ => visit()

@@ -112,8 +112,10 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
   }
   // TODO: removeProject
 
+  val codex :PSpaceCodex = new PSpaceCodex(this)
   override def close () {
-    // TODO
+    codex.close()
+    // TODO: close/force-hibernate all resolved projects?
   }
 
   // the root passed here may have disappeared in the fullness of time, so validate it

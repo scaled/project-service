@@ -4,8 +4,8 @@
 
 package scaled.project
 
-import codex.Codex
 import codex.model.Kind
+import codex.store.MapDBStore
 import java.nio.file.{Files, Path}
 import reactual.{Future, Value}
 import scala.collection.mutable.{Map => MMap}
@@ -113,12 +113,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   /** The history ring for execution invocations. */
   val execHistory = new Ring(32)
 
-  /** The history rings for Codex completions. */
-  val codexHistory = Map(Kind.MODULE -> new Ring(32),
-                         Kind.TYPE   -> new Ring(32),
-                         Kind.FUNC   -> new Ring(32),
-                         Kind.VALUE  -> new Ring(32))
-
   /** Completes files in this project. The string representation of the files should not be
     * prefixed with path information, but rather suffixed and only where necessary to avoid
     * name collisions.
@@ -187,8 +181,17 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   /** Returns the runner that manages executions for this project. Created on demand. */
   def runner :Runner = _runner.get
 
-  /** Returns the Codex for this project. Created on demand. */
-  def codex :ProjectCodex = _codex.get
+  /** A [[ProjectStore]] that maintains a reference back to its owning project. */
+  class CodexStore extends MapDBStore(name, metaFile("codex")) {
+    def owner :Project = Project.this
+  }
+
+  /** Returns the Codex store for this project. Created on demand. */
+  def store :CodexStore = _store.get
+
+  /** Returns the indexer used by this project.
+    * Created lazily, but never released because indexers don't maintain runtime state. */
+  lazy val indexer :Indexer = createIndexer()
 
   override def toString = s"$name ($root)"
   override protected def log = metaSvc.log
@@ -255,8 +258,15 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     override protected def create = createRunner()
   }
 
-  protected def createProjectCodex () :ProjectCodex = new ProjectCodex(this)
-  private val _codex = new Close.Box[ProjectCodex](toClose) {
-    override protected def create = createProjectCodex()
+  protected def createProjectStore () :CodexStore = new CodexStore()
+  private val _store = new Close.Box[CodexStore](toClose) {
+    override protected def create = createProjectStore()
+    override protected def willClose (ref :CodexStore) {
+      // don't call super, which would close our project store directly, instead delegate closure
+      // to a background thread; MapDB close can block for a non-trivial duration
+      if (ref != null) metaSvc.exec.runInBG { ref.close() }
+    }
   }
+
+  protected def createIndexer () :Indexer = new Indexer(this)
 }
