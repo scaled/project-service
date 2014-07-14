@@ -129,7 +129,6 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
   }
 
   private def grow (seed :Project.Seed) = {
-    println(s"grow($seed)")
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
     projects += (proj.root -> proj)
     // TODO: check project ids against byId and if any have changed, remap and updateInfo
