@@ -107,6 +107,9 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
     if (Files.exists(ddir)) Files.move(ddir, pdir)
     else Files.createDirectories(ddir)
 
+    // add this project's root to our workspace's hint path
+    workspace.addHintPath(proj.root)
+
     // write this project's id info its metadata dir
     updateInfo(proj)
   }
