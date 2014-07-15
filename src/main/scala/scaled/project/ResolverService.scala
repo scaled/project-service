@@ -27,7 +27,10 @@ class ResolverService (metaSvc :MetaService) extends AbstractService {
     val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
-      if (iprojs.size > 1) log.log(s"Multiple intelligent project matches: ${iprojs.mkString(" ")}")
+      if (iprojs.size > 1) {
+        log.log(s"Multiple intelligent project matches:")
+        iprojs.foreach { p => log.log(s"  $p") }
+      }
       iprojs.head
     }
     // if there are any non-intelligent project matches, use the deepest match
