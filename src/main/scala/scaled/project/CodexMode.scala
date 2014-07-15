@@ -31,7 +31,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   // request that our store be indexed (which should eventually populate `index`)
   note(buffer.storeV.onValueNotify { store =>
     // don't attempt to index non- or not-yet-existent files
-    if (buffer.store.exists) project.indexer.reindex(store)
+    if (buffer.store.exists) project.indexer.queueReindex(store)
   })
 
   override def keymap = Seq(

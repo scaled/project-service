@@ -193,7 +193,7 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     }
     override def toString = s"codex:$name"
     // when we're resolved, potentially trigger a full initial index
-    indexer.checkFirstTimeIndex()
+    if (isEmpty) indexer.queueReindexAll()
   }
 
   /** Returns the Codex store for this project. Created on demand. */
