@@ -85,6 +85,11 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
     case None => dsdir.resolve(proj.idName)
   }
 
+  /** An execution queue on which Codex indexing is run. This serializes all indexing actions which
+    * avoids grinding a user's machine to a halt with multiple full indexes, and it ensures that a
+    * single indexer doesn't perform simultaneous reindexes. */
+  val indexQueue :Pipe[Unit] = msvc.process(())
+
   /** Adds this project to this workspace. */
   def addProject (proj :Project) = {
     if (toName.contains(proj.root)) throw Errors.feedback(

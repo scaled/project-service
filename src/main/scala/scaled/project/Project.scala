@@ -161,6 +161,7 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     if (depends.isEmpty) bb.add("<none>")
 
     // add info on our helpers
+    store.describeSelf(bb)
     compiler.describeSelf(bb)
     runner.describeSelf(bb)
   }
@@ -184,6 +185,15 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   /** A [[ProjectStore]] that maintains a reference back to its owning project. */
   class CodexStore extends MapDBStore(name, metaFile("codex")) {
     def owner :Project = Project.this
+    def isEmpty :Boolean = !topLevelDefs.iterator.hasNext
+    def describeSelf (bb :BufferBuilder) {
+      bb.addSubHeader("Codex:")
+      bb.addKeysValues("Defs: " -> defCount.toString,
+                       "Names: " -> nameCount.toString)
+    }
+    override def toString = s"codex:$name"
+    // when we're resolved, potentially trigger a full initial index
+    indexer.checkFirstTimeIndex()
   }
 
   /** Returns the Codex store for this project. Created on demand. */

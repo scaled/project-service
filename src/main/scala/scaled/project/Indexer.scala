@@ -15,6 +15,13 @@ class Indexer (val project :Project) {
   /** A signal emitted when a source has been reprocessed and indexed. */
   val indexed = Signal[SourceIndex]()
 
+  /** Checks whether we need to index our project's code for the first time. If so, queues up a
+    * background task to do so. */
+  def checkFirstTimeIndex () {
+    // if our project store is empty, queue up an initial full index
+    if (project.store.isEmpty) project.pspace.indexQueue.tell(_ => reindexAll())
+  }
+
   /** Requests that `store` be reindexed by this project's Codex. This requests that the code be
     * reindexed by the Codex and then that a [[SourceIndex]] be generated for the source. This will
     * be done in the background, and when the indexing is complete, a new `SourceIndex` instance
@@ -22,12 +29,16 @@ class Indexer (val project :Project) {
     */
   def reindex (store :Store) {
     // invoke the reindex in the background
-    msvc.exec.runInBG { reindex(PSpaceCodex.toSource(store)) }
+    project.pspace.indexQueue.tell(_ => reindex(PSpaceCodex.toSource(store)))
+  }
+
+  /** Performs a full reindex of this project. */
+  protected def reindexAll () {
+    // by default we do nothing; WE HAVE NO INTELLIGENCE!
   }
 
   /** Performs the actual reindexing of `source`. This should call [[reindexComplete]] when the
-    * indexing is complete.
-    */
+    * indexing is complete. */
   protected def reindex (source :Source) {
     // by default we do nothing; WE HAVE NO INTELLIGENCE!
   }
