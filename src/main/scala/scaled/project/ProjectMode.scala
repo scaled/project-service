@@ -52,8 +52,8 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
-    "C-h p"   -> "describe-project",
-    "C-h C-p" -> "show-projects",
+    "C-h p" -> "describe-project",
+    "C-h w" -> "describe-workspace",
 
     // file fns
     "C-x C-f" -> "project-find-file",
@@ -239,18 +239,20 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     project.visitDescription(editor)
   }
 
-  // TODO: make "describe-workspace" and have projectspace participate in that?
+  // TODO: move this into workspace mode, have projectspace participate in describe calldowns
   @Fn("Displays summary info for all projects in this workspace.")
-  def showProjects () {
+  def describeWorkspace () {
     val bb = new BufferBuilder(view.width()-1)
-    bb.addHeader(s"'${pspace.name}' Workspace Projects")
+    bb.addHeader(s"'${pspace.name}' Workspace")
+
+    bb.addSubHeader(s"All Projects")
     val allps = pspace.allProjects
     if (allps.isEmpty) bb.add("<none>")
-    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)) :_*)
+    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)).sorted :_*)
 
-    bb.addHeader("Loaded Projects")
+    bb.addSubHeader("Loaded Projects")
     for (p <- pspace.loadedProjects) {
-      bb.addSubHeader(p.name)
+      bb.addSection(p.name)
       bb.addKeysValues("Kind: " -> p.getClass.getName,
                        "Root: " -> p.root.toString(),
                        "Ids: "  -> p.ids.mkString,
