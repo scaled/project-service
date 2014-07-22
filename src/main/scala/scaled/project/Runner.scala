@@ -18,23 +18,29 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
   import scala.collection.convert.WrapAsScala._
 
   /** Returns the value for `key`, throwing a feedback exception if none exists. */
-  def param (key :String) :String = data.get(key) match {
-    case null   => throw Errors.feedback(s"Execution ($name) missing required parameter: '$key'")
-    case values => if (values.size == 1) values.get(0)
-                   else throw Errors.feedback(s"Expected single value for '$key' but got $values")
+  def param (key :String) :String = {
+    val vs = data.get(key)
+    vs.size match {
+      case 0 => throw Errors.feedback(s"Execution ($name) missing required parameter: '$key'")
+      case 1 => vs.get(0)
+      case _ => throw Errors.feedback(s"Expected single value for '$key' but got $vs")
+    }
   }
 
   /** Returns the value for `key`, returning `defval` if none exists. */
-  def param (key :String, defval :String) :String = data.get(key) match {
-    case null   => defval
-    case values => if (values.size == 1) values.get(0)
-                   else throw Errors.feedback(s"Expected single value for '$key' but got $values")
+  def param (key :String, defval :String) :String = {
+    val vs = data.get(key)
+    vs.size match {
+      case 0 => defval
+      case 1 => vs.get(0)
+      case _ => throw Errors.feedback(s"Expected single value for '$key' but got $vs")
+    }
   }
 
   /** Returns the values for `key`, returning `defvals` if none exist. */
-  def param (key :String, defvals :Seq[String]) :Seq[String] = data.get(key) match {
-    case null   => defvals
-    case values => values
+  def param (key :String, defvals :Seq[String]) :Seq[String] = {
+    val vs = data.get(key)
+    if (vs.isEmpty) defvals else vs
   }
 
   /** Used to describe this execution in the `describe-project` buffer. */
