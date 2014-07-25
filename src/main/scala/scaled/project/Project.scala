@@ -6,7 +6,8 @@ package scaled.project
 
 import codex.model.Kind
 import codex.store.MapDBStore
-import java.nio.file.{Files, Path}
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{Files, FileVisitResult, Path, SimpleFileVisitor}
 import reactual.{Future, Value}
 import scala.collection.mutable.{Map => MMap}
 import scaled._
@@ -202,6 +203,17 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   /** Returns the indexer used by this project.
     * Created lazily, but never released because indexers don't maintain runtime state. */
   lazy val indexer :Indexer = createIndexer()
+
+  /** Applies `op` to all files in this project. The default implementation applies `op` to all
+    * files in [[root]] directory and its subdirectories. Subclasses may refine this result. */
+  def onFiles (op :Path => Unit) {
+    Files.walkFileTree(root, new SimpleFileVisitor[Path]() {
+      override def visitFile (file :Path, attrs :BasicFileAttributes) = {
+        if (!Files.isDirectory(file)) op(file)
+        FileVisitResult.CONTINUE
+      }
+    })
+  }
 
   override def toString = s"$name ($root)"
   override protected def log = metaSvc.log

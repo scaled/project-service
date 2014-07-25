@@ -89,6 +89,8 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
                      "ignores: " -> ignores.mkString(" "))
   }
 
+  override def onFiles (op :Path => Unit) :Unit = allFiles foreach op
+
   protected def ignore (dir :Path) :Boolean = {
     val name = dir.getFileName.toString
     name.startsWith(".") || ignores(name)
