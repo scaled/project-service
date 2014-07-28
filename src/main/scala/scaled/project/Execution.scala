@@ -71,7 +71,7 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
   * goodbye.arg = world!
   * ```
   *
-  * Each exceution is associated with a particular [[RunnerPlugin]]. The runner interprets the
+  * Each execution is associated with a particular [[RunnerPlugin]]. The runner interprets the
   * execution configuration and performs the execution. The built-in runner, `exec`, invokes a shell
   * command in a separate process and pipes its output to a buffer. Other runners may be provided
   * via plugins with tag `runner`.
@@ -84,6 +84,7 @@ class Executions (pspace :ProjectSpace) {
     "runner", List(pspace))
 
   private def readConfig (file :Path) :Unit = if (Files.exists(file)) {
+    println(s"Reading $file")
     val configs = MMap[String,ArrayListMultimap[String,String]]()
     Properties.read(pspace.log, file) { (key, value) => key split("\\.", 2) match {
       case Array(name, ekey) => configs.getOrElseUpdate(
@@ -122,7 +123,10 @@ class Executions (pspace :ProjectSpace) {
   def configPreamble :Seq[String] = Seq(
     s"# '${pspace.name}' workspace executions",
     "#",
-    "# Each block of 'foo.key: value' settings describes a single execution."
+    "# Each block of 'foo.key: value' settings describes a single execution.",
+    "#",
+    "# NOTE: if you uncomment any of the examples, you must strip off the trailing comments",
+    "# as comments are only allowed to start in column zero."
   )
 
   /** Opens this project's executions config file in `editor`. */
