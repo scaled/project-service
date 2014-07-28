@@ -15,9 +15,14 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
 
   /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
   def execute (editor :Editor, exec :Execution) {
-    val bufname = s"*exec:${pspace.name}-${exec.name}*"
+    val bufname = s"*exec:${exec.name}*"
     val buffer = editor.bufferConfig(bufname).reuse().mode("log").create().buffer
-    SubProcess(config(exec), editor, pspace.msvc.exec, buffer)
+    val cfg = config(exec)
+    val info = Seq() ++ cfg.env.map { case (k, v) => s"Env: $k = $v" } ++ Seq(
+      s"Cwd: ${cfg.cwd}", s"Cmd: ${cfg.cmd.mkString(" ")}", "Output:")
+    buffer.append(info.map(Line.apply))
+    buffer.split(buffer.end)
+    SubProcess(cfg, editor, pspace.msvc.exec, buffer)
     // TODO: associate the subprocess with the buffer, kill the subprocess (if it's still alive)
     // when the buffer is killed?
     editor.visitBuffer(buffer)
