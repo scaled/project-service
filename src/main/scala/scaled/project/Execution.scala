@@ -84,7 +84,6 @@ class Executions (pspace :ProjectSpace) {
     "runner", List(pspace))
 
   private def readConfig (file :Path) :Unit = if (Files.exists(file)) {
-    println(s"Reading $file")
     val configs = MMap[String,ArrayListMultimap[String,String]]()
     Properties.read(pspace.log, file) { (key, value) => key split("\\.", 2) match {
       case Array(name, ekey) => configs.getOrElseUpdate(
