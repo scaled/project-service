@@ -21,8 +21,8 @@ object ProjectConfig extends Config.Defs {
   @Var("If true, the test output buffer will be shown when tests are run interactively.")
   val showOutputOnTest = key(false)
 
-  /** Tracks the last project/execution pair. Used by `project-reexecute. */
-  val lastExecution = fnKey(cfg => OptValue[(Project,Execution)]())
+  /** Tracks the last execution. Used by `workspace-execute-again`. */
+  val lastExecution = fnKey(cfg => OptValue[Execution]())
 
   /** The history ring for selecting projects. */
   val projectHistory = fnKey(cfg => new Ring(cfg(historySize)))
@@ -71,9 +71,8 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     "C-c C-t"   -> "project-run-file-tests",
 
     // execution fns
-    "C-c C-e"   -> "project-execute",
-    "C-c C-a"   -> "project-execute-again",
-    "C-c S-C-e" -> "project-execute-in",
+    "C-c C-e"   -> "workspace-execute",
+    "C-c C-a"   -> "workspace-execute-again",
 
     // TODO: this doesn't work, we need to wire up major:find-file to route to major mode fn
     // "S-C-x S-C-f" -> "find-file"
@@ -207,31 +206,25 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   //
   // Execute FNs
 
-  @Fn("Invokes a particular execution in this project.")
-  def projectExecute () {
-    val exns = project.runner.executions
-    if (exns.isEmpty) editor.popStatus(s"${project.name} defines no executions.")
-    else editor.mini.read(s"Execute:", "", project.execHistory,
-                          Completer.from(exns)(_.name)) onSuccess { e => execute(project, e) }
+  @Fn("Invokes a particular execution in this workspace.")
+  def workspaceExecute () {
+    val exns = pspace.execs.executions
+    if (exns.isEmpty) editor.popStatus(s"${pspace.name} defines no executions.")
+    else editor.mini.read(s"Execute:", "", pspace.execHistory,
+                          Completer.from(exns)(_.name)) onSuccess execute
   }
 
-  @Fn("""Reinvokes the last invoked execution. Note that the last execution may have been in a
-         different project than is currently active.""")
-  def projectExecuteAgain () {
+  @Fn("""Reinvokes the last invoked execution.""")
+  def workspaceExecuteAgain () {
     config(lastExecution).getOption match {
-      case Some((p, e)) => execute(p, e)
-      case None => editor.popStatus("No execution has been invoked yet.")
+      case Some(e) => execute(e)
+      case None    => editor.popStatus("No execution has been invoked yet.")
     }
   }
 
-  @Fn("Invokes a particular execution in this project.")
-  def projectExecuteIn () {
-    editor.popStatus("TODO")
-  }
-
-  @Fn("Visits the project's execution configuration file.")
-  def projectEditExecutions () {
-    project.runner.visitConfig(editor)
+  @Fn("Visits the workspace's execution configuration file.")
+  def workspaceEditExecutions () {
+    pspace.execs.visitConfig(editor)
   }
 
   @Fn("Describes the current project.")
@@ -239,28 +232,12 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     project.visitDescription(editor)
   }
 
-  // TODO: move this into workspace mode, have projectspace participate in describe calldowns
+  // TODO: move this into workspace mode, have ProjectSpace participate in describe calldowns
   @Fn("Displays summary info for all projects in this workspace.")
   def describeWorkspace () {
     val bb = new BufferBuilder(view.width()-1)
-    bb.addHeader(s"'${pspace.name}' Workspace")
-
-    bb.addSubHeader(s"All Projects")
-    val allps = pspace.allProjects
-    if (allps.isEmpty) bb.add("<none>")
-    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)).sorted :_*)
-
-    bb.addSubHeader("Loaded Projects")
-    for (p <- pspace.loadedProjects) {
-      bb.addSection(p.name)
-      bb.addKeysValues("Kind: " -> p.getClass.getName,
-                       "Root: " -> p.root.toString(),
-                       "Ids: "  -> p.ids.mkString,
-                       "Deps: " -> p.depends.size.toString,
-                       "Refs: " -> p.references.toString)
-    }
-
-    val bname = s"*projects*"
+    pspace.describeSelf(bb)
+    val bname = s"*workspace*"
     editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").create()))
   }
 
@@ -276,8 +253,8 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   private def maybeShowTestOutput () =
     if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))
 
-  private def execute (project :Project, exec :Execution) {
-    project.runner.execute(editor, exec)
-    config(lastExecution).update(project -> exec)
+  private def execute (exec :Execution) {
+    pspace.execs.execute(editor, exec)
+    config(lastExecution).update(exec)
   }
 }

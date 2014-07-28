@@ -9,7 +9,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.stream.Collectors
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
-import scaled.util.Errors
+import scaled.util.{BufferBuilder, Errors}
 
 /** Static [[ProjectSpace]] stuffs. */
 object ProjectSpace {
@@ -23,14 +23,13 @@ object ProjectSpace {
 }
 
 /** Manages the projects in a workspace. */
-class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoCloseable {
+class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends AutoCloseable {
   import scala.collection.convert.WrapAsScala._
   import Project._
 
   workspace.toClose += this // our lifecycle matches that of our workspace
   private val pres = msvc.service[ResolverService]
   private def root = workspace.root
-  private def log = msvc.log
   private val psdir = Files.createDirectories(root.resolve("Projects"))
   private val dsdir = Files.createDirectories(root.resolve("Depends"))
 
@@ -53,6 +52,9 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
 
   /** Returns the name of the workspace. */
   def name :String = workspace.name
+
+  /** Easy access to our logger. */
+  def log = msvc.log
 
   /** Returns `(root, name)` for all projects in this workspace. */
   def allProjects :Seq[(Path,String)] = toName.toSeq
@@ -85,10 +87,35 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
     case None => dsdir.resolve(proj.idName)
   }
 
+  /** The history ring for execution invocations. */
+  val execHistory = new Ring(32)
+
   /** An execution queue on which Codex indexing is run. This serializes all indexing actions which
     * avoids grinding a user's machine to a halt with multiple full indexes, and it ensures that a
     * single indexer doesn't perform simultaneous reindexes. */
   val indexQueue :Pipe[Unit] = msvc.process(())
+
+  /** Emits a description of this project space to `bb`. */
+  def describeSelf (bb :BufferBuilder) {
+    bb.addHeader(s"'$name' Workspace")
+
+    bb.addSubHeader(s"All Projects")
+    val allps = allProjects
+    if (allps.isEmpty) bb.add("<none>")
+    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)).sorted :_*)
+
+    bb.addSubHeader("Loaded Projects")
+    for (p <- loadedProjects) {
+      bb.addSection(p.name)
+      bb.addKeysValues("Kind: " -> p.getClass.getName,
+                       "Root: " -> p.root.toString(),
+                       "Ids: "  -> p.ids.mkString,
+                       "Deps: " -> p.depends.size.toString,
+                       "Refs: " -> p.references.toString)
+    }
+
+    execs.describeSelf(bb)
+  }
 
   /** Adds this project to this workspace. */
   def addProject (proj :Project) = {
@@ -120,7 +147,12 @@ class ProjectSpace (workspace :Workspace, val msvc :MetaService) extends AutoClo
   }
   // TODO: removeProject
 
+  /** Manages the collection of Codexen for the projects in this space. */
   val codex :PSpaceCodex = new PSpaceCodex(this)
+
+  /** Manages executions for this project space. */
+  lazy val execs :Executions = new Executions(this)
+
   override def close () {
     codex.close()
     // TODO: close/force-hibernate all resolved projects?

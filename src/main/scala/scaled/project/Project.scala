@@ -111,9 +111,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   /** The history ring for file names in this project. */
   val fileHistory = new Ring(32) // TODO: how might we configure this?
 
-  /** The history ring for execution invocations. */
-  val execHistory = new Ring(32)
-
   /** Completes files in this project. The string representation of the files should not be
     * prefixed with path information, but rather suffixed and only where necessary to avoid
     * name collisions.
@@ -164,7 +161,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     // add info on our helpers
     store.describeSelf(bb)
     compiler.describeSelf(bb)
-    runner.describeSelf(bb)
   }
 
   /** Instructs the project to update its status info. This is generally called by project helpers
@@ -179,9 +175,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
 
   /** Returns the tester that handles test running for this project. Created on demand. */
   def tester :Tester = _tester.get
-
-  /** Returns the runner that manages executions for this project. Created on demand. */
-  def runner :Runner = _runner.get
 
   /** A [[ProjectStore]] that maintains a reference back to its owning project. */
   class CodexStore extends MapDBStore(name, metaFile("codex")) {
@@ -273,11 +266,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
                            file :Path, typess :Seq[Model.Element]) = false
     override def runTest (editor :Editor, file :Path, elem :Model.Element) =
       editor.emitStatus("${project.name} does not provide a tester.")
-  }
-
-  protected def createRunner () :Runner = new Runner(this)
-  private val _runner = new Close.Box[Runner](toClose) {
-    override protected def create = createRunner()
   }
 
   protected def createProjectStore () :CodexStore = new CodexStore()
