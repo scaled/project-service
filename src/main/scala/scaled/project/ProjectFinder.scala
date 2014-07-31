@@ -39,10 +39,11 @@ abstract class ProjectFinderPlugin (
     * directory on the way up. It then chooses the most promising candidate as the root for a
     * project (if any candidates exist).
     *
-    * @return -1 if this directory is definitely not a root, 1 if this directory is definitely a
-    * root and the search should stop here, or 0 if this directory could be a root, but so could
-    * a directory higher up the hierarchy. In the absence of a 1 directory, the algorithm chooses
-    * the 0 directory nearest to the file-system root.
+    * The return value can be one of the following:
+    * -  1 - directory is definitely a root, stop searching
+    * -  0 - directory may be a root, note it and keep searching for higher root
+    * - -1 - directory is not a root, if we have no root candidate thus far, keep searching, but
+    *        otherwise stop searching and use our existing best candidate
     */
   def checkRoot (root :Path) :Int
 
@@ -53,7 +54,7 @@ abstract class ProjectFinderPlugin (
     var best :Path = null ; var cur = paths
     while (!cur.isEmpty) {
       checkRoot(cur.head) match {
-        case -1 => /* skip it */     cur = cur.tail
+        case -1 => cur = if (best == null) cur.tail else Nil // stop if we have a root candidate
         case  0 => best = cur.head ; cur = cur.tail // note current best candidate
         case  1 => best = cur.head ; cur = Nil      // stop the search
       }
