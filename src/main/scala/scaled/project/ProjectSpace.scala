@@ -37,14 +37,17 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
   private val projects = MMap[Path,Project]()
   // metadata on all projects added to this workspace; lazily resolved
   lazy private val (byId, toName) = {
-    val byId = MMap[Id,Path]()
-    val toName = MMap[Path,String]()
+    val byId = MMap[Id,Path]() ; val toName = MMap[Path,String]()
     Files.list(psdir).collect(Collectors.toList[Path]).foreach { dir =>
       if (Files.isDirectory(dir)) {
-        val info = List() ++ Files.readAllLines(dir.resolve("info.txt"))
-        val root = Paths.get(info.head)
-        toName.put(root, dir.getFileName.toString)
-        info.tail.flatMap(inflateId) foreach { id => byId.put(id, root) }
+        try {
+          val info = List() ++ Files.readAllLines(dir.resolve("info.txt"))
+          val root = Paths.get(info.head)
+          toName.put(root, dir.getFileName.toString)
+          info.tail.flatMap(inflateId) foreach { id => byId.put(id, root) }
+        } catch {
+          case e :Throwable => log.log(s"Failed to resolve info for $dir: $e")
+        }
       }
     }
     (byId, toName)
