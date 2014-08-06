@@ -154,6 +154,13 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     ids.foreach { id => info += ("ID: " -> id.toString) }
     bb.addKeysValues(info.result :_*)
 
+    // if we have warnings, display them
+    val ws = warnings
+    if (!ws.isEmpty) {
+      bb.addSubHeader("Warnings:")
+      ws foreach { bb.add(_) }
+    }
+
     bb.addSubHeader("Depends:")
     depends foreach { d => bb.add(d.toString) } // TODO
     if (depends.isEmpty) bb.add("<none>")
@@ -175,6 +182,10 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
 
   /** Returns the tester that handles test running for this project. Created on demand. */
   def tester :Tester = _tester.get
+
+  /** Returns any warnings that should be displayed when describing this project. This includes
+    * things like failure to resolve project dependencies, or other configuration issues. */
+  def warnings :Seq[String] = Nil
 
   /** A [[ProjectStore]] that maintains a reference back to its owning project. */
   class CodexStore extends MapDBStore(name, metaFile("codex")) {
