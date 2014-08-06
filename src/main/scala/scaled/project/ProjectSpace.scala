@@ -112,7 +112,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
       bb.addSection(p.name)
       bb.addKeysValues("Kind: " -> p.getClass.getName,
                        "Root: " -> p.root.toString(),
-                       "Ids: "  -> p.ids.mkString,
+                       "Ids: "  -> p.ids.mkString(" "),
                        "Deps: " -> p.depends.size.toString,
                        "Refs: " -> p.references.toString)
     }
