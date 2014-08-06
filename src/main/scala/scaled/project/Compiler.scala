@@ -97,6 +97,12 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     if (interactive) editor.emitStatus("Recompile initiated...")
   }
 
+  /** Requests that this compiler be reset. If a connection to an external compiler is being
+    * maintained, it should be closed so that the next [[recompile]] request causes a new compiler
+    * to be started.
+    */
+  def reset () {} // nada by default
+
   /** Called when this compiler is no longer needed. This should terminate any external processes
     * and release any resources retained by this instance. */
   def close () {} // nada by default

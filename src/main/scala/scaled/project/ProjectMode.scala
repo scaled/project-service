@@ -138,6 +138,12 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     project.compiler.recompile(editor, true)
   }
 
+  @Fn("""Resets the compiler for this project. This can be useful if the compiler misbehaves,
+         due perhaps to a command line compiler stomping on its files or something similar.""")
+  def projectResetCompiler () {
+    project.compiler.reset()
+  }
+
   @Fn("""Visits the next compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def projectNextError () {
