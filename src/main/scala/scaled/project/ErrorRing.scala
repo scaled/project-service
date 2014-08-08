@@ -64,7 +64,7 @@ class ErrorRing (thing :String, errs :Seq[Error]) {
     view.point() = err.loc
     // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
     // its position up or down, left or right to fit yet still point to loc
-    view.showPopup(Popup(err.descrip, Popup.UpRight(err.loc), true, true))
+    view.showPopup(Popup.text(err.descrip, Popup.UpRight(err.loc)).toError)
   }
 
   protected def onNone  = s"No ${thing}s."
