@@ -14,6 +14,32 @@ import scaled.major.ReadingMode
 
 object CodexSummaryMode {
 
+  def styleFor (kind :Kind) = kind match {
+    case Kind.MODULE => Some(CodeConfig.moduleStyle)
+    case Kind.TYPE   => Some(CodeConfig.typeStyle)
+    case Kind.FUNC   => Some(CodeConfig.functionStyle)
+    case Kind.VALUE  => Some(CodeConfig.variableStyle)
+    case _           => None
+  }
+
+  def formatSig (sig :Sig, indent :String = "") :Seq[LineV] = {
+    import scala.collection.convert.WrapAsScala._
+    var start = 0
+    sig.text.split(System.lineSeparator) map { l =>
+      val len = l.length
+      val lb = Line.builder(indent + l)
+      for (el <- sig.defs ++ sig.uses) {
+        val off = el.offset - start
+        if (off >= 0 && off < len) styleFor(el.kind) foreach {
+          val start = indent.length+off ; val end = start+el.length
+          s => lb.withStyle(s, start, end).withTag(el, start, end)
+        }
+      }
+      start += len + System.lineSeparator.length
+      lb.build()
+    }
+  }
+
   sealed trait Target {
     def name :String
   }
@@ -176,22 +202,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
     val sig :Seq[LineV] = df.sig match {
       case sigO if (!sigO.isPresent) => Seq(Line(s"<no sig: $df>"))
-      case sigO =>
-        val sig = sigO.get
-        var start = 0
-        sig.text.split(System.lineSeparator) map { l =>
-          val len = l.length
-          val lb = Line.builder(indent + l)
-          for (el <- sig.defs ++ sig.uses) {
-            val off = el.offset - start
-            if (off >= 0 && off < len) styleFor(el.kind) foreach {
-              val start = indent.length+off ; val end = start+el.length
-              s => lb.withStyle(s, start, end).withTag(el, start, end)
-            }
-          }
-          start += len + System.lineSeparator.length
-          lb.build()
-        }
+      case sigO => formatSig(sigO.get)
     }
 
     def length :Int = (if (docExpanded) doc.length else 1) + sig.length
@@ -229,13 +240,5 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
     private def toDocLine (line :String) =
       Line.builder(indent + line).withStyle(CodeConfig.docStyle).build()
-  }
-
-  private def styleFor (kind :Kind) = kind match {
-    case Kind.MODULE => Some(CodeConfig.moduleStyle)
-    case Kind.TYPE   => Some(CodeConfig.typeStyle)
-    case Kind.FUNC   => Some(CodeConfig.functionStyle)
-    case Kind.VALUE  => Some(CodeConfig.variableStyle)
-    case _           => None
   }
 }
