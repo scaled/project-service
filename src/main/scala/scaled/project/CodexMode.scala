@@ -10,7 +10,7 @@ import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.major.ReadingMode
-import scaled.util.Chars
+import scaled.util.{BufferBuilder, Chars}
 
 /** A minor mode which provides fns for interacting with a project's Codex.
   *
@@ -220,7 +220,8 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   }
 
   private def mkDefPopup (elem :Element, loc :Loc, df :Def) :Popup = {
-    val text = ArrayBuffer[String]()
+    val bb = new BufferBuilder(view.width()-2)
+    val fmt = DocFormatter.Default
     df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
       def accept (doc :Doc) :Unit = try {
         val r = df.source().reader()
@@ -228,19 +229,15 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
         r.skip(doc.offset)
         r.read(buf)
         r.close()
-        // TODO: trim leading whitespace up to start.col
-        text ++= new String(buf).split(System.lineSeparator)
+        fmt.formatDoc(df, doc, new String(buf), bb)
       } catch {
-        case e :Exception => text += e.toString
+        case e :Exception => bb.add(Line.fromText(e.toString))
       }
     })
     df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
-      def accept (sig :Sig) {
-        text ++= sig.text.split(System.lineSeparator)
-        // TODO: use defs and uses to style text
-      }
+      def accept (sig :Sig) = bb.add(CodexSummaryMode.formatSig(sig, ""))
     })
-    Popup(text, Popup.UpRight(loc))
+    Popup.lines(bb.lines, Popup.UpRight(loc))
   }
 
   private def mkDebugPopup (elem :Element, loc :Loc, df :Def) :Popup = {
@@ -254,6 +251,6 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     text += s"Off:   ${df.offset}"
     text += s"Src:   ${safeGet(df.source)}"
     text += s"GID:   ${safeGet(df.globalRef)}"
-    Popup(text, Popup.UpRight(loc))
+    Popup.text(text, Popup.UpRight(loc))
   }
 }
