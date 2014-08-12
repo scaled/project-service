@@ -202,7 +202,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
     val sig :Seq[LineV] = df.sig match {
       case sigO if (!sigO.isPresent) => Seq(Line(s"<no sig: $df>"))
-      case sigO => formatSig(sigO.get)
+      case sigO => formatSig(sigO.get, indent)
     }
 
     def length :Int = (if (docExpanded) doc.length else 1) + sig.length
