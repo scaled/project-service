@@ -68,6 +68,9 @@ object Project {
     def deflate = deflate("p", platform, version)
   }
 
+  // needed because the wildcard in Seed's ctor (Class) results in existential in unapply
+  import scala.language.existentials
+
   /** A seed which can be used to instantiate a project. These are returned by
     * [[ProjectFinderPlugin]]s when resolving a project. */
   case class Seed (root :Path, intelligent :Boolean, clazz :Class[_ <: Project], args :List[Any])

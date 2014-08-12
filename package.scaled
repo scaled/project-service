@@ -4,5 +4,6 @@ version: 1.0
 descrip: Provides a framework for grokking projects.
  weburl: https://github.com/scaled/project-service
 license: New BSD
+ scopts: -deprecation -feature
  depend: git:https://github.com/scaled/scaled.git#api
  depend: git:https://github.com/scaled/codex.git#core
