@@ -30,24 +30,25 @@ class Indexer (val project :Project) {
     project.pspace.indexQueue.tell(_ => reindex(PSpaceCodex.toSource(store)))
   }
 
-  /** Performs a full reindex of this project. */
+  /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll () {
     // by default we do nothing; WE HAVE NO INTELLIGENCE!
   }
 
-  /** Performs the actual reindexing of `source`. This should call [[reindexComplete]] when the
-    * indexing is complete. */
+  /** Performs the actual reindexing of `source`. This method is called on a background thread. This
+    * should call [[reindexComplete]] when the indexing is complete. */
   protected def reindex (source :Source) {
     // by default we do nothing; WE HAVE NO INTELLIGENCE!
   }
 
   /** Called by subclasses to indicate that reindexing of a source file is complete. Reindexing
-    * takes place on a background thread, and this method should also be called from the background
-    * thread. */
+    * takes place on a background thread, and this method may be called therefrom. */
   protected def reindexComplete (source :Source) {
     val ib = SourceIndex.builder(PSpaceCodex.toStore(source))
     if (project.store.visit(source, ib)) msvc.exec.runOnUI { indexed.emit(ib.build()) }
-    else msvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
+    // TODO: until we know what file extensions are known to the indexer, this generates too many
+    // spurious warnings to be useful
+    // else msvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
   }
 
   /** Returns a writer to use when indexing. */
