@@ -22,7 +22,7 @@ object CodexSummaryMode {
     case _           => None
   }
 
-  def formatSig (sig :Sig, indent :String = "") :Seq[LineV] = {
+  def formatSig (sig :Sig, indent :String) :Seq[LineV] = {
     import scala.collection.convert.WrapAsScala._
     var start = 0
     sig.text.split(System.lineSeparator) map { l =>
@@ -201,7 +201,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     var docExpanded = false
 
     val sig :Seq[LineV] = df.sig match {
-      case sigO if (!sigO.isPresent) => Seq(Line(s"<no sig: $df>"))
+      case sigO if (!sigO.isPresent) => Seq(Line(s"$indent<no sig: $df>"))
       case sigO => formatSig(sigO.get, indent)
     }
 
