@@ -8,9 +8,7 @@ import java.nio.file.{Path, Paths}
 import scala.annotation.tailrec
 import scaled._
 
-/** A service for resolving projects. Is a service solely so we have a JVM-wide singleton. */
-@Service(name="resolver", impl="ResolverService", desc="Handles resolution of projects.")
-class ResolverService (metaSvc :MetaService) extends AbstractService {
+class ProjectManager (metaSvc :MetaService) extends AbstractService with ProjectService {
 
   private val pluginSvc = metaSvc.service[PluginService]
   private def log = metaSvc.log
@@ -23,7 +21,7 @@ class ResolverService (metaSvc :MetaService) extends AbstractService {
   }
   private def finderPlugins = finders.plugins :+ configFinder
 
-  def resolveByPaths (paths :List[Path]) :Project.Seed = {
+  override def resolveByPaths (paths :List[Path]) :Project.Seed = {
     val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
     // if there are more than one intelligent project matches, complain
     if (!iprojs.isEmpty) {
@@ -44,7 +42,7 @@ class ResolverService (metaSvc :MetaService) extends AbstractService {
     }
   }
 
-  def resolveById (id :Project.Id) :Option[Project.Seed] = {
+  override def resolveById (id :Project.Id) :Option[Project.Seed] = {
     val iter = finderPlugins.iterator
     while (iter.hasNext) {
       val seed = iter.next.apply(id)
@@ -53,13 +51,13 @@ class ResolverService (metaSvc :MetaService) extends AbstractService {
     None
   }
 
-  def pathsFor (store :Store) :Option[List[Path]] = store match {
+  override def pathsFor (store :Store) :Option[List[Path]] = store match {
     case FileStore(path)       => Some(parents(path.getParent))
     case ZipEntryStore(zip, _) => Some(List(zip))
     case _                     => None
   }
 
-  def unknownProject (ps :ProjectSpace) = new Project(ps) {
+  override def unknownProject (ps :ProjectSpace) = new Project(ps) {
     val fileCompleter = Completer.file
     override val root = Paths.get("")
     override def isIncidental = true

@@ -28,7 +28,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
   import Project._
 
   workspace.toClose += this // our lifecycle matches that of our workspace
-  private val pres = msvc.service[ResolverService]
+  private val psvc = msvc.service[ProjectService]
   private def root = workspace.root
   private val psdir = Files.createDirectories(root.resolve("Projects"))
   private val dsdir = Files.createDirectories(root.resolve("Depends"))
@@ -68,7 +68,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
 
   /** Resolves (if necessary) and returns the project which handles `store`. */
   def projectFor (store :Store) :Project =
-    pres.pathsFor(store).map(resolveByPaths).getOrElse(pres.unknownProject(this))
+    psvc.pathsFor(store).map(resolveByPaths).getOrElse(psvc.unknownProject(this))
 
   /** Resolves (if necessary) and returns the project which is rooted at `root`. */
   def projectIn (root :Path) :Project = projectInRoot(root) getOrElse {
@@ -77,7 +77,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
 
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    byId.get(id).flatMap(projectInRoot).orElse(pres.resolveById(id).map(resolveBySeed))
+    byId.get(id).flatMap(projectInRoot).orElse(psvc.resolveById(id).map(resolveBySeed))
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project] = projects.values.toSeq
@@ -167,7 +167,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
     else projects.get(root) orElse Some(resolveByPaths(List(root)))
 
   private def resolveByPaths (paths :List[Path]) :Project =
-    resolveBySeed(pres.resolveByPaths(paths))
+    resolveBySeed(psvc.resolveByPaths(paths))
 
   private def resolveBySeed (seed :Project.Seed) = projects.getOrElse(seed.root, {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)

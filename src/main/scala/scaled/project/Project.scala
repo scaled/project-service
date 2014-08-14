@@ -80,9 +80,7 @@ object Project {
   private final val Sep = 11.toChar
 }
 
-/** Provides services for a particular project. See [[ProjectService]] for a more detailed
-  * description of what Scaled defines to be a project.
-  */
+/** Provides services for a particular project. */
 abstract class Project (val pspace :ProjectSpace) extends Reffed {
   import Project._
 
