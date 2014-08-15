@@ -5,46 +5,58 @@
 package scaled.project
 
 import codex.model.{Def, Doc}
+import scaled._
 import scaled.code.CodeConfig
 import scaled.util.BufferBuilder
 
-/** Handles formatting documentation. TODO: make this a plugin which is resolved based on the file
-  * suffix of the source file that contains the to-be-documented element.
+/** Handles formatting documentation. Plugins implementing this API should tag themselves with
+  * `doc-formatter`.
+  * @param suffs the file suffixes identifying the source files handled by this formatter.
   */
-trait DocFormatter {
+abstract class DocFormatterPlugin (val suffs :String*) extends AbstractPlugin {
 
-  /** Formats the documentation for `df` into `bb`. */
-  def formatDoc (df :Def, doc :Doc, text :String, bb :BufferBuilder) :Unit
+  /** Creates a [[Format]] instance for `df`'s `doc`.
+    * @param text the raw doc text extracted from the source file. */
+  def format (df :Def, doc :Doc, text :String) :DocFormatterPlugin.Format
 }
 
-object DocFormatter {
+object DocFormatterPlugin {
 
-  val Default = new DocFormatter() {
-    def formatDoc (df :Def, doc :Doc, text :String, bb :BufferBuilder) {
-      val accum = new StringBuilder()
-      def flush () :Unit = if (accum.length > 0) {
-        val text = accum.toString
-        // add a paragraph separator if appropriate
-        if (!bb.lines.isEmpty && !text.startsWith("@") && bb.lines.last.length > 0) bb.addBlank()
-        bb.addFilled(text, CodeConfig.docStyle)
-        accum.setLength(0)
-      }
-      text.split(System.lineSeparator) foreach { rline =>
-        val line = trimDocEnd(trimDocStart(rline.trim))
-        // accumulate lines until we reach a blank line or a line starting with <p> or @
-        if (line.length == 0 || line.startsWith("<p>") || line.startsWith("@")) flush()
-        if (accum.length > 0) accum.append(' ')
-        accum.append(line)
-      }
-      flush()
+  /** Generates formatted documentation for a single def. */
+  abstract class Format {
+    /** Formats the (first sentence) doc summary into `bb`. */
+    def summary (indent :String, bb :BufferBuilder) :Unit
+    /** Formats the full docs into `bb`. */
+    def full (indent :String, bb :BufferBuilder) :Unit
+
+    /** Formats and returns the (first sentence) doc summary. */
+    def summary (indent :String, fillWidth :Int) :Seq[LineV] = fmt(fillWidth, summary(indent, _))
+    /** Formats and returns the full docs. */
+    def full (indent :String, fillWidth :Int) :Seq[LineV] = fmt(fillWidth, full(indent, _))
+
+    private def fmt (fillWidth :Int, fn :BufferBuilder => Unit) :Seq[LineV] = {
+      val bb = new BufferBuilder(fillWidth)
+      fn(bb)
+      bb.lines
     }
   }
 
-  def trimDocStart (line :String) =
-    if (line.startsWith("/**")) line.substring(3).trim
-    else if (line.startsWith("*")) line.substring(1).trim
-    else line
+  val NoDoc = new Format {
+    def summary (indent :String, bb :BufferBuilder) = full(indent, bb)
+    def full (indent :String, bb :BufferBuilder) =
+      bb.add(s"${indent}Undocumented", CodeConfig.docStyle)
+  }
 
-  def trimDocEnd (line :String) =
-    if (line.endsWith("*/")) line.substring(0, line.length-2).trim else line
+  val Default = new DocFormatterPlugin() {
+    def format (df :Def, doc :Doc, text :String) = new Format() {
+      def summary (indent :String, bb :BufferBuilder) = text.indexOf(System.lineSeparator) match {
+        case -1 => format(text, indent, bb)
+        case ii => format(text.substring(0, ii), indent, bb)
+      }
+      def full (indent :String, bb :BufferBuilder) = format(text, indent, bb)
+      private def format (text :String, indent :String, bb :BufferBuilder) {
+        text.split(System.lineSeparator) foreach { l => bb.add(s"$indent$l", CodeConfig.docStyle) }
+      }
+    }
+  }
 }

@@ -13,15 +13,14 @@ class DocReader {
 
   private val _cache = MMap[Source,Reader]()
 
-  def resolve (source :Source, doc :Doc) :Array[String] = {
+  def resolve (source :Source, doc :Doc) :String = {
     // TODO: cache
     val r = source.reader()
     val buf = new Array[Char](doc.length)
     r.skip(doc.offset)
     r.read(buf)
     r.close()
-    // TODO: trim leading whitespace up to start.col
-    new String(buf).split(System.lineSeparator)
+    new String(buf)
   }
 
   def close () {

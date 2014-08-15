@@ -6,6 +6,7 @@ package scaled.project
 
 import java.nio.file.{Path, Paths}
 import scala.annotation.tailrec
+import scala.collection.mutable.{Map => MMap}
 import scaled._
 
 class ProjectManager (metaSvc :MetaService) extends AbstractService with ProjectService {
@@ -20,6 +21,12 @@ class ProjectManager (metaSvc :MetaService) extends AbstractService with Project
     def checkRoot (root :Path) = if (root == configRoot) 1 else -1
   }
   private def finderPlugins = finders.plugins :+ configFinder
+
+  private val docfSet = pluginSvc.resolvePlugins[DocFormatterPlugin]("doc-formatter")
+  private val docfMap = MMap[String,DocFormatterPlugin]()
+  docfSet.plugins.foreach { p => p.suffs.foreach { s => docfMap.put(s, p) }}
+  docfSet.added.onValue { p => p.suffs.foreach { s => docfMap.put(s, p) }}
+  docfSet.removed.onValue { p => p.suffs.foreach { s => docfMap.remove(s) }}
 
   override def resolveByPaths (paths :List[Path]) :Project.Seed = {
     val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
@@ -56,6 +63,8 @@ class ProjectManager (metaSvc :MetaService) extends AbstractService with Project
     case ZipEntryStore(zip, _) => Some(List(zip))
     case _                     => None
   }
+
+  override def docFormatter (suff :String) = docfMap.getOrElse(suff, DocFormatterPlugin.Default)
 
   override def unknownProject (ps :ProjectSpace) = new Project(ps) {
     val fileCompleter = Completer.file

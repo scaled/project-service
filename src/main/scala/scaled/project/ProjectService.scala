@@ -19,4 +19,7 @@ trait ProjectService {
   def pathsFor (store :Store) :Option[List[Path]]
 
   def unknownProject (ps :ProjectSpace) :Project
+
+  /** Returns the doc formatter for the specified source language (identified by file suffix). */
+  def docFormatter (lang :String) :DocFormatterPlugin
 }

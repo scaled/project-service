@@ -221,7 +221,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   private def mkDefPopup (elem :Element, loc :Loc, df :Def) :Popup = {
     val bb = new BufferBuilder(view.width()-2)
-    val fmt = DocFormatter.Default
+    val fmt = env.msvc.service[ProjectService].docFormatter(df.source.fileExt)
     df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
       def accept (doc :Doc) :Unit = try {
         val r = df.source().reader()
@@ -229,7 +229,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
         r.skip(doc.offset)
         r.read(buf)
         r.close()
-        fmt.formatDoc(df, doc, new String(buf), bb)
+        fmt.format(df, doc, new String(buf)).full("", bb)
       } catch {
         case e :Exception => bb.add(Line.fromText(e.toString))
       }

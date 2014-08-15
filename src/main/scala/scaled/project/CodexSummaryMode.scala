@@ -11,6 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.code.CodeConfig
 import scaled.major.ReadingMode
+import scaled.util.BufferBuilder
 
 object CodexSummaryMode {
 
@@ -117,6 +118,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   // Implementation details
 
   val infs = ArrayBuffer[Info]() ; {
+    val psvc = env.msvc.service[ProjectService]
     val docr = new DocReader()
     def add (defs :Seq[Def]) {
       // group defs by access, then within access sort them by flavor, then name
@@ -125,7 +127,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
         byAcc.get(acc) foreach { defs =>
           if (acc != Access.PUBLIC) infs += new AccessInfo(acc)
           for (mem <- defs.sortBy(d => (d.flavor, d.name))) {
-            /*if (mem.exported)*/ infs += new DefInfo(mem, docr, "  ")
+            val docf = psvc.docFormatter(mem.source.fileExt)
+            /*if (mem.exported)*/ infs += new DefInfo(mem, docf, docr, "  ")
           }
         }
       }
@@ -137,7 +140,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
       case DefMembers(df) => // if we have a def, show it and its members
         def addParent (df :Def) :Unit = if (df != null) {
           addParent(df.outer)
-          infs += new DefInfo(df, docr, "")
+          infs += new DefInfo(df, psvc.docFormatter(df.source.fileExt), docr, "")
         }
         infs += new ProjectInfo(df.project)
         addParent(df)
@@ -190,14 +193,15 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     def length = 1
   }
 
-  class DefInfo (val df :Def, docr :DocReader, indent :String) extends Info {
+  class DefInfo (val df :Def, docf :DocFormatterPlugin, docr :DocReader, indent :String)
+      extends Info {
     val source = df.source
 
-    val doc :Seq[LineV] = df.doc match {
-      case doc if (!doc.isPresent) => Seq()
-      case doc => docr.resolve(source, doc.get).flatMap(stripDoc).map(toDocLine)
-    }
-    val firstDoc :LineV = doc.headOption getOrElse(toDocLine("Undocumented"))
+    val doc = df.doc
+    val fmt = if (doc.isPresent) docf.format(df, doc.get, docr.resolve(source, doc.get))
+              else DocFormatterPlugin.NoDoc
+    val summary :Seq[LineV] = fmt.summary(indent, view.width()-1)
+    lazy val full :Seq[LineV] = fmt.full(indent, view.width()-1)
     var docExpanded = false
 
     val sig :Seq[LineV] = df.sig match {
@@ -205,7 +209,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
       case sigO => formatSig(sigO.get, indent)
     }
 
-    def length :Int = (if (docExpanded) doc.length else 1) + sig.length
+    def length :Int = (if (docExpanded) full else summary).length + sig.length
 
     def zoomIn () = pspace.codex.summarize(editor, view, df)
     def visit () = pspace.codex.visit(editor, view, df)
@@ -214,15 +218,15 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
       case _ => visit()
     }
 
-    def toggle (offset :Int) :Unit = if (doc.length > 0) {
-      val (rows, nlines) = if (docExpanded) (doc.length, Seq(firstDoc)) else (1, doc)
+    def toggle (offset :Int) :Unit = if (full.length > 0) {
+      val (rows, nlines) = if (docExpanded) (full.length, summary) else (summary.length, full)
       val start = Loc(offset, 0)
       buffer.replace(start, start + (rows, 0), nlines :+ Line.Empty)
       docExpanded = !docExpanded
     }
 
-    // start by appending our first doc line and signature to the buffer
-    buffer.append(firstDoc +: sig)
+    // start by appending our summary and signature to the buffer
+    buffer.append(summary ++ sig)
     buffer.split(buffer.end)
 
     private def stripDoc (line :String) = {
