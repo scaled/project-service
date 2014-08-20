@@ -75,6 +75,9 @@ object DocFormatterPlugin {
       * closed. When the preformatted block is closed, a blank line is inserted preceding it. */
     def pre () :Unit = close(PreM, "", "")
 
+    /** Returns true if the filler is currently in preformatted mode. */
+    def isPre :Boolean = nextM == PreM
+
     /** Adds `text` to the filler in the default style. For `para` and `list` blocks, the default
       * is `docStyle`, for `pre` blocks, the default is `textStyle`. */
     def add (text :String) :Unit = add(text, defaultStyle)
@@ -149,14 +152,18 @@ object DocFormatterPlugin {
         else {
           var end = bpos
           while (end > fstart && !Character.isWhitespace(frag.charAt(end))) end -= 1
-          // if we found no whitespace, just hard break
-          adduntil(if (end == fstart) bpos else end)
+          // if we found a good break position
+          if (end > fstart) adduntil(end)
+          // if line was empty when we started, then hard break
+          else if (tlen == scol) adduntil(bpos)
+          // otherwise punt to next line
+          else start
         }
       }
 
       def addPre (ptext :String, style :String) :this.type = {
         text.append(ptext)
-        tags.add(style, 0, ptext.length)
+        if (ptext.length > 0) tags.add(style, 0, ptext.length)
         this
       }
 
@@ -179,6 +186,6 @@ object DocFormatterPlugin {
       listPreStyle = newListPreStyle
     }
 
-    private def defaultStyle = if (nextM == PreM) EditorConfig.textStyle else CodeConfig.docStyle
+    private def defaultStyle = if (isPre) EditorConfig.textStyle else CodeConfig.docStyle
   }
 }
