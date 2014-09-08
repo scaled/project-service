@@ -80,14 +80,14 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   buffer.state[Project].update(project)
 
   override def keymap = super.keymap ++ Seq(
-    "o"     -> "zoom-out",
-    "<"     -> "zoom-out",
-    "i"     -> "zoom-in",
-    ">"     -> "zoom-in",
-    "SPACE" -> "toggle-docs",
-    "v"     -> "visit",
-    "."     -> "visit",
-    "ENTER" -> "visit-or-zoom"
+    bind("o",     "zoom-out"),
+    bind("<",     "zoom-out"),
+    bind("i",     "zoom-in"),
+    bind(">",     "zoom-in"),
+    bind("SPACE", "toggle-docs"),
+    bind("v",     "visit"),
+    bind(".",     "visit"),
+    bind("ENTER", "visit-or-zoom")
   )
 
   //

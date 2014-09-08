@@ -37,24 +37,24 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   override def keymap = Seq(
     // "C-h c"   -> "describe-codex", // TODO:?
 
-    "C-c C-v C-m" -> "codex-visit-module",
-    "C-c C-v C-t" -> "codex-visit-type",
-    "C-c C-v C-f" -> "codex-visit-func",
-    "C-c C-v C-v" -> "codex-visit-value",
+    bind("C-c C-v C-m", "codex-visit-module"),
+    bind("C-c C-v C-t", "codex-visit-type"),
+    bind("C-c C-v C-f", "codex-visit-func"),
+    bind("C-c C-v C-v", "codex-visit-value"),
 
-    "C-c C-s C-m" -> "codex-summarize-module",
-    "C-c C-s C-t" -> "codex-summarize-type",
-    "C-c C-z"     -> "codex-summarize-encloser",
+    bind("C-c C-s C-m", "codex-summarize-module"),
+    bind("C-c C-s C-t", "codex-summarize-type"),
+    bind("C-c C-z",     "codex-summarize-encloser"),
 
     // TEMP: implement local key bindings
-    "C-c C-i"     -> "codex-import-type",
-    "C-c C-j"     -> "codex-summarize-type",
-    "C-c C-k"     -> "codex-visit-type",
+    bind("C-c C-i",     "codex-import-type"),
+    bind("C-c C-j",     "codex-summarize-type"),
+    bind("C-c C-k",     "codex-visit-type"),
 
-    "C-c C-d"     -> "codex-describe-element",
-    "C-c S-C-d"   -> "codex-debug-element",
-    "M-."         -> "codex-visit-element",
-    "M-,"         -> "codex-visit-pop"
+    bind("C-c C-d",     "codex-describe-element"),
+    bind("C-c S-C-d",   "codex-debug-element"),
+    bind("M-.",         "codex-visit-element"),
+    bind("M-,",         "codex-visit-pop")
   )
 
   //

@@ -52,31 +52,31 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = Seq(
-    "C-h p" -> "describe-project",
-    "C-h w" -> "describe-workspace",
+    bind("C-h p", "describe-project"),
+    bind("C-h w", "describe-workspace"),
 
     // file fns
-    "C-x C-f" -> "project-find-file",
-    "C-x C-o" -> "project-find-file-other",
+    bind("C-x C-f", "project-find-file"),
+    bind("C-x C-o", "project-find-file-other"),
 
     // navigation fns
-    "C-]"     -> "project-next-error-or-failure",
-    "C-["     -> "project-prev-error-or-failure",
+    bind("C-]",     "project-next-error-or-failure"),
+    bind("C-[",     "project-prev-error-or-failure"),
 
     // compilation fns
-    "C-c C-r" -> "project-recompile",
+    bind("C-c C-r", "project-recompile"),
 
     // test fns
-    "C-c S-C-t" -> "project-run-all-tests",
-    "C-c C-t"   -> "project-run-file-tests",
+    bind("C-c S-C-t", "project-run-all-tests"),
+    bind("C-c C-t",   "project-run-file-tests"),
 
     // execution fns
-    "C-c C-e"   -> "workspace-execute",
-    "C-c C-a"   -> "workspace-execute-again",
+    bind("C-c C-e",   "workspace-execute"),
+    bind("C-c C-a",   "workspace-execute-again"),
 
     // TODO: this doesn't work, we need to wire up major:find-file to route to major mode fn
-    // "S-C-x S-C-f" -> "find-file"
-    "S-C-x S-C-f" -> "find-file-default"
+    // bind("S-C-x S-C-f", "find-file")
+    bind("S-C-x S-C-f", "find-file-default")
   )
 
   /** Finds a file in `proj` and visits it. */
