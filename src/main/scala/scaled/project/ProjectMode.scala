@@ -51,33 +51,32 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
 
   override def configDefs = ProjectConfig :: super.configDefs
-  override def keymap = Seq(
-    bind("C-h p", "describe-project"),
-    bind("C-h w", "describe-workspace"),
+  override def keymap = super.keymap.
+    bind("C-h p", "describe-project").
+    bind("C-h w", "describe-workspace").
 
     // file fns
-    bind("C-x C-f", "project-find-file"),
-    bind("C-x C-o", "project-find-file-other"),
+    bind("C-x C-f", "project-find-file").
+    bind("C-x C-o", "project-find-file-other").
 
     // navigation fns
-    bind("C-]",     "project-next-error-or-failure"),
-    bind("C-[",     "project-prev-error-or-failure"),
+    bind("C-]",     "project-next-error-or-failure").
+    bind("C-[",     "project-prev-error-or-failure").
 
     // compilation fns
-    bind("C-c C-r", "project-recompile"),
+    bind("C-c C-r", "project-recompile").
 
     // test fns
-    bind("C-c S-C-t", "project-run-all-tests"),
-    bind("C-c C-t",   "project-run-file-tests"),
+    bind("C-c S-C-t", "project-run-all-tests").
+    bind("C-c C-t",   "project-run-file-tests").
 
     // execution fns
-    bind("C-c C-e",   "workspace-execute"),
-    bind("C-c C-a",   "workspace-execute-again"),
+    bind("C-c C-e",   "workspace-execute").
+    bind("C-c C-a",   "workspace-execute-again").
 
     // TODO: this doesn't work, we need to wire up major:find-file to route to major mode fn
     // bind("S-C-x S-C-f", "find-file")
-    bind("S-C-x S-C-f", "find-file-default")
-  )
+    bind("S-C-x S-C-f", "find-file-default");
 
   /** Finds a file in `proj` and visits it. */
   def findFileIn (proj :Project) {
