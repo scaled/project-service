@@ -13,7 +13,7 @@ class DocReader {
 
   private val _cache = MMap[Source,Reader]()
 
-  def resolve (source :Source, doc :Doc) :String = {
+  def resolve (source :Source, doc :Doc) :String = try {
     // TODO: cache
     val r = source.reader()
     val buf = new Array[Char](doc.length)
@@ -21,6 +21,8 @@ class DocReader {
     r.read(buf)
     r.close()
     new String(buf)
+  } catch {
+    case e :Throwable => e.getMessage
   }
 
   def close () {
