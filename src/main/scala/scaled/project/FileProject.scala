@@ -37,7 +37,8 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
       val lm = Files.getLastModifiedTime(dir)
       if (lm.compareTo(lastRefresh) > 0) {
         lastRefresh = lm
-        val fs = Seq() ++ Files.list(dir).iterator
+        val fs = { val stream = Files.list(dir)
+                   try Seq() ++ stream.iterator finally stream.close() }
         val (nd, nf) = fs.partition(Files.isDirectory(_, LinkOption.NOFOLLOW_LINKS))
         val nfiles = nf.filter(Files.isRegularFile(_)).toSet
         if (files != nfiles) {
