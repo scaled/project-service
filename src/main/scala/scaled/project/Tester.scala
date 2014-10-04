@@ -6,6 +6,7 @@ package scaled.project
 
 import java.nio.file.Path
 import scaled._
+import scaled.util.Errors
 
 /** Provides an interface for interacting with test frameworks. */
 abstract class Tester (project :Project) extends AutoCloseable {
@@ -19,6 +20,9 @@ abstract class Tester (project :Project) extends AutoCloseable {
 
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default
+
+  /** Aborts any currently active test session. */
+  def abort () :Unit = throw Errors.feedback("This tester does not support aborting tests.")
 
   /** Locates the test file that's associated with the specified source file. */
   def findTestFile (file :Path) :Option[Path] = None

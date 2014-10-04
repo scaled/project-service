@@ -191,6 +191,12 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     }
   }
 
+  @Fn("""Forcibly aborts any tests in progress and terminates any daemon currently being used
+         to run this project's tests.""")
+  def projectAbortTests () {
+    project.tester.abort()
+  }
+
   @Fn("""Visits the next test failure. The buffer containing the failing test code will be
          visited and the point moved to the location indicated by the test output.""")
   def projectNextFailure () {
