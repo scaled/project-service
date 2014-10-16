@@ -6,6 +6,7 @@ package scaled.project
 
 import java.io.PrintWriter
 import java.nio.file.{Files, Path, Paths}
+import java.util.HashMap
 import java.util.stream.Collectors
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
@@ -24,7 +25,6 @@ object ProjectSpace {
 
 /** Manages the projects in a workspace. */
 class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends AutoCloseable {
-  import scala.collection.convert.WrapAsScala._
   import Project._
 
   workspace.toClose += this // our lifecycle matches that of our workspace
@@ -34,10 +34,10 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
   private val dsdir = Files.createDirectories(root.resolve("Depends"))
 
   // currently resolved projects
-  private val projects = MMap[Path,Project]()
+  private val projects = new HashMap[Path,Project]()
   // metadata on all projects added to this workspace; lazily resolved
   lazy private val (byId, toName) = {
-    val byId = MMap[Id,Path]() ; val toName = MMap[Path,String]()
+    val byId = new HashMap[Id,Path]() ; val toName = new HashMap[Path,String]()
     Files.list(psdir).collect(Collectors.toList[Path]).foreach { dir =>
       if (Files.isDirectory(dir)) {
         try {
@@ -60,7 +60,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
   def log = msvc.log
 
   /** Returns `(root, name)` for all projects in this workspace. */
-  def allProjects :Seq[(Path,String)] = toName.toSeq
+  def allProjects :Seq[(Path,String)] = toName.toMapV.toSeq
 
   /** Returns the project associated with `buffer`. */
   def project (buffer :RBuffer) :Project =
@@ -77,17 +77,17 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
 
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    byId.get(id).flatMap(projectInRoot).orElse(psvc.resolveById(id).map(resolveBySeed))
+    Option(byId.get(id)).flatMap(projectInRoot) orElse psvc.resolveById(id).map(resolveBySeed)
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project] = projects.values.toSeq
 
   /** Returns the directory into which `proj` should store its metadata. */
   def metaDir (proj :Project) :Path = toName.get(proj.root) match {
-    // if this is a named project in this workspace, use a dir based on its name
-    case Some(name) => psdir.resolve(name)
     // if it's an incidental project (e.g. a random Maven dependency), use an id-based dir
-    case None => dsdir.resolve(proj.idName)
+    case null => dsdir.resolve(proj.idName)
+    // if this is a named project in this workspace, use a dir based on its name
+    case name => psdir.resolve(name)
   }
 
   /** The history ring for execution invocations. */
@@ -105,7 +105,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
     bb.addSubHeader(s"All Projects")
     val allps = allProjects
     if (allps.isEmpty) bb.add("<none>")
-    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)).sorted :_*)
+    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)).sorted)
 
     bb.addSubHeader("Loaded Projects")
     for (p <- loadedProjects) {
@@ -122,7 +122,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
 
   /** Adds this project to this workspace. */
   def addProject (proj :Project) = {
-    if (toName.contains(proj.root)) throw Errors.feedback(
+    if (toName.containsKey(proj.root)) throw Errors.feedback(
       s"${proj.name} already added to this workspace.")
 
     // add this project to our ids map
@@ -164,20 +164,19 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
   // the root passed here may have disappeared in the fullness of time, so validate it
   private def projectInRoot (root :Path) =
     if (root == null || !Files.exists(root)) None
-    else projects.get(root) orElse Some(resolveByPaths(List(root)))
+    else Option(projects.get(root)) orElse Some(resolveByPaths(List(root)))
 
   private def resolveByPaths (paths :List[Path]) :Project =
     resolveBySeed(psvc.resolveByPaths(paths))
 
-  private def resolveBySeed (seed :Project.Seed) = projects.getOrElse(seed.root, {
+  private def resolveBySeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
     projects.put(proj.root, proj)
     // TODO: check project ids against byId and if any have changed, remap and updateInfo
     proj
-  })
+  }
 
   private def updateInfo (proj :Project) {
-    import scala.collection.convert.WrapAsJava._
     val ids = metaDir(proj).resolve("info.txt")
     Files.write(ids, List(proj.root.toString) ++ proj.ids.map(_.deflate))
   }

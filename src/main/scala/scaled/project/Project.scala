@@ -8,7 +8,7 @@ import codex.model.Kind
 import codex.store.MapDBStore
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{Files, FileVisitResult, Path, SimpleFileVisitor}
-import reactual.{Future, Value}
+import java.util.HashMap
 import scala.collection.mutable.{Map => MMap}
 import scaled._
 import scaled.util.{BufferBuilder, Close, Reffed}
@@ -149,11 +149,11 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     bb.addHeader(name)
     bb.addBlank()
 
-    val info = Seq.newBuilder[(String,String)]
+    val info = Seq.builder[(String,String)]
     info += ("Impl: " -> getClass.getName)
     info += ("Root: " -> root.toString)
     ids.foreach { id => info += ("ID: " -> id.toString) }
-    bb.addKeysValues(info.result :_*)
+    bb.addKeysValues(info.build())
 
     // if we have warnings, display them
     val ws = warnings
@@ -186,7 +186,7 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
 
   /** Returns any warnings that should be displayed when describing this project. This includes
     * things like failure to resolve project dependencies, or other configuration issues. */
-  def warnings :Seq[String] = Nil
+  def warnings :Seq[String] = Seq.empty
 
   /** A [[ProjectStore]] that maintains a reference back to its owning project. */
   class CodexStore extends MapDBStore(name, metaFile("codex")) {
@@ -241,14 +241,14 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     override protected def create = new DependMap() // ctor resolves projects
   }
   class DependMap {
-    private val deps = MMap[Id,Project]()
+    private val deps = new HashMap[Id,Project]()
 
     def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
-      case None => pspace.projectFor(depend) match {
+      case null => pspace.projectFor(depend) match {
         case sp @ Some(p) => deps.put(depend, p) ; toClose += p.reference(Project.this) ; sp
         case None => None
       }
-      case sp @ Some(p) => sp
+      case proj => Some(proj)
     }
   }
 

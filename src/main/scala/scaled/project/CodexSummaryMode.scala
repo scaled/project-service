@@ -7,7 +7,6 @@ package scaled.project
 import codex.model._
 import codex.store.ProjectStore
 import java.util.Optional
-import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.code.CodeConfig
 import scaled.major.ReadingMode
@@ -24,9 +23,8 @@ object CodexSummaryMode {
   }
 
   def formatSig (sig :Sig, indent :String) :Seq[LineV] = {
-    import scala.collection.convert.WrapAsScala._
     var start = 0
-    sig.text.split(System.lineSeparator) map { l =>
+    sig.text.split(System.lineSeparator).mkSeq map { l =>
       val len = l.length
       val lb = Line.builder(indent + l)
       for (el <- sig.defs ++ sig.uses) {
@@ -68,7 +66,6 @@ object CodexSummaryMode {
 @Major(name="codex-summary", tags=Array("project"),
        desc="""A major mode that displays a summary of a def and its members.""")
 class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingMode(env) {
-  import scala.collection.convert.WrapAsScala._
   import CodexSummaryMode._
 
   val pspace = ProjectSpace(env)
@@ -116,7 +113,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   //
   // Implementation details
 
-  val infs = ArrayBuffer[Info]() ; {
+  val infs = SeqBuffer[Info]() ; {
     val psvc = env.msvc.service[ProjectService]
     val docr = new DocReader()
     def add (defs :Seq[Def]) {
@@ -199,8 +196,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     val doc = df.doc
     val fmt = if (doc.isPresent) docf.format(df, doc.get, docr.resolve(source, doc.get))
               else DocFormatterPlugin.NoDoc
-    val summary :Seq[LineV] = fmt.summary(indent, view.width()-1)
-    lazy val full :Seq[LineV] = fmt.full(indent, view.width()-1)
+    val summary :SeqV[LineV] = fmt.summary(indent, view.width()-1)
+    lazy val full :SeqV[LineV] = fmt.full(indent, view.width()-1)
     var docExpanded = false
 
     val sig :Seq[LineV] = df.sig match {

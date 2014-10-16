@@ -5,7 +5,7 @@
 package scaled.project
 
 import java.nio.file.{Files, Path}
-import scaled.AbstractPlugin
+import scaled._
 
 /** Finders are used to identify projects given only the location of a file somewhere in the bowels
   * of the project. This is generally done by searching up the directory hierarchy, looking for

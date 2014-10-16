@@ -5,7 +5,6 @@
 package scaled.project
 
 import java.util.Date
-import reactual.{Future, Value, ValueV}
 import scala.annotation.tailrec
 import scaled._
 import scaled.util.BufferBuilder
@@ -73,13 +72,13 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     _status() = Compiling
     compile(buf).onFailure(editor.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
-      val errs = Seq.newBuilder[Error]
+      val errs = Seq.builder[Error]
       @inline @tailrec def loop (loc :Loc) :Unit = nextError(buf, loc) match {
         case Some((err, next)) => errs += err ; loop(next)
         case None => // done!
       }
       loop(buf.start)
-      _errs = errorRing(errs.result)
+      _errs = errorRing(errs.build())
       _status() = _errs.count match {
         case 0 => NoErrors
         case n => Errors(n)

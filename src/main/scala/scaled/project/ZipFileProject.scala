@@ -5,8 +5,8 @@
 package scaled.project
 
 import java.nio.file.Path
-import java.util.zip.ZipFile
-import scala.collection.mutable.{Map => MMap}
+import java.util.function.Consumer
+import java.util.zip.{ZipEntry, ZipFile}
 import scaled._
 
 /** Exposes the contents of one or more zip files as a project. This is dumb like [[FileProject]],
@@ -26,7 +26,6 @@ final class ZipFileProject (val zipPaths :Seq[Path], ps :ProjectSpace)
   * entries in the zip file.
   */
 abstract class AbstractZipFileProject (ps :ProjectSpace) extends Project(ps) {
-  import scala.collection.convert.WrapAsScala._
 
   /** The zip files that make up this project. */
   val zipPaths :Seq[Path]
@@ -42,17 +41,17 @@ abstract class AbstractZipFileProject (ps :ProjectSpace) extends Project(ps) {
                                       else throw new IllegalArgumentException(path.toString)
   }
   class DirNode extends Node {
-    val children = MMap[String,Node]()
+    val children = Mutable.cacheMap[String,Node] { dir => new DirNode() }
     def insert (path :List[String]) :Unit = path match {
       case h :: t => if (t.isEmpty) children.put(h, FileNode)
-                     else children.getOrElseUpdate(h, new DirNode()).insert(t)
+                     else children.get(h).insert(t)
       case _ => throw new IllegalArgumentException(path.toString)
     }
     def lookup (path :List[String]) = path match {
       case h :: t   =>
-        if (t.isEmpty) children.keys else children.get(h) match {
-          case Some(n) => n.lookup(t)
-          case None    => Seq()
+        if (t.isEmpty) children.asMap.keySet else children.getIfPresent(h) match {
+          case null => Seq()
+          case node => node.lookup(t)
         }
       case _ => Seq()
     }
@@ -61,15 +60,16 @@ abstract class AbstractZipFileProject (ps :ProjectSpace) extends Project(ps) {
 
   private lazy val rootNodes = zipPaths map { zipPath =>
     val node = new RootNode(zipPath)
-    new ZipFile(zipPath.toFile).entries.foreach(
-      e => if (!e.isDirectory) node.insert(splitPath(e.getName)))
+    new ZipFile(zipPath.toFile).stream.forEach(new Consumer[ZipEntry]() {
+      def accept (e :ZipEntry) = if (!e.isDirectory) node.insert(splitPath(e.getName))
+    })
     node
   }
 
   // turns foo/bar/baz into List("foo/", "bar/", "baz")
   private def splitPath (path :String) :List[String] = {
-    val cs = path.split("/", -1)
-    (cs.dropRight(1).map(c => s"$c/") :+ cs.last).toList
+    val cs = path.split("/", -1).mkSeq
+    List.builder[String]().append(cs.dropRight(1).map(c => s"$c/")).append(cs.last).build()
   }
 
   val fileCompleter = new Completer[Store]() {

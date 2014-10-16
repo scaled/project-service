@@ -5,7 +5,6 @@
 package scaled.project
 
 import javafx.scene.control.Tooltip
-import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.major.ReadingMode

@@ -5,7 +5,6 @@
 package scaled.project
 
 import codex.model.{Def, Doc}
-import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.code.CodeConfig
 import scaled.util.BufferBuilder
@@ -31,11 +30,11 @@ object DocFormatterPlugin {
     def full (indent :String, bb :BufferBuilder) :Unit
 
     /** Formats and returns the (first sentence) doc summary. */
-    def summary (indent :String, fillWidth :Int) :Seq[LineV] = fmt(fillWidth, summary(indent, _))
+    def summary (indent :String, fillWidth :Int) :SeqV[LineV] = fmt(fillWidth, summary(indent, _))
     /** Formats and returns the full docs. */
-    def full (indent :String, fillWidth :Int) :Seq[LineV] = fmt(fillWidth, full(indent, _))
+    def full (indent :String, fillWidth :Int) :SeqV[LineV] = fmt(fillWidth, full(indent, _))
 
-    private def fmt (fillWidth :Int, fn :BufferBuilder => Unit) :Seq[LineV] = {
+    private def fmt (fillWidth :Int, fn :BufferBuilder => Unit) :SeqV[LineV] = {
       val bb = new BufferBuilder(fillWidth)
       fn(bb)
       bb.lines
@@ -102,7 +101,7 @@ object DocFormatterPlugin {
     final private val ParaM = 1 ; final private val ListM = 2 ; final private val PreM = 3
     private var lastM = ParaM ; private var nextM = ParaM
 
-    private val lines = ArrayBuffer[Line]()
+    private val lines = SeqBuffer[Line]()
     private class Line {
       val text = new java.lang.StringBuilder()
       val tags = new Tags()

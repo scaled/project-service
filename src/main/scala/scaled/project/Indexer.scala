@@ -6,7 +6,6 @@ package scaled.project
 
 import codex.extract.Writer
 import codex.model.Source
-import reactual.Signal
 import scaled._
 
 /** Handles indexing source files, for Codex. */

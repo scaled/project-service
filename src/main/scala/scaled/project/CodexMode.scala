@@ -6,7 +6,6 @@ package scaled.project
 
 import codex.model._
 import javafx.scene.control.Tooltip
-import reactual.{Value, OptValue}
 import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.major.ReadingMode
@@ -240,7 +239,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   private def mkDebugPopup (elem :Element, loc :Loc, df :Def) :Popup = {
     def safeGet (thunk : => Any) = try thunk.toString catch { case t :Throwable => t.toString }
-    val text = ArrayBuffer[String]()
+    val text = SeqBuffer[String]()
     text += s"ID:    ${df.idToString}"
     text += s"Outer: ${df.outerIdToString}"
     text += s"Kind:  ${df.kind}"

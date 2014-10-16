@@ -6,7 +6,7 @@ package scaled.project
 
 import com.google.common.collect.ArrayListMultimap
 import java.nio.file.{Files, Path}
-import scala.collection.mutable.{ArrayBuffer, Map => MMap}
+import scala.collection.mutable.{Map => MMap}
 import scaled._
 import scaled.util.{BufferBuilder, Errors, Properties, SubProcess}
 
@@ -16,7 +16,6 @@ import scaled.util.{BufferBuilder, Errors, Properties, SubProcess}
   * @param name the name of the execution in question.
   */
 class Execution (val name :String, data :ArrayListMultimap[String,String]) {
-  import scala.collection.convert.WrapAsScala._
 
   /** Returns the value for `key`, throwing a feedback exception if none exists. */
   def param (key :String) :String = {
@@ -39,9 +38,9 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
   }
 
   /** Returns the values for `key`, returning `defvals` if none exist. */
-  def param (key :String, defvals :Seq[String]) :Seq[String] = {
+  def param (key :String, defvals :Seq[String]) :SeqV[String] = {
     val vs = data.get(key)
-    if (vs.isEmpty) defvals else vs
+    if (vs.isEmpty) defvals else vs.toSeqV
   }
 
   /** Used to describe this execution in the `describe-project` buffer. */
@@ -79,7 +78,7 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
 class Executions (pspace :ProjectSpace) {
 
   private val _config = pspace.workspace.root.resolve("executions.properties")
-  private val _execs = ArrayBuffer[Execution]()
+  private val _execs = SeqBuffer[Execution]()
   private val _runners = pspace.msvc.service[PluginService].resolvePlugins[RunnerPlugin](
     "runner", List(pspace))
 
@@ -101,12 +100,12 @@ class Executions (pspace :ProjectSpace) {
   def describeSelf (bb :BufferBuilder) {
     if (!executions.isEmpty) {
       bb.addSubHeader("Executions")
-      bb.addKeysValues(executions.map(_.describe) :_*)
+      bb.addKeysValues(executions.map(_.describe))
     }
   }
 
   /** Returns all configured executions. */
-  def executions :Seq[Execution] = _execs
+  def executions :SeqV[Execution] = _execs
 
   /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
   def execute (editor :Editor, exec :Execution) {

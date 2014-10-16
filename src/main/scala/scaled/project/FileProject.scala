@@ -7,8 +7,7 @@ package scaled.project
 import java.nio.file.LinkOption
 import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path}
-import scala.collection.immutable.TreeMap
-import scala.collection.mutable.{Map => MMap}
+import java.util.HashMap
 import scaled._
 import scaled.util.BufferBuilder
 
@@ -28,7 +27,6 @@ final class FileProject (val root :Path, ps :ProjectSpace) extends AbstractFileP
 abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
 
   private class Dir (dir :Path) {
-    import scala.collection.convert.WrapAsScala._
     var files = Set[Path]()
     var dirs = Set[Path]()
     var lastRefresh = FileTime.fromMillis(0L)
@@ -38,7 +36,7 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
       if (lm.compareTo(lastRefresh) > 0) {
         lastRefresh = lm
         val fs = { val stream = Files.list(dir)
-                   try Seq() ++ stream.iterator finally stream.close() }
+                   try stream.iterator.toSeq finally stream.close() }
         val (nd, nf) = fs.partition(Files.isDirectory(_, LinkOption.NOFOLLOW_LINKS))
         val nfiles = nf.filter(Files.isRegularFile(_)).toSet
         if (files != nfiles) {
@@ -49,28 +47,30 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
         if (ndirs != dirs) {
           _allFiles = null
           // remove directories that have gone away
-          (dirs -- ndirs) foreach { dirMap -= _ }
+          (dirs -- ndirs) foreach dirMap.remove
           // add new directories
           val newdirs = (ndirs -- dirs)
-          newdirs foreach { d => dirMap += (d -> new Dir(d)) }
+          newdirs foreach { d => dirMap.put(d, new Dir(d)) }
           // and refresh any directories that have changed
-          (ndirs -- newdirs) map(dirMap) foreach { _.refresh() }
+          (ndirs -- newdirs) map(dirMap.get) foreach { _.refresh() }
           // finally update our cached directories
           dirs = ndirs
         }
         // println(s"Rebuilt $dir (files=${files.size} dirs=${dirs.size})")
       }
       // refresh our children
-      dirs map(dirMap) foreach { _.refresh() }
+      dirs foreach { d => dirMap.get(d).refresh() }
     }
   }
-  private val dirMap = MMap[Path,Dir](root -> new Dir(root))
+  private val dirMap = new HashMap[Path,Dir]() ; {
+    dirMap.put(root, new Dir(root))
+  }
 
   private var _allFiles :Set[Path] = _
   private def allFiles = {
-    dirMap(root).refresh()
+    dirMap.get(root).refresh()
     if (_allFiles == null) {
-      _allFiles = Set() ++ dirMap.values.flatMap(_.files)
+      _allFiles = Set() ++ dirMap.values.toOrdV.flatMap(_.files)
       // println(s"Rebuilt all files map (size: ${_allFiles.size})")
     }
     _allFiles

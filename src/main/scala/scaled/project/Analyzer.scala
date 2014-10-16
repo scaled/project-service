@@ -5,7 +5,6 @@
 package scaled.project
 
 import java.nio.file.Path
-import reactual.{Future, Value, ValueV}
 import scaled._
 
 /** Static [[Analyzer]] bits. */

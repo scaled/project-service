@@ -7,7 +7,6 @@ package scaled.project
 import codex.model.{Def, Kind, Ref, Source}
 import codex.store.{MapDBStore, ProjectStore, Query}
 import java.util.{ArrayList, Optional, LinkedHashSet}
-import reactual.Signal
 import scaled._
 import scaled.util.VisitStack
 
@@ -45,13 +44,12 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
 
   /** Returns a completer on elements of `kind` in this project's Codex. */
   def completer (project :Project, kind :Kind) :Completer[Def] = new Completer[Def]() {
-    import scala.collection.JavaConversions._
     def complete (prefix :String) :Completion[Def] = prefix.split(":", 2) match {
       case Array(name, path) => elemComp(Query.name(name).kind(kind) find(stores(project)) filter(
         e => Completer.startsWithI(path)(pathString(e))))
       case Array(name      ) => elemComp(Query.prefix(name).kind(kind) find(stores(project)))
     }
-    private def elemComp (es :Seq[Def]) = completion(es, elemToString)
+    private def elemComp (es :Iterable[Def]) = completion(es, elemToString)
     private def pathString (d :Def) = d.qualifier
     private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
   }

@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import scaled.{Line, LineV, Store}
+import scaled._
 
 /** Defines a simple model of code. Code is modeled as a tree of nested elements. An element:
   *

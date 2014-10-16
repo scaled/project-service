@@ -6,6 +6,7 @@ package scaled.project
 
 import org.junit._
 import org.junit.Assert._
+import scaled._
 import scaled.util.BufferBuilder
 
 class DocFormatterTest {
