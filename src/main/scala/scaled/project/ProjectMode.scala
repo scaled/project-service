@@ -257,6 +257,12 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     editor.popStatus(s"'${project.name}' added to '${pspace.name}' workspace.")
   }
 
+  @Fn("Removes the current project from the current workspace.")
+  def removeFromWorkspace () {
+    pspace.removeProject(project)
+    editor.popStatus(s"'${project.name}' removed from '${pspace.name}' workspace.")
+  }
+
   //
   // Implementation details
 

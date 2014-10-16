@@ -120,8 +120,8 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
     execs.describeSelf(bb)
   }
 
-  /** Adds this project to this workspace. */
-  def addProject (proj :Project) = {
+  /** Adds `proj` to this workspace. */
+  def addProject (proj :Project) {
     if (toName.containsKey(proj.root)) throw Errors.feedback(
       s"${proj.name} already added to this workspace.")
 
@@ -141,14 +141,27 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
     val ddir = dsdir.resolve(proj.idName) ; val pdir = metaDir(proj)
     if (Files.exists(ddir)) Files.move(ddir, pdir)
     else Files.createDirectories(ddir)
-
     // add this project's root to our workspace's hint path
     workspace.addHintPath(proj.root)
-
     // write this project's id info its metadata dir
     updateInfo(proj)
   }
-  // TODO: removeProject
+
+  /** Removes `proj` from this workspace. */
+  def removeProject (proj: Project) {
+    // grab the project's metadata directory then remove it from toName
+    val pdir = metaDir(proj)
+    if (toName.remove(proj.root) == null) throw Errors.feedback(
+      s"${proj.name} not added to this workspace.")
+    // remove this project from our ids map
+    proj.ids.foreach(byId.remove)
+    // move this project's metadir out of Projects back into Depends
+    Files.move(pdir, dsdir.resolve(proj.idName))
+    // remove this project's root from our workspace's hint path
+    workspace.removeHintPath(proj.root)
+    // remove the project's info.txt file
+    Files.deleteIfExists(pdir.resolve("info.txt"))
+  }
 
   /** Manages the collection of Codexen for the projects in this space. */
   val codex :PSpaceCodex = new PSpaceCodex(this)
