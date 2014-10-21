@@ -12,19 +12,12 @@ import scaled.util.BufferBuilder
 
 /** Provides configuration for [[ProjectMode]]. */
 object ProjectConfig extends Config.Defs {
-  import EditorConfig._
 
   @Var("If true, the project will be automatically recompiled on file save.")
   val recompileOnSave = key(true)
 
   @Var("If true, the test output buffer will be shown when tests are run interactively.")
   val showOutputOnTest = key(false)
-
-  /** Tracks the last execution. Used by `workspace-execute-again`. */
-  val lastExecution = fnKey(cfg => OptValue[Execution]())
-
-  /** The history ring for selecting projects. */
-  val projectHistory = fnKey(cfg => new Ring(cfg(historySize)))
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -102,7 +95,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
          completion), and visits it.""")
   def projectFindFileOther () {
     val pcomp = Completer.from(pspace.allProjects)(_._2)
-    editor.mini.read(s"Project:", "", config(projectHistory), pcomp) onSuccess { case pt =>
+    editor.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
       findFileIn(pspace.projectIn(pt._1))
     }
   }
@@ -226,7 +219,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   @Fn("""Reinvokes the last invoked execution.""")
   def workspaceExecuteAgain () {
-    config(lastExecution).getOption match {
+    pspace.workspace.state[Execution].getOption match {
       case Some(e) => execute(e)
       case None    => editor.popStatus("No execution has been invoked yet.")
     }
@@ -266,11 +259,14 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   //
   // Implementation details
 
+  private def projectHistory = Editor.historyRing(editor, "project-name")
+
   private def maybeShowTestOutput () =
     if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))
 
   private def execute (exec :Execution) {
     pspace.execs.execute(editor, exec)
-    config(lastExecution).update(exec)
+    // track our last execution in the workspace state
+    pspace.workspace.state[Execution]() = exec
   }
 }
