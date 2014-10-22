@@ -22,7 +22,7 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
       s"Cwd: ${cfg.cwd}", s"Cmd: ${cfg.cmd.mkString(" ")}", "Output:")
     buffer.append(info.map(Line.apply))
     buffer.split(buffer.end)
-    SubProcess(cfg, editor, pspace.msvc.exec, buffer)
+    SubProcess(cfg, pspace.msvc.exec, buffer)
     // TODO: associate the subprocess with the buffer, kill the subprocess (if it's still alive)
     // when the buffer is killed?
     editor.visitBuffer(buffer)
