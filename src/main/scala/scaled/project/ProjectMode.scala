@@ -7,7 +7,6 @@ package scaled.project
 import javafx.scene.control.Tooltip
 import scala.collection.mutable.ArrayBuffer
 import scaled._
-import scaled.major.ReadingMode
 import scaled.util.BufferBuilder
 
 /** Provides configuration for [[ProjectMode]]. */
@@ -30,7 +29,7 @@ object ProjectConfig extends Config.Defs {
   */
 @Minor(name="project", tags=Array("project"),
        desc="""A minor mode that provides project-centric fns.""")
-class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
+class ProjectMode (env :Env) extends MinorMode(env) {
   import ProjectConfig._
 
   val pspace = ProjectSpace(env)
@@ -48,7 +47,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     bind("C-h w", "describe-workspace").
 
     // file fns
-    bind("C-x C-f", "project-find-file").
+    bind("C-x C-p", "project-find-file").
     bind("C-x C-o", "project-find-file-other").
 
     // navigation fns
@@ -64,11 +63,7 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
     // execution fns
     bind("C-c C-e",   "workspace-execute").
-    bind("C-c C-a",   "workspace-execute-again").
-
-    // TODO: this doesn't work, we need to wire up major:find-file to route to major mode fn
-    // bind("S-C-x S-C-f", "find-file")
-    bind("S-C-x S-C-f", "find-file-default");
+    bind("C-c C-a",   "workspace-execute-again");
 
   /** Finds a file in `proj` and visits it. */
   def findFileIn (proj :Project) {
@@ -99,9 +94,6 @@ class ProjectMode (env :Env, major :ReadingMode) extends MinorMode(env) {
       findFileIn(pspace.projectIn(pt._1))
     }
   }
-
-  @Fn("TEMP: forwards find-file to major mode")
-  def findFileDefault () :Unit = major.findFile()
 
   @Fn("""Invokes `project-next-error` if there are any compilation errors, `project-next-failure`
          if there are no compilation errors, but are test failures.""")
