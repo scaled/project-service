@@ -57,17 +57,17 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
   /** Resolves `ref`, which originated from a file in `project`. */
   def resolve (project :Project, ref :Ref) :Optional[Def] = Ref.resolve(stores(project), ref)
 
-  /** Visits the source of `df` in a buffer in `editor`. Pushes `curview` onto the visit stack. */
-  def visit (editor :Editor, curview :BufferView, df :Def) {
+  /** Visits the source of `df` in a buffer in `window`. Pushes `curview` onto the visit stack. */
+  def visit (window :Window, curview :BufferView, df :Def) {
     visitStack.push(curview) // push current loc to the visit stack
-    val view = editor.visitFile(toStore(df.source))
+    val view = window.focus.visitFile(toStore(df.source))
     view.point() = view.buffer.loc(df.offset)
   }
 
   /** Displays a summary of `df` in a new buffer. Pushes `curview` onto the visit stack. */
-  def summarize (editor :Editor, curview :BufferView, df :Def) {
+  def summarize (window :Window, curview :BufferView, df :Def) {
     visitStack.push(curview) // push current loc to the visit stack
-    CodexSummaryMode.visitDef(editor, df)
+    CodexSummaryMode.visitDef(window, df)
   }
 
   // returns the store for `project`, stores for all top-level projects in this workspace, and then

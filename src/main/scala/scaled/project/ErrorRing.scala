@@ -28,39 +28,39 @@ class ErrorRing (thing :String, errs :Seq[Error]) {
     * last error, and the internal counter is reset so that a subsequent request to visit the next
     * error will visit the first error.
     */
-  def visitNext (editor :Editor) {
-    if (errs.isEmpty) editor.popStatus(onNone)
+  def visitNext (window :Window) {
+    if (errs.isEmpty) window.popStatus(onNone)
     else {
       _current += 1
-      if (_current < count) visitError(editor, errs(_current))
+      if (_current < count) visitError(window, errs(_current))
       else {
         _current = -1
-        editor.emitStatus(atLast)
+        window.emitStatus(atLast)
       }
     }
   }
 
-  /** Regresses the internal error pointer to the previous error and visits that buffer in `editor`.
+  /** Regresses the internal error pointer to the previous error and visits that buffer in `window`.
     * If we are at the start of the list, the user is informed via feedback that we have reached the
     * first error, and the internal counter is reset so that a subsequent request to visit the
     * previous error will visit the last error.
     */
-  def visitPrev (editor :Editor) {
-    if (errs.isEmpty) editor.popStatus(onNone)
+  def visitPrev (window :Window) {
+    if (errs.isEmpty) window.popStatus(onNone)
     else if (_current == -1) {
       _current = count-1
-      visitError(editor, errs(_current))
+      visitError(window, errs(_current))
     } else if (_current == 0) {
       _current = -1
-      editor.emitStatus(atFirst)
+      window.emitStatus(atFirst)
     } else {
       _current -= 1
-      visitError(editor, errs(_current))
+      visitError(window, errs(_current))
     }
   }
 
-  private def visitError (editor :Editor, err :Error) {
-    val view = editor.visitFile(Store(err.path))
+  private def visitError (window :Window, err :Error) {
+    val view = window.focus.visitFile(Store(err.path))
     view.point() = err.loc
     // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
     // its position up or down, left or right to fit yet still point to loc

@@ -77,13 +77,13 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   @Fn("Displays a summary of the type or module that encloses the point. 'Zooming out.'")
   def codexSummarizeEncloser () :Unit = index.getOption match {
-    case None => editor.popStatus("No Codex index available for this file.")
+    case None => window.popStatus("No Codex index available for this file.")
     case Some(idx) => idx.encloser(buffer.offset(view.point())) match {
-      case None => editor.popStatus("Could not find enclosing type.")
+      case None => window.popStatus("Could not find enclosing type.")
       case Some(df) =>
         def loop (df :Def) :Unit =
-          if (df == null) editor.popStatus("Could not find enclosing type.")
-          else if (Enclosers(df.kind)) pspace.codex.summarize(editor, view, df)
+          if (df == null) window.popStatus("Could not find enclosing type.")
+          else if (Enclosers(df.kind)) pspace.codex.summarize(window, view, df)
           else loop(df.outer)
         loop(df)
     }
@@ -104,12 +104,12 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
   def codexVisitElement () {
-    onElemAt(view.point(), (_, _, df) => pspace.codex.visit(editor, view, df))
+    onElemAt(view.point(), (_, _, df) => pspace.codex.visit(window, view, df))
   }
 
   @Fn("Pops to the last place `codex-visit-foo` was invoked.")
   def codexVisitPop () {
-    pspace.codex.visitStack.pop(editor)
+    pspace.codex.visitStack.pop(window)
   }
 
   @Fn("Queries for a type (completed by the project's Codex) and adds an import for it.")
@@ -121,15 +121,15 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   // Implementation details
 
   private def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
-    editor.mini.read(prompt, wordAt(view.point()), pspace.codex.history(kind),
+    window.mini.read(prompt, wordAt(view.point()), pspace.codex.history(kind),
                      pspace.codex.completer(project, kind)).onSuccess(fn)
   }
 
   private def codexVisit (prompt :String, kind :Kind) :Unit =
-    codexRead(prompt, kind)(df => pspace.codex.visit(editor, view, df))
+    codexRead(prompt, kind)(df => pspace.codex.visit(window, view, df))
 
   private def codexSummarize (prompt :String, kind :Kind) :Unit =
-    codexRead(prompt, kind)(df => pspace.codex.summarize(editor, view, df))
+    codexRead(prompt, kind)(df => pspace.codex.summarize(window, view, df))
 
   private def onElemAt (loc :Loc, fn :(Element, Loc, Def) => Unit) :Unit = {
     val elloc = buffer.tagsAt(classOf[Element], loc) match {
@@ -138,10 +138,10 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
         el => (el, buffer.loc(el.offset))))
     }
     elloc match {
-      case None => editor.popStatus("No element could be found at the point.")
+      case None => window.popStatus("No element could be found at the point.")
       case Some((elem, loc)) =>
         val dopt = pspace.codex.resolve(project, elem.ref)
-        if (!dopt.isPresent) editor.popStatus(s"Unable to resolve referent for ${elem.ref}")
+        if (!dopt.isPresent) window.popStatus(s"Unable to resolve referent for ${elem.ref}")
         else fn(elem, loc, dopt.get)
     }
   }
@@ -201,7 +201,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
       }
       buffer.insert(loc, lines map (Line.apply))
     } catch {
-      case ie :IllegalStateException => editor.popStatus(ie.getMessage)
+      case ie :IllegalStateException => window.popStatus(ie.getMessage)
     }
   }
 

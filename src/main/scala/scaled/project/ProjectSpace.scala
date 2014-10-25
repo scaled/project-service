@@ -17,7 +17,7 @@ object ProjectSpace {
 
   /** Resolves the project space for the supplied environment. */
   def apply (env :Env) :ProjectSpace = {
-    val ws = env.editor.workspace ; val ps = ws.state[ProjectSpace]
+    val ws = env.window.workspace ; val ps = ws.state[ProjectSpace]
     if (!ps.isDefined) ps() = new ProjectSpace(ws, env.msvc)
     ps.get
   }

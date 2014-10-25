@@ -54,23 +54,22 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     bb.addKeyValue("Status: ", _status().toString)
   }
 
-  /** Returns the buffer in which we record compiler output. It will be created if needed. */
-  def buffer (editor :Editor) :Buffer = editor.bufferConfig(s"*compile:${project.name}*").
-    mode("log" /*project-compile*/).tags("project").state(project.asState).reuse().create().buffer
-
   /** The latest compilation errors in a navigable ring. */
   def errors :ErrorRing = _errs
+
+  /** Returns the buffer in which we record compiler output. It will be created if needed. */
+  def buffer () :Buffer = project.createBuffer(s"*compile:${project.name}*", "log")
 
   /** Initiates a recompilation of this project, if supported.
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
     */
-  def recompile (editor :Editor, interactive :Boolean) {
-    val buf = buffer(editor)
+  def recompile (window :Window, interactive :Boolean) {
+    val buf = buffer()
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
     _status() = Compiling
-    compile(buf).onFailure(editor.emitError).onSuccess { success =>
+    compile(buf).onFailure(window.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
       val errs = Seq.builder[Error]
       @inline @tailrec def loop (loc :Loc) :Unit = nextError(buf, loc) match {
@@ -90,10 +89,10 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       if (interactive) {
         val result = if (success) "succeeded" else "failed"
         val msg = s"Compilation $result with ${_errs.count} error(s)."
-        editor.emitStatus(msg)
+        window.emitStatus(msg)
       }
     }
-    if (interactive) editor.emitStatus("Recompile initiated...")
+    if (interactive) window.emitStatus("Recompile initiated...")
   }
 
   /** Requests that this compiler be reset. If a connection to an external compiler is being

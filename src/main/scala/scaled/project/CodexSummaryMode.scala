@@ -49,17 +49,13 @@ object CodexSummaryMode {
     def name = s"${store.name} defs"
   }
 
-  def visitDef (editor :Editor, df :Def) {
-    visit(editor, DefMembers(df))
-  }
+  def visitDef (win :Window, df :Def) :Unit = visit(win, DefMembers(df))
+  def visitTopLevel (win :Window, store :ProjectStore) :Unit = visit(win, TopLevelMembers(store))
 
-  def visitTopLevel (editor :Editor, store :ProjectStore) {
-    visit(editor, TopLevelMembers(store))
-  }
-
-  private def visit (editor :Editor, tgt :Target) {
-    val view = editor.bufferConfig(tgt.name).reuse().mode("codex-summary", tgt).create()
-    editor.visitBuffer(view.buffer)
+  private def visit (win :Window, tgt :Target) {
+    val buf = win.workspace.createBuffer(
+      tgt.name, State.inits(Mode.Hint("codex-summary", tgt)), true)
+    win.focus.visit(buf)
   }
 }
 
@@ -91,10 +87,10 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
   @Fn("Displays a summary of the def that encloses the def summarized in this buffer.")
   def zoomOut () :Unit = tgt match {
-    case TopLevelMembers(_) => project.visitDescription(editor)
+    case TopLevelMembers(_) => project.visitDescription(window)
     case DefMembers(df) => df.outer match {
-      case null => visitTopLevel(editor, df.project)
-      case odef => visitDef(editor, odef)
+      case null => visitTopLevel(window, df.project)
+      case odef => visitDef(window, odef)
     }
   }
 
@@ -207,8 +203,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
     def length :Int = (if (docExpanded) full else summary).length + sig.length
 
-    def zoomIn () = pspace.codex.summarize(editor, view, df)
-    def visit () = pspace.codex.visit(editor, view, df)
+    def zoomIn () = pspace.codex.summarize(window, view, df)
+    def visit () = pspace.codex.visit(window, view, df)
     def visitOrZoom () = df.kind match {
       case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
       case _ => visit()

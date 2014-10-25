@@ -43,8 +43,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = super.keymap.
-    bind("C-h p", "describe-project").
-    bind("C-h w", "describe-workspace").
+    bind("C-h p",   "describe-project").
+    bind("C-h S-p", "describe-projects").
 
     // file fns
     bind("C-x C-p", "project-find-file").
@@ -67,9 +67,9 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   /** Finds a file in `proj` and visits it. */
   def findFileIn (proj :Project) {
-    editor.mini.read(
+    window.mini.read(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.fileCompleter
-    ) onSuccess editor.visitFile
+    ) map(wspace.openBuffer) onSuccess frame.visit
   }
 
   //
@@ -77,7 +77,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.storeV onEmit {
-    if (config(recompileOnSave)) project.compiler.recompile(editor, false)
+    if (config(recompileOnSave)) project.compiler.recompile(window, false)
   })
 
   //
@@ -90,7 +90,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          completion), and visits it.""")
   def projectFindFileOther () {
     val pcomp = Completer.from(pspace.allProjects)(_._2)
-    editor.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
+    window.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
       findFileIn(pspace.projectIn(pt._1))
     }
   }
@@ -98,17 +98,17 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   @Fn("""Invokes `project-next-error` if there are any compilation errors, `project-next-failure`
          if there are no compilation errors, but are test failures.""")
   def projectNextErrorOrFailure () {
-    if (project.compiler.errors.count > 0) project.compiler.errors.visitNext(editor)
-    else if (project.tester.failures.count > 0) project.tester.failures.visitNext(editor)
-    else editor.popStatus("There are currently no known compilation errors or test failures.")
+    if (project.compiler.errors.count > 0) project.compiler.errors.visitNext(window)
+    else if (project.tester.failures.count > 0) project.tester.failures.visitNext(window)
+    else window.popStatus("There are currently no known compilation errors or test failures.")
   }
 
   @Fn("""Invokes `project-prev-error` if there are any compilation errors, `project-prev-failure`
          if there are no compilation errors, but are test failures.""")
   def projectPrevErrorOrFailure () {
-    if (project.compiler.errors.count > 0) project.compiler.errors.visitPrev(editor)
-    else if (project.tester.failures.count > 0) project.tester.failures.visitPrev(editor)
-    else editor.popStatus("There are currently no known compilation errors or test failures.")
+    if (project.compiler.errors.count > 0) project.compiler.errors.visitPrev(window)
+    else if (project.tester.failures.count > 0) project.tester.failures.visitPrev(window)
+    else window.popStatus("There are currently no known compilation errors or test failures.")
   }
 
   //
@@ -118,7 +118,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          displayed in a buffer named *compile:{project}* and errors identified in said output
          can be navigated using `project-next-error` and `project-previous-error`.""")
   def projectRecompile () {
-    project.compiler.recompile(editor, true)
+    project.compiler.recompile(window, true)
   }
 
   @Fn("""Resets the compiler for this project. This can be useful if the compiler misbehaves,
@@ -130,18 +130,18 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   @Fn("""Visits the next compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def projectNextError () {
-    project.compiler.errors.visitNext(editor)
+    project.compiler.errors.visitNext(window)
   }
 
   @Fn("""Visits the previous compilation error. The buffer containing the compilation unit will be
          visited and the point moved to the location of the error.""")
   def projectPrevError () {
-    project.compiler.errors.visitPrev(editor)
+    project.compiler.errors.visitPrev(window)
   }
 
   @Fn("Displays the buffer that contains compiler output for this project.")
   def showCompilerOutput () {
-    editor.visitBuffer(project.compiler.buffer(editor))
+    frame.visit(project.compiler.buffer())
   }
 
   //
@@ -151,8 +151,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          Failures identified in said output can be navigated using `project-next-failure` and
          `project-previous-failure`.""")
   def projectRunAllTests () {
-    if (project.tester.runAllTests(editor, true)) maybeShowTestOutput()
-    else editor.popStatus("No tests were found.")
+    if (project.tester.runAllTests(window, true)) maybeShowTestOutput()
+    else window.popStatus("No tests were found.")
   }
 
   @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
@@ -161,17 +161,17 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          See project-run-all-tests for info on test output and failure navigation.""")
   def projectRunFileTests () {
     buffer.store.file match {
-      case None => editor.popStatus(
+      case None => window.popStatus(
         "This buffer has no associated file. A file is needed to detect tests.")
       case Some(file) =>
         val ran = project.tester.findTestFile(file) match {
-          case None        => project.tester.runAllTests(editor, true)
+          case None        => project.tester.runAllTests(window, true)
           case Some(tfile) =>
             val telems = Seq[Model.Element]() // TODO: ask project for test elements in file
-            project.tester.runTests(editor, true, tfile, telems)
+            project.tester.runTests(window, true, tfile, telems)
         }
         if (ran) maybeShowTestOutput()
-        else editor.emitStatus("No tests were found.")
+        else window.emitStatus("No tests were found.")
     }
   }
 
@@ -184,18 +184,18 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   @Fn("""Visits the next test failure. The buffer containing the failing test code will be
          visited and the point moved to the location indicated by the test output.""")
   def projectNextFailure () {
-    project.compiler.errors.visitNext(editor)
+    project.compiler.errors.visitNext(window)
   }
 
   @Fn("""Visits the previous test failure. The buffer containing the failing test code will be
          visited and the point moved to the location indicated by the test output.""")
   def projectPrevFailure () {
-    project.compiler.errors.visitPrev(editor)
+    project.compiler.errors.visitPrev(window)
   }
 
   @Fn("Displays the buffer that contains test output for this project.")
   def showTestOutput () {
-    editor.visitBuffer(project.tester.buffer(editor))
+    window.focus.visit(project.tester.buffer())
   }
 
   //
@@ -204,61 +204,60 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   @Fn("Invokes a particular execution in this workspace.")
   def workspaceExecute () {
     val exns = pspace.execs.executions
-    if (exns.isEmpty) editor.popStatus(s"${pspace.name} defines no executions.")
-    else editor.mini.read(s"Execute:", "", pspace.execHistory,
+    if (exns.isEmpty) window.popStatus(s"${pspace.name} defines no executions.")
+    else window.mini.read(s"Execute:", "", pspace.execHistory,
                           Completer.from(exns)(_.name)) onSuccess execute
   }
 
   @Fn("""Reinvokes the last invoked execution.""")
   def workspaceExecuteAgain () {
-    pspace.workspace.state[Execution].getOption match {
+    wspace.state[Execution].getOption match {
       case Some(e) => execute(e)
-      case None    => editor.popStatus("No execution has been invoked yet.")
+      case None    => window.popStatus("No execution has been invoked yet.")
     }
   }
 
   @Fn("Visits the workspace's execution configuration file.")
   def workspaceEditExecutions () {
-    pspace.execs.visitConfig(editor)
+    pspace.execs.visitConfig(window)
   }
 
   @Fn("Describes the current project.")
   def describeProject () {
-    project.visitDescription(editor)
+    project.visitDescription(window)
   }
 
   // TODO: move this into workspace mode, have ProjectSpace participate in describe calldowns
   @Fn("Displays summary info for all projects in this workspace.")
-  def describeWorkspace () {
+  def describeProjects () {
     val bb = new BufferBuilder(view.width()-1)
     pspace.describeSelf(bb)
-    val bname = s"*workspace*"
-    editor.visitBuffer(bb.applyTo(editor.bufferConfig(bname).reuse().mode("help").create()))
+    window.focus.visit(bb.applyTo(project.createBuffer(s"*${wspace.name}:projects*", "help")))
   }
 
   @Fn("Adds the current project to the current workspace.")
   def addToWorkspace () {
     pspace.addProject(project)
-    editor.popStatus(s"'${project.name}' added to '${pspace.name}' workspace.")
+    window.popStatus(s"'${project.name}' added to '${pspace.name}' workspace.")
   }
 
   @Fn("Removes the current project from the current workspace.")
   def removeFromWorkspace () {
     pspace.removeProject(project)
-    editor.popStatus(s"'${project.name}' removed from '${pspace.name}' workspace.")
+    window.popStatus(s"'${project.name}' removed from '${pspace.name}' workspace.")
   }
 
   //
   // Implementation details
 
-  private def projectHistory = Editor.historyRing(editor, "project-name")
+  private def projectHistory = Workspace.historyRing(wspace, "project-name")
 
   private def maybeShowTestOutput () =
-    if (config(showOutputOnTest)) editor.visitBuffer(project.tester.buffer(editor))
+    if (config(showOutputOnTest)) window.focus.visit(project.tester.buffer())
 
   private def execute (exec :Execution) {
-    pspace.execs.execute(editor, exec)
+    pspace.execs.execute(window, exec)
     // track our last execution in the workspace state
-    pspace.workspace.state[Execution]() = exec
+    wspace.state[Execution]() = exec
   }
 }

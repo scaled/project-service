@@ -13,10 +13,10 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
   /** The string which identifies this runner. Used in exec config as: `name.runner: id`. */
   def id :String
 
-  /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
-  def execute (editor :Editor, exec :Execution) {
+  /** Invokes `exec`, sending output to an appropriately named buffer in `window`. */
+  def execute (window :Window, exec :Execution) {
     val bufname = s"*exec:${exec.name}*"
-    val buffer = editor.bufferConfig(bufname).reuse().mode("log").create().buffer
+    val buffer = window.workspace.createBuffer(bufname, State.inits(Mode.Hint("log")), true)
     val cfg = config(exec)
     val info = Seq() ++ cfg.env.map { case (k, v) => s"Env: $k = $v" } ++ Seq(
       s"Cwd: ${cfg.cwd}", s"Cmd: ${cfg.cmd.mkString(" ")}", "Output:")
@@ -25,7 +25,7 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
     SubProcess(cfg, pspace.msvc.exec, buffer)
     // TODO: associate the subprocess with the buffer, kill the subprocess (if it's still alive)
     // when the buffer is killed?
-    editor.visitBuffer(buffer)
+    window.focus.visit(buffer)
   }
 
   /** Returns text describing one or more example executions. These should be in comments prefixed

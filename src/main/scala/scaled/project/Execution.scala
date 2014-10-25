@@ -107,12 +107,12 @@ class Executions (pspace :ProjectSpace) {
   /** Returns all configured executions. */
   def executions :SeqV[Execution] = _execs
 
-  /** Invokes `exec`, sending output to an appropriately named buffer in `editor`. */
-  def execute (editor :Editor, exec :Execution) {
+  /** Invokes `exec`, sending output to an appropriately named buffer in `window`. */
+  def execute (window :Window, exec :Execution) {
     val id = exec.param("runner")
     _runners.plugins.find(_.id == id) match {
-      case Some(r) => r.execute(editor, exec)
-      case None => editor.popStatus(
+      case Some(r) => r.execute(window, exec)
+      case None => window.popStatus(
         s"Unable to find runner with id '$id' for execution '${exec.name}'.")
     }
   }
@@ -128,13 +128,14 @@ class Executions (pspace :ProjectSpace) {
   )
 
   /** Opens this project's executions config file in `editor`. */
-  def visitConfig (editor :Editor) {
-    val buffer = editor.visitFile(Store(_config)).buffer
+  def visitConfig (window :Window) {
+    val buffer = window.workspace.openBuffer(Store(_config))
     // if the buffer is empty; populate it with an example configuration
     if (buffer.start == buffer.end) {
       println(_runners.plugins)
       val examples = _runners.plugins.flatMap(_.exampleExecutions :+ "")
       buffer.append(configPreamble ++ Seq("") ++ examples map Line.apply)
     }
+    window.focus.visit(buffer)
   }
 }

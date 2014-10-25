@@ -15,8 +15,7 @@ abstract class Tester (project :Project) extends AutoCloseable {
   def failures :ErrorRing = _fails
 
   /** Returns the buffer in which we record test output. It will be created if needed. */
-  def buffer (editor :Editor) :Buffer = editor.bufferConfig(s"*test:${project.name}*").
-    reuse().mode("log" /*project-test*/).tags("project").state(project.asState).create().buffer
+  def buffer () :Buffer = project.createBuffer(s"*test:${project.name}*", "log" /*project-test*/)
 
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default
@@ -32,7 +31,7 @@ abstract class Tester (project :Project) extends AutoCloseable {
     * triggered as a result of `retest-all-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runAllTests (editor :Editor, interact :Boolean) :Boolean
+  def runAllTests (window :Window, interact :Boolean) :Boolean
 
   /** Runs all tests in `file`. If available, model information for all types (classes) in that
     * compilation unit will also be provided, to make life easier for the test framework. Test
@@ -41,19 +40,19 @@ abstract class Tester (project :Project) extends AutoCloseable {
     * triggered as a result of `retest-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runTests (editor :Editor, interact :Boolean, file :Path, types :Seq[Model.Element]) :Boolean
+  def runTests (window :Window, interact :Boolean, file :Path, types :Seq[Model.Element]) :Boolean
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
     * invoked interactly. Test output will be directed to [[buffer]].
     */
-  def runTest (editor :Editor, file :Path, elem :Model.Element) :Unit
+  def runTest (window :Window, file :Path, elem :Model.Element) :Unit
 
   /** Reports the results of a test run. */
-  protected def noteResults (editor :Editor, interact :Boolean, succs :Int, fails :Seq[Error]) {
+  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Error]) {
     _fails = failureRing(fails)
     if (interact) {
       val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."
-      editor.emitStatus(msg)
+      window.emitStatus(msg)
     }
   }
 

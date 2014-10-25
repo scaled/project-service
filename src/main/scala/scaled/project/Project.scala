@@ -130,17 +130,25 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     metaDir.resolve(name)
   }
 
-  /** Creates a state initializer for this project. */
-  def asState = State.init(classOf[Project], this)
+  /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
+    * configured to be a part of this project. */
+  def bufferState (mode :String, args :Any*) :List[State.Init[_]] = List(
+    State.init(Mode.Hint(mode, args :_*)),
+    State.init(Mode.Tags("project")),
+    State.init(classOf[Project], this))
+
+  /** Creates a simple buffer configured to be part of this project. A buffer with the same name
+    * will be reused. This is useful for incidental buffers related to the project like compiler
+    * output, test output, etc. */
+  def createBuffer (name :String, mode :String) :Buffer =
+    pspace.workspace.createBuffer(name, bufferState(mode), true)
 
   /** Visits a buffer containing a description of this project. */
-  def visitDescription (editor :Editor) {
-    val bname = s"*project:${name}*"
-    val view = editor.bufferConfig(bname).
-      reuse().mode("help").tags("project").state(asState).create()
-    val bb = new BufferBuilder(view.width()-1)
+  def visitDescription (window :Window) {
+    val buf = createBuffer(s"*project:${name}*", "help")
+    val bb = new BufferBuilder(window.focus.geometry.width-1)
     describeSelf(bb)
-    editor.visitBuffer(bb.applyTo(view))
+    window.focus.visit(bb.applyTo(buf))
   }
 
   /** Emits a description of this project to `bb`. The default project adds basic metadata, and
@@ -259,8 +267,8 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   class NoopCompiler extends Compiler(this) {
     override def describeSelf (bb :BufferBuilder) {} // nada
     override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def recompile (editor :Editor, interactive :Boolean) {
-      if (interactive) editor.emitStatus("Compilation is not supported by this project.")
+    override def recompile (window :Window, interactive :Boolean) {
+      if (interactive) window.emitStatus("Compilation is not supported by this project.")
     }
     override protected def compile (buffer :Buffer) = Future.success(true)
     override protected def nextError (buffer :Buffer, start :Loc) = None
@@ -273,11 +281,11 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   class NoopTester extends Tester(this) {
     // override def describeSelf (bb :BufferBuilder) {} // nada
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def runAllTests (editor :Editor, iact :Boolean) = false
-    override def runTests (editor :Editor, iact :Boolean,
+    override def runAllTests (window :Window, iact :Boolean) = false
+    override def runTests (window :Window, iact :Boolean,
                            file :Path, typess :Seq[Model.Element]) = false
-    override def runTest (editor :Editor, file :Path, elem :Model.Element) =
-      editor.emitStatus("${project.name} does not provide a tester.")
+    override def runTest (window :Window, file :Path, elem :Model.Element) =
+      window.emitStatus("${project.name} does not provide a tester.")
   }
 
   protected def createProjectStore () :CodexStore = new CodexStore()
