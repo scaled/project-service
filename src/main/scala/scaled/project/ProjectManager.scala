@@ -9,12 +9,13 @@ import scala.annotation.tailrec
 import scala.collection.mutable.{Map => MMap}
 import scaled._
 
-class ProjectManager (metaSvc :MetaService) extends AbstractService with ProjectService {
+class ProjectManager (metaSvc :MetaService, editor :Editor)
+    extends AbstractService with ProjectService {
 
-  private val pluginSvc = metaSvc.service[PluginService]
+  private def pluginSvc = metaSvc.service[PluginService]
   private def log = metaSvc.log
 
-  private val finders = pluginSvc.resolvePlugins[ProjectFinderPlugin]("project-finder")
+  private lazy val finders = pluginSvc.resolvePlugins[ProjectFinderPlugin]("project-finder")
   // a special resolver for our config file directory
   private val configFinder = new FileProject.FinderPlugin("scaled-config") {
     val configRoot = metaSvc.metaFile("Config")
@@ -22,11 +23,18 @@ class ProjectManager (metaSvc :MetaService) extends AbstractService with Project
   }
   private def finderPlugins = finders.plugins :+ configFinder
 
-  private val docfSet = pluginSvc.resolvePlugins[DocFormatterPlugin]("doc-formatter")
   private val docfMap = MMap[String,DocFormatterPlugin]()
-  docfSet.plugins.foreach { p => p.suffs.foreach { s => docfMap.put(s, p) }}
-  docfSet.added.onValue { p => p.suffs.foreach { s => docfMap.put(s, p) }}
-  docfSet.removed.onValue { p => p.suffs.foreach { s => docfMap.remove(s) }}
+  private lazy val docfSet = {
+    val dfs = pluginSvc.resolvePlugins[DocFormatterPlugin]("doc-formatter")
+    dfs.plugins.foreach { p => p.suffs.foreach { s => docfMap.put(s, p) }}
+    dfs.added.onValue { p => p.suffs.foreach { s => docfMap.put(s, p) }}
+    dfs.removed.onValue { p => p.suffs.foreach { s => docfMap.remove(s) }}
+    dfs
+  }
+
+  // create a project space whenever a new workspace is opened (it will register itself in
+  // workspace state and clear itself out when the workspace hibernates)
+  editor.workspaceOpened.onValue { ws => new ProjectSpace(ws, metaSvc) }
 
   override def resolveByPaths (paths :List[Path]) :Project.Seed = {
     val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)

@@ -12,24 +12,21 @@ import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
 import scaled.util.{BufferBuilder, Errors}
 
-/** Static [[ProjectSpace]] stuffs. */
-object ProjectSpace {
-
-  /** Resolves the project space for the supplied environment. */
-  def apply (env :Env) :ProjectSpace = {
-    val ws = env.window.workspace ; val ps = ws.state[ProjectSpace]
-    if (!ps.isDefined) ps() = new ProjectSpace(ws, env.msvc)
-    ps.get
-  }
-}
-
 /** Manages the projects in a workspace. */
-class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends AutoCloseable {
+class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCloseable {
   import Project._
 
-  workspace.toClose += this // our lifecycle matches that of our workspace
+  wspace.state[ProjectSpace]() = this
+  wspace.toClose += this // our lifecycle matches that of our workspace
+
+  // when a buffer is opened, stuff its project and related bits into buffer state
+  wspace.toClose += wspace.bufferOpened.onValue { buf =>
+    val pstate = buf.state[Project]
+    if (!pstate.isDefined) pstate.update(psvc.pathsFor(buf.store).map(resolveByPaths))
+  }
+
   private val psvc = msvc.service[ProjectService]
-  private def root = workspace.root
+  private def root = wspace.root
   private val psdir = Files.createDirectories(root.resolve("Projects"))
   private val dsdir = Files.createDirectories(root.resolve("Depends"))
 
@@ -54,21 +51,13 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
   }
 
   /** Returns the name of the workspace. */
-  def name :String = workspace.name
+  def name :String = wspace.name
 
   /** Easy access to our logger. */
   def log = msvc.log
 
   /** Returns `(root, name)` for all projects in this workspace. */
   def allProjects :Seq[(Path,String)] = toName.toMapV.toSeq
-
-  /** Returns the project associated with `buffer`. */
-  def project (buffer :RBuffer) :Project =
-    buffer.state[Project].getOrElseUpdate(projectFor(buffer.store))
-
-  /** Resolves (if necessary) and returns the project which handles `store`. */
-  def projectFor (store :Store) :Project =
-    psvc.pathsFor(store).map(resolveByPaths).getOrElse(psvc.unknownProject(this))
 
   /** Resolves (if necessary) and returns the project which is rooted at `root`. */
   def projectIn (root :Path) :Project = projectInRoot(root) getOrElse {
@@ -142,7 +131,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
     if (Files.exists(ddir)) Files.move(ddir, pdir)
     else Files.createDirectories(ddir)
     // add this project's root to our workspace's hint path
-    workspace.addHintPath(proj.root)
+    wspace.addHintPath(proj.root)
     // write this project's id info its metadata dir
     updateInfo(proj)
   }
@@ -158,7 +147,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
     // move this project's metadir out of Projects back into Depends
     Files.move(pdir, dsdir.resolve(proj.idName))
     // remove this project's root from our workspace's hint path
-    workspace.removeHintPath(proj.root)
+    wspace.removeHintPath(proj.root)
     // remove the project's info.txt file
     Files.deleteIfExists(pdir.resolve("info.txt"))
   }
@@ -171,6 +160,7 @@ class ProjectSpace (val workspace :Workspace, val msvc :MetaService) extends Aut
 
   override def close () {
     codex.close()
+    wspace.state[ProjectSpace].clear()
     // TODO: close/force-hibernate all resolved projects?
   }
 

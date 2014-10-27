@@ -32,11 +32,11 @@ object ProjectConfig extends Config.Defs {
 class ProjectMode (env :Env) extends MinorMode(env) {
   import ProjectConfig._
 
-  val pspace = ProjectSpace(env)
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
-  val project = pspace.project(buffer)
+  val project = Project(buffer)
   note(project.reference(this))
+  import project.pspace
 
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))

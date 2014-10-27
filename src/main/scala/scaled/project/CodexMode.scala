@@ -19,9 +19,9 @@ import scaled.util.{BufferBuilder, Chars}
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
-  val pspace = ProjectSpace(env)
-  val project = pspace.project(buffer)
+  val project = Project(buffer)
   note(project.reference(this))
+  import project.pspace
 
   /** The most recent index for the buffer's source file, if any. */
   val index = OptValue[SourceIndex]()

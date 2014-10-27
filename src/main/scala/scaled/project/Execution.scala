@@ -77,7 +77,7 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
   */
 class Executions (pspace :ProjectSpace) {
 
-  private val _config = pspace.workspace.root.resolve("executions.properties")
+  private val _config = pspace.wspace.root.resolve("executions.properties")
   private val _execs = SeqBuffer[Execution]()
   private val _runners = pspace.msvc.service[PluginService].resolvePlugins[RunnerPlugin](
     "runner", List(pspace))
@@ -94,7 +94,7 @@ class Executions (pspace :ProjectSpace) {
   }
   // read our config and set up a file watch to re-read when it's modified
   readConfig(_config)
-  pspace.workspace.toClose += pspace.msvc.service[WatchService].watchFile(_config, readConfig(_))
+  pspace.wspace.toClose += pspace.msvc.service[WatchService].watchFile(_config, readConfig(_))
 
   /** Adds compiler info to the project info buffer. */
   def describeSelf (bb :BufferBuilder) {

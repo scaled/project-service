@@ -75,6 +75,11 @@ object Project {
     * [[ProjectFinderPlugin]]s when resolving a project. */
   case class Seed (root :Path, intelligent :Boolean, clazz :Class[_ <: Project], args :List[Any])
 
+  /** Returns the project configured for the supplied buffer. */
+  def apply (buffer :RBuffer) :Project = buffer.state[Project].getOrElse {
+    throw new IllegalStateException(s"No project configured in buffer: '$buffer'")
+  }
+
   // separate Id components by VT; they will be embedded in strings that are themselves separated by
   // HT, so we want to play nicely with that
   private final val Sep = 11.toChar
@@ -141,7 +146,7 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     * will be reused. This is useful for incidental buffers related to the project like compiler
     * output, test output, etc. */
   def createBuffer (name :String, mode :String) :Buffer =
-    pspace.workspace.createBuffer(name, bufferState(mode), true)
+    pspace.wspace.createBuffer(name, bufferState(mode), true)
 
   /** Visits a buffer containing a description of this project. */
   def visitDescription (window :Window) {

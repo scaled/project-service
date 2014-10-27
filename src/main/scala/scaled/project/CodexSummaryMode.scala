@@ -64,13 +64,13 @@ object CodexSummaryMode {
 class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingMode(env) {
   import CodexSummaryMode._
 
-  val pspace = ProjectSpace(env)
   val project = (tgt match {
     case TopLevelMembers(store) => store
     case DefMembers(df) => df.project
   }).asInstanceOf[Project#CodexStore].owner
   // resolve our project and store it in the buffer for our project and codex minor modes
-  buffer.state[Project].update(project)
+  buffer.state[Project]() = project
+  import project.pspace
 
   override def keymap = super.keymap.
     bind("o",     "zoom-out").

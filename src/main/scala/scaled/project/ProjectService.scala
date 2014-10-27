@@ -7,9 +7,10 @@ package scaled.project
 import java.nio.file.Path
 import scaled._
 
-/** Provides miscellaneous project services. Chiefly project resolution, and some other global bits
-  * and bobs. */
-@Service(name="project", impl="ProjectManager", desc="Provides miscellaneous project services.")
+/** Provides miscellaneous project services.
+  * Chiefly project resolution, and some other global bits and bobs. */
+@Service(name="project", impl="ProjectManager", autoLoad=true,
+         desc="Provides miscellaneous project services.")
 trait ProjectService {
 
   def resolveByPaths (paths :List[Path]) :Project.Seed
