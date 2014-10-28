@@ -72,7 +72,8 @@ abstract class ProjectFinderPlugin (
   protected def injectArgs (root :Path) :List[Any] = root :: Nil
 
   /** Returns a seed for a project in `root`, with injection args `args`. */
-  protected def seed (root :Path, args :List[Any]) = Project.Seed(root, intelligent, clazz, args)
+  protected def seed (root :Path, args :List[Any]) =
+    Project.Seed(root, name, intelligent, clazz, args)
 
   /** Returns true if `dir/file` exists. Helpy helper! */
   protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))

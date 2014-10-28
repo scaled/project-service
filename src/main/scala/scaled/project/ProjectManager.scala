@@ -9,11 +9,22 @@ import scala.annotation.tailrec
 import scala.collection.mutable.{Map => MMap}
 import scaled._
 
+/** Configuration for [[ProjectService]]. */
+object ProjectServiceConfig extends Config.Defs {
+
+  @Var("""The order of preference for project types. Used when multiple project types match
+          a given project on the file system.""")
+  val prefTypes = key(Seq("scaled", "maven"))
+}
+
 class ProjectManager (metaSvc :MetaService, editor :Editor)
     extends AbstractService with ProjectService {
+  import ProjectServiceConfig._
 
   private def pluginSvc = metaSvc.service[PluginService]
   private def log = metaSvc.log
+  private val config = metaSvc.service[ConfigService].resolveServiceConfig(
+    "project", ProjectServiceConfig :: Nil)
 
   private lazy val finders = pluginSvc.resolvePlugins[ProjectFinderPlugin]("project-finder")
   // a special resolver for our config file directory
@@ -37,23 +48,27 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
   editor.workspaceOpened.onValue { ws => new ProjectSpace(ws, metaSvc) }
 
   override def resolveByPaths (paths :List[Path]) :Project.Seed = {
-    val (iprojs, dprojs) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
-    // if there are more than one intelligent project matches, complain
-    if (!iprojs.isEmpty) {
-      if (iprojs.size > 1) {
-        log.log(s"Multiple intelligent project matches:")
-        iprojs.foreach { p => log.log(s"  $p") }
-      }
-      iprojs.head
+    val (iseeds, dseeds) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
+    // if there's exactly one intelligent project match, great!
+    if (iseeds.size == 1) iseeds.head
+    // if more than one intelligent matches: choose the project with highest prio, per prefTypes
+    else if (iseeds.size > 1) {
+      val prio = iseeds.minBy(s => config(prefTypes).indexOf(s.name) match {
+        case -1 => Short.MaxValue
+        case ii => ii
+      })
+      log.log(s"Multiple project matches in '${prio.root}'. " +
+              s"Choosing ${prio.name} from ${iseeds.map(_.name)}).")
+      prio
     }
     // if there are any non-intelligent project matches, use the deepest match
-    else if (!dprojs.isEmpty) dprojs.maxBy(_.root.getNameCount)
+    else if (!dseeds.isEmpty) dseeds.maxBy(_.root.getNameCount)
     // if all else fails, create a FileProject for the root
     else {
       val root = paths.last ; val file = root.getFileName.toString
       val clazz = if ((file endsWith ".zip") || (file endsWith ".jar")) classOf[ZipFileProject]
                   else classOf[FileProject]
-      Project.Seed(root, false, clazz, List(root))
+      Project.Seed(root, "file", false, clazz, List(root))
     }
   }
 

@@ -73,7 +73,8 @@ object Project {
 
   /** A seed which can be used to instantiate a project. These are returned by
     * [[ProjectFinderPlugin]]s when resolving a project. */
-  case class Seed (root :Path, intelligent :Boolean, clazz :Class[_ <: Project], args :List[Any])
+  case class Seed (root :Path, name :String, intelligent :Boolean,
+                   clazz :Class[_ <: Project], args :List[Any])
 
   /** Returns the project configured for the supplied buffer. */
   def apply (buffer :RBuffer) :Project = buffer.state[Project].getOrElse {
