@@ -22,7 +22,11 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   // when a buffer is opened, stuff its project and related bits into buffer state
   wspace.toClose += wspace.bufferOpened.onValue { buf =>
     val pstate = buf.state[Project]
-    if (!pstate.isDefined) pstate.update(psvc.pathsFor(buf.store).map(resolveByPaths))
+    if (!pstate.isDefined) psvc.pathsFor(buf.store).map(resolveByPaths) map { proj =>
+      pstate.update(proj)
+      import Config.Scope
+      buf.state[Scope]() = Scope("project", proj.metaDir, buf.state.get[Scope])
+    }
   }
 
   private val psvc = msvc.service[ProjectService]

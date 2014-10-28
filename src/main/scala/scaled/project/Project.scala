@@ -131,7 +131,6 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
 
   /** Returns the file named `name` in this project's metadata directory. */
   def metaFile (name :String) :Path = {
-    if (!Files.exists(metaDir)) Files.createDirectories(metaDir)
     metaDir.resolve(name)
   }
 
@@ -237,7 +236,11 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
   override protected def log = metaSvc.log
 
   /** Returns the directory in which this project will store metadata. */
-  protected def metaDir = pspace.metaDir(this)
+  private[project] def metaDir = {
+    val dir = pspace.metaDir(this)
+    if (!Files.exists(dir)) Files.createDirectories(dir)
+    dir
+  }
 
   /** Populates our status line (`sb`) and status line tooltip (`tb`) strings. */
   protected def makeStatus (sb :StringBuilder, tb :StringBuilder) {
