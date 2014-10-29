@@ -11,7 +11,7 @@ import java.nio.file.{Files, FileVisitResult, Path, SimpleFileVisitor}
 import java.util.HashMap
 import scala.collection.mutable.{Map => MMap}
 import scaled._
-import scaled.util.{BufferBuilder, Close, Reffed}
+import scaled.util.{BufferBuilder, Close}
 
 /** [[Project]]-related helper types &c. */
 object Project {
@@ -87,7 +87,7 @@ object Project {
 }
 
 /** Provides services for a particular project. */
-abstract class Project (val pspace :ProjectSpace) extends Reffed {
+abstract class Project (val pspace :ProjectSpace) {
   import Project._
 
   /** Returns the root of this project. */
@@ -114,6 +114,9 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
 
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
+
+  /** A bag of closeables to be closed when this project [[hibernate]]s or is [[dispose]]d. */
+  val toClose = Close.bag()
 
   /** The history ring for file names in this project. */
   val fileHistory = new Ring(32) // TODO: how might we configure this?
@@ -233,8 +236,24 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
     })
   }
 
+  /** Closes any open resources maintained by this project and prepares it to be freed. This
+    * happens when this project's owning workspace is disposed. */
+  def dispose () {
+    hibernate()
+  }
+
   override def toString = s"$name ($root)"
-  override protected def log = metaSvc.log
+  protected def log = metaSvc.log
+
+  /** Causes this project to free up ephemeral resources, which will be recreated if the project is
+    * once again called into service. */
+  protected def hibernate () {
+    println(s"$this hibernating")
+    try toClose.close()
+    catch {
+      case e :Throwable => log.log("$this hibernate failure", e)
+    }
+  }
 
   /** Returns the directory in which this project will store metadata. */
   private[project] def metaDir = {
@@ -262,7 +281,7 @@ abstract class Project (val pspace :ProjectSpace) extends Reffed {
 
     def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
       case null => pspace.projectFor(depend) match {
-        case sp @ Some(p) => deps.put(depend, p) ; toClose += p.reference(Project.this) ; sp
+        case sp @ Some(p) => deps.put(depend, p) ; sp
         case None => None
       }
       case proj => Some(proj)

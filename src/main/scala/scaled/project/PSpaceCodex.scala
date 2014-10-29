@@ -39,7 +39,7 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
   val visitStack = new VisitStack("Element visit")
 
   override def close () {
-    // TODO: release all of the projects we've referenced?
+    // TODO: anything?
   }
 
   /** Returns a completer on elements of `kind` in this project's Codex. */

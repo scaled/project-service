@@ -35,7 +35,6 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
   val project = Project(buffer)
-  note(project.reference(this))
   import project.pspace
 
   // display the project status in the modeline

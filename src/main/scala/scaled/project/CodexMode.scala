@@ -20,7 +20,6 @@ import scaled.util.{BufferBuilder, Chars}
 class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   val project = Project(buffer)
-  note(project.reference(this))
   import project.pspace
 
   /** The most recent index for the buffer's source file, if any. */

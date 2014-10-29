@@ -106,8 +106,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
       bb.addKeysValues("Kind: " -> p.getClass.getName,
                        "Root: " -> p.root.toString(),
                        "Ids: "  -> p.ids.mkString(" "),
-                       "Deps: " -> p.depends.size.toString,
-                       "Refs: " -> p.references.toString)
+                       "Deps: " -> p.depends.size.toString)
     }
 
     execs.describeSelf(bb)
@@ -163,9 +162,9 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   lazy val execs :Executions = new Executions(this)
 
   override def close () {
+    projects.values.foreach(_.dispose())
     codex.close()
     wspace.state[ProjectSpace].clear()
-    // TODO: close/force-hibernate all resolved projects?
   }
 
   // the root passed here may have disappeared in the fullness of time, so validate it
