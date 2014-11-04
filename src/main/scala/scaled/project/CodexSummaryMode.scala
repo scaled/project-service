@@ -82,6 +82,9 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     bind(".",     "visit").
     bind("ENTER", "visit-or-zoom");
 
+  // we use the code mode styles even though we're not a code mode
+  override def stylesheets = stylesheetURL("/code.css") :: super.stylesheets
+
   //
   // FNs
 
