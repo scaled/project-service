@@ -34,13 +34,13 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
   }
   private def finderPlugins = finders.plugins :+ configFinder
 
-  private val docfMap = MMap[String,DocFormatterPlugin]()
-  private lazy val docfSet = {
+  private lazy val docfMap = {
+    val map = MMap[String,DocFormatterPlugin]()
     val dfs = pluginSvc.resolvePlugins[DocFormatterPlugin]("doc-formatter")
-    dfs.plugins.foreach { p => p.suffs.foreach { s => docfMap.put(s, p) }}
-    dfs.added.onValue { p => p.suffs.foreach { s => docfMap.put(s, p) }}
-    dfs.removed.onValue { p => p.suffs.foreach { s => docfMap.remove(s) }}
-    dfs
+    dfs.plugins.foreach { p => p.suffs.foreach { s => map.put(s, p) }}
+    dfs.added.onValue { p => p.suffs.foreach { s => map.put(s, p) }}
+    dfs.removed.onValue { p => p.suffs.foreach { s => map.remove(s) }}
+    map
   }
 
   // create a project space whenever a new workspace is opened (it will register itself in
