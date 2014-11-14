@@ -187,3 +187,12 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     Files.write(ids, List(proj.root.toString) ++ proj.ids.map(_.deflate))
   }
 }
+
+/** Static helpers. */
+object ProjectSpace {
+
+  /** Returns the `ProjectSpace` associated with `wspace`. */
+  def apply (wspace :Workspace) :ProjectSpace = wspace.state[ProjectSpace].getOrElse {
+    throw new IllegalStateException(s"No ProjectSpace configured in workspace: '$wspace'")
+  }
+}
