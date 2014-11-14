@@ -73,14 +73,11 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   import project.pspace
 
   override def keymap = super.keymap.
-    bind("o",     "zoom-out").
-    bind("<",     "zoom-out").
-    bind("i",     "zoom-in").
-    bind(">",     "zoom-in").
-    bind("SPACE", "toggle-docs").
-    bind("v",     "visit").
-    bind(".",     "visit").
-    bind("ENTER", "visit-or-zoom");
+    bind("zoom-out",      "o", "<").
+    bind("zoom-in",       "i", ">").
+    bind("toggle-docs",   "SPACE").
+    bind("visit",         "v", ".").
+    bind("visit-or-zoom", "ENTER");
 
   // we use the code mode styles even though we're not a code mode
   override def stylesheets = stylesheetURL("/code.css") :: super.stylesheets

@@ -42,27 +42,27 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = super.keymap.
-    bind("C-h p",   "describe-project").
-    bind("C-h S-p", "describe-projects").
+    bind("describe-project",  "C-h p").
+    bind("describe-projects", "C-h S-p").
 
     // file fns
-    bind("C-x C-p", "project-find-file").
-    bind("C-x C-o", "project-find-file-other").
+    bind("project-find-file",       "C-x C-p").
+    bind("project-find-file-other", "C-x C-o").
 
     // navigation fns
-    bind("C-]",     "project-next-error-or-failure").
-    bind("C-[",     "project-prev-error-or-failure").
+    bind("project-next-error-or-failure", "C-]").
+    bind("project-prev-error-or-failure", "C-[").
 
     // compilation fns
-    bind("C-c C-r", "project-recompile").
+    bind("project-recompile", "C-c C-r").
 
     // test fns
-    bind("C-c S-C-t", "project-run-all-tests").
-    bind("C-c C-t",   "project-run-file-tests").
+    bind("project-run-all-tests",  "C-c S-C-t").
+    bind("project-run-file-tests", "C-c C-t").
 
     // execution fns
-    bind("C-c C-e",   "workspace-execute").
-    bind("C-c C-a",   "workspace-execute-again");
+    bind("workspace-execute",       "C-c C-e").
+    bind("workspace-execute-again", "C-c C-a");
 
   /** Finds a file in `proj` and visits it. */
   def findFileIn (proj :Project) {
