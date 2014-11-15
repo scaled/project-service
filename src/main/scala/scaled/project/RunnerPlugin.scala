@@ -18,7 +18,7 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
     val bufname = s"*exec:${exec.name}*"
     val buffer = window.workspace.createBuffer(bufname, State.inits(Mode.Hint("log")), true)
     val cfg = config(exec)
-    val info = Seq() ++ cfg.env.map { case (k, v) => s"Env: $k = $v" } ++ Seq(
+    val info = Seq() ++ cfg.env.map { (k, v) => s"Env: $k = $v" } ++ Seq(
       s"Cwd: ${cfg.cwd}", s"Cmd: ${cfg.cmd.mkString(" ")}", "Output:")
     buffer.append(info.map(Line.apply))
     buffer.split(buffer.end)
