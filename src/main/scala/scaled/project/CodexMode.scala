@@ -32,6 +32,18 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     if (buffer.store.exists) project.indexer.queueReindex(store)
   })
 
+  /** Used when highlighting uses in our buffer. */
+  val highlights = Value(Set[Use]())
+  highlights.onChange { (nuses, ouses) =>
+    ouses foreach upHighlight(false)
+    nuses foreach upHighlight(true)
+  }
+  private def upHighlight (on :Boolean)(use :Use) {
+    val start = buffer.loc(use.offset) ; val end = buffer.loc(use.offset+use.length)
+    if (on) buffer.addTag(EditorConfig.matchStyle, start, end)
+    else buffer.removeTag(EditorConfig.matchStyle, start, end)
+  }
+
   override def keymap = super.keymap.
     // "C-h c"   -> "describe-codex", // TODO:?
     bind("codex-visit-module", "C-c C-v C-m").
@@ -50,6 +62,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
     bind("codex-describe-element",  "C-c C-d").
     bind("codex-debug-element",     "C-c S-C-d").
+    bind("codex-highlight-element", "C-c C-h").
     bind("codex-visit-element",     "M-.").
     bind("codex-visit-pop",         "M-,");
 
@@ -98,6 +111,26 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("Displays debugging info for the Codex element at the point.")
   def codexDebugElement () {
     onElemAt(view.point(), (elem, loc, df) => view.popup() = mkDebugPopup(elem, loc, df))
+  }
+
+  @Fn("Highlights all occurances of an element in the current buffer.")
+  def codexHighlightElement () {
+    onElemAt(view.point(), (elem, loc, df) => {
+      val bufSource = PSpaceCodex.toSource(buffer.store)
+      val dfRef = df.ref
+      val usesMap = project.store.usesOf(df).toMapV // source -> uses
+      def mkUse (offset :Int) = new Use(dfRef, df.kind, offset, df.name.length)
+
+      // create a set of all uses in this buffer, for highlighting
+      val localUses = Set.builder[Use]()
+      usesMap.get(bufSource) foreach { offsets => localUses ++= offsets map mkUse }
+      if (df.source() == bufSource) localUses += mkUse(df.offset)
+      highlights() = localUses.build()
+
+      // report the number of uses found in this buffer, and elsewhere in the project
+      val count = usesMap.map((src, us) => if (src != bufSource) us.length else 0).reduce(_ + _)
+      window.emitStatus(s"${highlights().size} occurances in this buffer, $count in other files.")
+    })
   }
 
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
