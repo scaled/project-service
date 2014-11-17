@@ -49,12 +49,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     bind("project-find-file",       "C-x C-p").
     bind("project-find-file-other", "C-x C-o").
 
-    // navigation fns
-    bind("project-next-error-or-failure", "C-]").
-    bind("project-prev-error-or-failure", "C-[").
-
     // compilation fns
-    bind("project-recompile", "C-c C-r").
+    bind("project-recompile", "F5").
 
     // test fns
     bind("project-run-all-tests",  "C-c S-C-t").
@@ -94,28 +90,12 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     }
   }
 
-  @Fn("""Invokes `project-next-error` if there are any compilation errors, `project-next-failure`
-         if there are no compilation errors, but are test failures.""")
-  def projectNextErrorOrFailure () {
-    if (project.compiler.errors.count > 0) project.compiler.errors.visitNext(window)
-    else if (project.tester.failures.count > 0) project.tester.failures.visitNext(window)
-    else window.popStatus("There are currently no known compilation errors or test failures.")
-  }
-
-  @Fn("""Invokes `project-prev-error` if there are any compilation errors, `project-prev-failure`
-         if there are no compilation errors, but are test failures.""")
-  def projectPrevErrorOrFailure () {
-    if (project.compiler.errors.count > 0) project.compiler.errors.visitPrev(window)
-    else if (project.tester.failures.count > 0) project.tester.failures.visitPrev(window)
-    else window.popStatus("There are currently no known compilation errors or test failures.")
-  }
-
   //
   // Compile FNs
 
   @Fn("""Initiates a compilation of the current project. Output from the compilation will be
-         displayed in a buffer named *compile:{project}* and errors identified in said output
-         can be navigated using `project-next-error` and `project-previous-error`.""")
+         displayed in a buffer named *compile:{project}*. Errors will be placed in the visit
+         list and can be navigated using `visit-next` and `visit-prev`.""")
   def projectRecompile () {
     project.compiler.recompile(window, true)
   }
@@ -124,18 +104,6 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          due perhaps to a command line compiler stomping on its files or something similar.""")
   def projectResetCompiler () {
     project.compiler.reset()
-  }
-
-  @Fn("""Visits the next compilation error. The buffer containing the compilation unit will be
-         visited and the point moved to the location of the error.""")
-  def projectNextError () {
-    project.compiler.errors.visitNext(window)
-  }
-
-  @Fn("""Visits the previous compilation error. The buffer containing the compilation unit will be
-         visited and the point moved to the location of the error.""")
-  def projectPrevError () {
-    project.compiler.errors.visitPrev(window)
   }
 
   @Fn("Displays the buffer that contains compiler output for this project.")
@@ -147,8 +115,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // Test FNs
 
   @Fn("""Runs all of this project's tests. Output is displayed in a buffer named *test{project}*.
-         Failures identified in said output can be navigated using `project-next-failure` and
-         `project-previous-failure`.""")
+         Failures identified in said output are placed in the visit list and can be navigated
+         using `visit-next` and `visit-prev`.""")
   def projectRunAllTests () {
     if (project.tester.runAllTests(window, true)) maybeShowTestOutput()
     else window.popStatus("No tests were found.")
@@ -178,18 +146,6 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          to run this project's tests.""")
   def projectAbortTests () {
     project.tester.abort()
-  }
-
-  @Fn("""Visits the next test failure. The buffer containing the failing test code will be
-         visited and the point moved to the location indicated by the test output.""")
-  def projectNextFailure () {
-    project.compiler.errors.visitNext(window)
-  }
-
-  @Fn("""Visits the previous test failure. The buffer containing the failing test code will be
-         visited and the point moved to the location indicated by the test output.""")
-  def projectPrevFailure () {
-    project.compiler.errors.visitPrev(window)
   }
 
   @Fn("Displays the buffer that contains test output for this project.")

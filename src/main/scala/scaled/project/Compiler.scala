@@ -31,6 +31,17 @@ object Compiler {
     override def indicator = s" $glyph $count"
     override def toString = s"project has $count compile error(s)"
   }
+
+  /** Creates a [[Visit]] for the supplied compiler error. */
+  def errorVisit (path :String, loc :Loc, descrip :Seq[String]) :Visit = new Visit() {
+    override def apply (window :Window) = {
+      val view = window.focus.visitFile(Store(path))
+      view.point() = loc
+      // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
+      // its position up or down, left or right to fit yet still point to loc
+      view.showPopup(Popup.text(descrip, Popup.UpRight(loc)).toError)
+    }
+  }
 }
 
 /** Provides an interface whereby project mode can initiate project compilation and display
@@ -54,9 +65,6 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     bb.addKeyValue("Status: ", _status().toString)
   }
 
-  /** The latest compilation errors in a navigable ring. */
-  def errors :ErrorRing = _errs
-
   /** Returns the buffer in which we record compiler output. It will be created if needed. */
   def buffer () :Buffer = project.createBuffer(s"*compile:${project.name}*", "log")
 
@@ -71,24 +79,27 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     _status() = Compiling
     compile(buf).onFailure(window.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
-      val errs = Seq.builder[Error]
-      @inline @tailrec def loop (loc :Loc) :Unit = nextError(buf, loc) match {
-        case Some((err, next)) => errs += err ; loop(next)
+      val ebuf = Seq.builder[Visit]
+      @inline @tailrec def unfold (loc :Loc) :Unit = nextError(buf, loc) match {
+        case Some((err, next)) => ebuf += err ; unfold(next)
         case None => // done!
       }
-      loop(buf.start)
-      _errs = errorRing(errs.build())
-      _status() = _errs.count match {
+      unfold(buf.start)
+
+      val errs = ebuf.build()
+      window.visits() = new VisitList("compile error", errs)
+      _status() = errs.size match {
         case 0 => NoErrors
         case n => Errors(n)
       }
+
       val duration = System.currentTimeMillis - start
       val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
       buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
       // report feedback to the user if this was requested interactively
       if (interactive) {
         val result = if (success) "succeeded" else "failed"
-        val msg = s"Compilation $result with ${_errs.count} error(s)."
+        val msg = s"Compilation $result with ${errs.size} error(s)."
         window.emitStatus(msg)
       }
     }
@@ -111,16 +122,12 @@ abstract class Compiler (project :Project) extends AutoCloseable {
 
   /** Scans `buffer` from `start` to find the next error.
     *
-    * @return a tuple containing an error, and the location at which to search for subsequent
-    * errors, or `None` if no next error was found.
+    * @return a tuple containing a [[Visit]] which will visit the next error (see
+    * [[Compiler.errorVisit]]), and the location at which to search for subsequent errors, or
+    * `None` if no next error was found.
     */
-  protected def nextError (buffer :Buffer, start :Loc) :Option[(Error,Loc)]
+  protected def nextError (buffer :Buffer, start :Loc) :Option[(Visit,Loc)]
 
-  private def errorRing (errs :Seq[Error]) = new ErrorRing("error", errs) {
-    override def onNone = "No compilation errors."
-  }
-
-  private[this] var _errs = errorRing(Seq())
   private[this] val _status = Value[Status](Unknown)
   _status onEmit { project.updateStatus() }
 }

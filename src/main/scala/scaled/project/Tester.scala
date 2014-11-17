@@ -11,9 +11,6 @@ import scaled.util.Errors
 /** Provides an interface for interacting with test frameworks. */
 abstract class Tester (project :Project) extends AutoCloseable {
 
-  /** The latest set of test failures as a navigable ring. */
-  def failures :ErrorRing = _fails
-
   /** Returns the buffer in which we record test output. It will be created if needed. */
   def buffer () :Buffer = project.createBuffer(s"*test:${project.name}*", "log" /*project-test*/)
 
@@ -48,15 +45,11 @@ abstract class Tester (project :Project) extends AutoCloseable {
   def runTest (window :Window, file :Path, elem :Model.Element) :Unit
 
   /** Reports the results of a test run. */
-  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Error]) {
-    _fails = failureRing(fails)
+  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Visit]) {
+    window.visits() = new VisitList("test failure", fails)
     if (interact) {
       val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."
       window.emitStatus(msg)
     }
   }
-
-  private def failureRing (fails :Seq[Error]) = new ErrorRing("failure", fails)
-
-  private[this] var _fails = failureRing(Seq())
 }
