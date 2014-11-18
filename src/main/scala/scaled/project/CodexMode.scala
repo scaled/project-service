@@ -37,6 +37,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   highlights.onChange { (nuses, ouses) =>
     ouses foreach upHighlight(false)
     nuses foreach upHighlight(true)
+    window.visits() = new Visit.List("occurrence", nuses.toSeq.sortBy(_.offset).map(u => Visit(buffer.store, u.offset)))
   }
   private def upHighlight (on :Boolean)(use :Use) {
     val start = buffer.loc(use.offset) ; val end = buffer.loc(use.offset+use.length)
@@ -55,8 +56,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     bind("codex-summarize-type",     "C-c C-s C-t").
     bind("codex-summarize-encloser", "C-c C-z").
 
-    // TEMP: implement local key bindings
-    bind("codex-import-type",    "C-c C-i").
+    bind("codex-import-type",    "C-c C-i"). // TODO: this should be in Java/Scala mode
     bind("codex-summarize-type", "C-c C-j").
     bind("codex-visit-type",     "C-c C-k").
 
@@ -112,7 +112,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     onElemAt(view.point(), (elem, loc, df) => view.popup() = mkDebugPopup(elem, loc, df))
   }
 
-  @Fn("Highlights all occurances of an element in the current buffer.")
+  @Fn("Highlights all occurrences of an element in the current buffer.")
   def codexHighlightElement () {
     onElemAt(view.point(), (elem, loc, df) => {
       val bufSource = PSpaceCodex.toSource(buffer.store)
@@ -127,8 +127,8 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
       highlights() = localUses.build()
 
       // report the number of uses found in this buffer, and elsewhere in the project
-      val count = usesMap.map((src, us) => if (src != bufSource) us.length else 0).reduce(_ + _)
-      window.emitStatus(s"${highlights().size} occurances in this buffer, $count in other files.")
+      val count = usesMap.map((src, us) => if (src != bufSource) us.length else 0).fold(0)(_ + _)
+      window.emitStatus(s"${highlights().size} occurrences in this buffer, $count in other files.")
     })
   }
 
