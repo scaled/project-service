@@ -87,7 +87,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       unfold(buf.start)
 
       val errs = ebuf.build()
-      window.visits() = new VisitList("compile error", errs)
+      window.visits() = new Visit.List("compile error", errs)
       _status() = errs.size match {
         case 0 => NoErrors
         case n => Errors(n)

@@ -46,7 +46,7 @@ abstract class Tester (project :Project) extends AutoCloseable {
 
   /** Reports the results of a test run. */
   protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Visit]) {
-    window.visits() = new VisitList("test failure", fails)
+    window.visits() = new Visit.List("test failure", fails)
     if (interact) {
       val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."
       window.emitStatus(msg)

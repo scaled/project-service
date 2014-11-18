@@ -63,8 +63,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     bind("codex-describe-element",  "C-c C-d").
     bind("codex-debug-element",     "C-c S-C-d").
     bind("codex-highlight-element", "C-c C-h").
-    bind("codex-visit-element",     "M-.").
-    bind("codex-visit-pop",         "M-,");
+    bind("codex-visit-element",     "M-.");
 
   //
   // FNs
@@ -137,11 +136,6 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
          Codex.""")
   def codexVisitElement () {
     onElemAt(view.point(), (_, _, df) => pspace.codex.visit(window, view, df))
-  }
-
-  @Fn("Pops to the last place `codex-visit-foo` was invoked.")
-  def codexVisitPop () {
-    pspace.codex.visitStack.pop(window)
   }
 
   @Fn("Queries for a type (completed by the project's Codex) and adds an import for it.")

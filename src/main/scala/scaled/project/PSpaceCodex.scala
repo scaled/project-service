@@ -8,7 +8,6 @@ import codex.model.{Def, Kind, Ref, Source}
 import codex.store.{MapDBStore, ProjectStore, Query}
 import java.util.{ArrayList, Optional, LinkedHashSet}
 import scaled._
-import scaled.util.VisitStack
 
 /** [[PSpaceCodex]] helpers and whatnot. */
 object PSpaceCodex {
@@ -35,9 +34,6 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
                     Kind.FUNC   -> new Ring(32),
                     Kind.VALUE  -> new Ring(32))
 
-  /** A stack used to track where we've gone when using visit-element. */
-  val visitStack = new VisitStack("Element visit")
-
   override def close () {
     // TODO: anything?
   }
@@ -59,14 +55,14 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
 
   /** Visits the source of `df` in a buffer in `window`. Pushes `curview` onto the visit stack. */
   def visit (window :Window, curview :BufferView, df :Def) {
-    visitStack.push(curview) // push current loc to the visit stack
+    window.visitStack.push(curview) // push current loc to the visit stack
     val view = window.focus.visitFile(toStore(df.source))
     view.point() = view.buffer.loc(df.offset)
   }
 
   /** Displays a summary of `df` in a new buffer. Pushes `curview` onto the visit stack. */
   def summarize (window :Window, curview :BufferView, df :Def) {
-    visitStack.push(curview) // push current loc to the visit stack
+    window.visitStack.push(curview) // push current loc to the visit stack
     CodexSummaryMode.visitDef(window, df)
   }
 
