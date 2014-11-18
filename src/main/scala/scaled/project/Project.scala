@@ -213,9 +213,10 @@ abstract class Project (val pspace :ProjectSpace) {
       bb.addKeysValues("Defs: " -> defCount.toString,
                        "Names: " -> nameCount.toString)
     }
+    def reindex () :Unit = indexer.queueReindexAll()
     override def toString = s"codex:$name"
     // when we're resolved, potentially trigger a full initial index
-    if (isEmpty) indexer.queueReindexAll()
+    if (isEmpty) reindex()
   }
 
   /** Returns the Codex store for this project. Created on demand. */

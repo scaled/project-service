@@ -143,6 +143,12 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     codexRead("Type:", Kind.TYPE)(insertImport)
   }
 
+  @Fn("Initiates a reindexing of the current project.")
+  def codexReindexProject () {
+    project.store.reindex()
+  }
+  // TODO: codexReindexWorkspace?
+
   //
   // Implementation details
 
