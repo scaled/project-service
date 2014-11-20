@@ -180,7 +180,14 @@ abstract class Project (val pspace :ProjectSpace) {
     }
 
     bb.addSubHeader("Depends:")
-    depends foreach { d => bb.add(d.toString) } // TODO
+    depends foreach { d =>
+      bb.add(Line.builder(d.toString).withLineTag(Visit.Tag(new Visit() {
+        protected def go (window :Window) = depend(d) match {
+          case None => window.popStatus(s"Unable to resolve project for $d")
+          case Some(p) => p.visitDescription(window)
+        }
+      })).build())
+    }
     if (depends.isEmpty) bb.add("<none>")
 
     if (!sourceDirs.isEmpty || !testSourceDirs.isEmpty) {
