@@ -42,9 +42,8 @@ object DocFormatterPlugin {
   }
 
   val NoDoc = new Format {
-    def summary (indent :String, bb :BufferBuilder) = full(indent, bb)
-    def full (indent :String, bb :BufferBuilder) =
-      bb.add(s"${indent}Undocumented", CodeConfig.docStyle)
+    def summary (indent :String, bb :BufferBuilder) {}
+    def full (indent :String, bb :BufferBuilder) {}
   }
 
   val Default = new DocFormatterPlugin() {
