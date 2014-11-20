@@ -106,12 +106,14 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
   def codexDescribeElement () {
-    onElemAt(view.point(), (elem, loc, df) => view.popup() = mkDefPopup(elem, loc, df))
+    onElemAt(view.point(), (elem, loc, df) => {
+      view.popup() = CodexUtil.mkDefPopup(env, df, loc)
+    })
   }
 
   @Fn("Displays debugging info for the Codex element at the point.")
   def codexDebugElement () {
-    onElemAt(view.point(), (elem, loc, df) => view.popup() = mkDebugPopup(elem, loc, df))
+    onElemAt(view.point(), (elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc))
   }
 
   @Fn("Highlights all occurrences of an element in the current buffer.")
@@ -320,40 +322,5 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     val end = if (!isWord(buffer.charAt(start))) start
               else buffer.scanForward(isNotWord, p)
     buffer.region(start, end).map(_.asString).mkString
-  }
-
-  private def mkDefPopup (elem :Element, loc :Loc, df :Def) :Popup = {
-    val bb = new BufferBuilder(view.width()-2)
-    val fmt = env.msvc.service[ProjectService].docFormatter(df.source.fileExt)
-    df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
-      def accept (doc :Doc) :Unit = try {
-        val r = df.source().reader()
-        val buf = new Array[Char](doc.length)
-        r.skip(doc.offset)
-        r.read(buf)
-        r.close()
-        fmt.format(df, doc, new String(buf)).full("", bb)
-      } catch {
-        case e :Exception => bb.add(Line.fromText(e.toString))
-      }
-    })
-    df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
-      def accept (sig :Sig) = bb.add(CodexSummaryMode.formatSig(sig, ""))
-    })
-    Popup.lines(bb.lines, Popup.UpRight(loc))
-  }
-
-  private def mkDebugPopup (elem :Element, loc :Loc, df :Def) :Popup = {
-    def safeGet (thunk : => Any) = try thunk.toString catch { case t :Throwable => t.toString }
-    val text = SeqBuffer[String]()
-    text += s"ID:    ${df.idToString}"
-    text += s"Outer: ${df.outerIdToString}"
-    text += s"Kind:  ${df.kind}"
-    text += s"Exp:   ${df.exported}"
-    text += s"Name:  ${df.name}"
-    text += s"Off:   ${df.offset}"
-    text += s"Src:   ${safeGet(df.source)}"
-    text += s"GID:   ${safeGet(df.globalRef)}"
-    Popup.text(text, Popup.UpRight(loc))
   }
 }
