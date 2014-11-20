@@ -168,7 +168,7 @@ object DocFormatterPlugin {
 
       def toLine :LineV = {
         // TODO: trim trailing whitespace
-        new Line.Builder(Line.toCharArray(text), tags).build()
+        new Line.Builder(Line.toCharArray(text)).withTags(tags).build()
       }
     }
 
