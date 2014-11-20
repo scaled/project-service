@@ -235,8 +235,9 @@ abstract class Project (val pspace :ProjectSpace) {
     def isEmpty :Boolean = !topLevelDefs.iterator.hasNext
     def describeSelf (bb :BufferBuilder) {
       bb.addSubHeader("Codex:")
-      bb.addKeysValues("Defs: " -> defCount.toString,
-                       "Names: " -> nameCount.toString)
+      bb.add(Line.builder(s"Defs: $defCount").withLineTag(Visit.Tag(new Visit() {
+        protected def go (window :Window) = CodexSummaryMode.visitTopLevel(window, CodexStore.this)
+      })).build())
     }
     def reindex () :Unit = indexer.queueReindexAll()
     override def toString = s"codex:$name"
