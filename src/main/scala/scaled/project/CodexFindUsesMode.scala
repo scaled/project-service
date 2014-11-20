@@ -35,12 +35,12 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
 
   case class VisitTag (visit :Visit) extends Line.Tag
   private val noUse = VisitTag(new Visit() {
-    def apply (window :Window) = window.popStatus("No use on the current line.")
+    protected def go (window :Window) = window.popStatus("No use on the current line.")
   })
 
   @Fn("Visits the use on the current line.")
   def visitUse () {
-    buffer.line(view.point()).lineTag(noUse).visit.apply(window)
+    buffer.line(view.point()).lineTag(noUse).visit(window)
   }
 
   var visitList :Visit.List = _
@@ -63,10 +63,12 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
           val lineoff = fileoff - offset
           if (lineoff < 0 || lineoff >= line.length) false
           else {
+            val visit = Visit(store, fileoff)
             lines += Line.builder(line).
               withStyle(matchStyle, lineoff, lineoff+df.name.length).
+              withLineTag(VisitTag(visit)).
               build()
-            visits += Visit(store, fileoff)
+            visits += visit
             true
           }
         }

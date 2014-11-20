@@ -34,7 +34,7 @@ object Compiler {
 
   /** Creates a [[Visit]] for the supplied compiler error. */
   def errorVisit (path :String, loc :Loc, descrip :Seq[String]) :Visit = new Visit() {
-    override def apply (window :Window) = {
+    override protected def go (window :Window) = {
       val view = window.focus.visitFile(Store(path))
       view.point() = loc
       // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
