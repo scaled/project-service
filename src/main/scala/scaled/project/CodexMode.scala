@@ -29,7 +29,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   // request that our store be indexed (which should eventually populate `index`)
   note(buffer.storeV.onValueNotify { store =>
     // don't attempt to index non- or not-yet-existent files
-    if (buffer.store.exists) project.indexer.queueReindex(store)
+    if (buffer.store.exists) project.indexer.queueReindex(store, false)
   })
 
   /** Used when highlighting uses in our buffer. */
@@ -63,6 +63,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     bind("codex-describe-element",  "C-c C-d").
     bind("codex-debug-element",     "C-c S-C-d").
     bind("codex-highlight-element", "C-c C-h").
+    bind("codex-find-uses",         "C-c C-f").
     bind("codex-rename-element",    "C-c C-r").
     bind("codex-visit-element",     "M-.");
 
@@ -133,6 +134,14 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     })
   }
 
+  @Fn("Displays all uses of the element at the point in a separate buffer.")
+  def codexFindUses () {
+    onElemAt(view.point(), (elem, loc, df) => {
+      val state = project.bufferState("codex-find-uses", df)
+      window.focus.visit(wspace.createBuffer(s"*codex: ${df.name}*", state))
+    })
+  }
+
   private val renameHistory = new Ring(editor.config(EditorConfig.historySize))
 
   class Renamer (df :Def, src :Source, offsets :Array[Int]) {
@@ -200,6 +209,18 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   def codexReindexProject () {
     project.store.reindex()
   }
+
+  @Fn("Initiates a reindexing of file in the current buffer.")
+  def codexReindexBuffer () {
+    project.indexer.queueReindex(buffer.store, true)
+  }
+
+  @Fn("""Initiates a debug reindexing of file in the current buffer. The results will be dumped
+         to stdout instead of used to populate the index.""")
+  def codexDebugReindexBuffer () {
+    project.indexer.debugReindex(buffer.store)
+  }
+
   // TODO: codexReindexWorkspace?
 
   //
@@ -226,7 +247,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
       case None => window.popStatus("No element could be found at the point.")
       case Some((elem, loc)) =>
         val dopt = pspace.codex.resolve(project, elem.ref)
-        if (!dopt.isPresent) window.popStatus(s"Unable to resolve referent for ${elem.ref}")
+        if (!dopt.isPresent) window.popStatus(s"Unable to resolve referent for $elem")
         else fn(elem, loc, dopt.get)
     }
   }

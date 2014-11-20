@@ -1,0 +1,11 @@
+/**
+ * Styles for codex-show-uses-mode.
+ */
+
+.usePathStyle {
+  -fx-fill: #AACCFF;
+}
+
+.useLineNoStyle {
+  -fx-fill: #AAFFFF;
+}
