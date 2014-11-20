@@ -33,14 +33,13 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
   override def keymap = super.keymap.
     bind("visit-use", "ENTER");
 
-  case class VisitTag (visit :Visit) extends Line.Tag
-  private val noUse = VisitTag(new Visit() {
+  private val noUse = Visit.Tag(new Visit() {
     protected def go (window :Window) = window.popStatus("No use on the current line.")
   })
 
   @Fn("Visits the use on the current line.")
   def visitUse () {
-    buffer.line(view.point()).lineTag(noUse).visit(window)
+    buffer.line(view.point()).lineTag(noUse)(window)
   }
 
   var visitList :Visit.List = _
@@ -66,7 +65,7 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
             val visit = Visit(store, fileoff)
             lines += Line.builder(line).
               withStyle(matchStyle, lineoff, lineoff+df.name.length).
-              withLineTag(VisitTag(visit)).
+              withLineTag(Visit.Tag(visit)).
               build()
             visits += visit
             true
