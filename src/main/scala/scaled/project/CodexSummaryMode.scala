@@ -192,7 +192,6 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
         case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
         case _ => visit()
       }
-
       override def showDocs () = view.popup() = CodexUtil.mkDefPopup(env, df, end)
     }
     while (loc < end) { buffer.setLineTag(loc, info) ; loc = loc.nextL }
