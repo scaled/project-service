@@ -73,7 +73,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   override def keymap = super.keymap.
     bind("zoom-out",      "o", "<").
     bind("zoom-in",       "i", ">").
-    bind("toggle-docs",   "SPACE").
+    bind("show-docs",     "SPACE").
     bind("visit",         "v", ".").
     bind("visit-or-zoom", "ENTER");
 
@@ -101,8 +101,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   @Fn("Zooms in on modules and types and visits funcs and values.")
   def visitOrZoom () :Unit = act(view.point(), _.visitOrZoom())
 
-  @Fn("Expands or contracts the documentation of the def at the point.")
-  def toggleDocs () :Unit = act(view.point(), _.toggle())
+  @Fn("Displays the full documentation for the def at the point.")
+  def showDocs () :Unit = act(view.point(), _.showDocs())
 
   //
   // Implementation details
@@ -111,7 +111,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     def zoomIn () {}
     def visit () {}
     def visitOrZoom () {}
-    def toggle () {}
+    def showDocs () {}
     override def key :Any = classOf[Info]
   }
   private val NoInfo = new Info()
@@ -170,34 +170,10 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   }
 
   private def addDefInfo (df :Def, docf :DocFormatterPlugin, docr :DocReader, indent :String) {
-    val source = df.source
-
     val doc = df.doc
-    val fmt = if (doc.isPresent) docf.format(df, doc.get, docr.resolve(source, doc.get))
+    val fmt = if (doc.isPresent) docf.format(df, doc.get, docr.resolve(df.source, doc.get))
               else DocFormatterPlugin.NoDoc
     val summary :SeqV[LineV] = fmt.summary(indent, view.width()-1)
-
-    val info = new Info() {
-      lazy val full :SeqV[LineV] = fmt.full(indent, view.width()-1)
-      var docExpanded = false
-
-      override def zoomIn () = pspace.codex.summarize(window, view, df)
-      override def visit () = pspace.codex.visit(window, view, df)
-      override def visitOrZoom () = df.kind match {
-        case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
-        case _ => visit()
-      }
-
-      override def toggle () = if (full.length > 0) {
-        var row = 0 ; while (buffer.line(row).lineTag(NoInfo) != this) row += 1
-        val (rows, nlines) = if (docExpanded) (full.length, summary) else (summary.length, full)
-        val start = Loc(row, 0)
-        val end = buffer.replace(start, start + (rows, 0), nlines :+ Line.Empty)
-        var loc = start ; while (loc < end) { buffer.setLineTag(loc, this) ; loc = loc.nextL }
-        docExpanded = !docExpanded
-      }
-    }
-
     val sig :Seq[LineV] = df.sig match {
       case sigO if (!sigO.isPresent) => Seq(Line(s"$indent<no sig: $df>"))
       case sigO => formatSig(sigO.get, indent)
@@ -205,9 +181,20 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
     // start by appending our summary and signature to the buffer
     var loc = buffer.end
-    buffer.append(summary ++ sig)
-    // tag all generated lines with our info
-    while (loc < buffer.end) { buffer.setLineTag(loc, info) ; loc = loc.nextL }
-    buffer.split(buffer.end)
+    buffer.split(buffer.append(summary ++ sig))
+    val end = buffer.end
+
+    // tag all inserted lines with our info
+    val info = new Info() {
+      override def zoomIn () = pspace.codex.summarize(window, view, df)
+      override def visit () = pspace.codex.visit(window, view, df)
+      override def visitOrZoom () = df.kind match {
+        case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
+        case _ => visit()
+      }
+
+      override def showDocs () = view.popup() = CodexUtil.mkDefPopup(env, df, end)
+    }
+    while (loc < end) { buffer.setLineTag(loc, info) ; loc = loc.nextL }
   }
 }
