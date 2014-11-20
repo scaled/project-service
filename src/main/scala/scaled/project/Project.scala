@@ -6,6 +6,7 @@ package scaled.project
 
 import codex.model.Kind
 import codex.store.MapDBStore
+import com.google.common.collect.{HashMultimap, Multimap}
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{Files, FileVisitResult, Path, SimpleFileVisitor}
 import java.util.HashMap
@@ -182,6 +183,23 @@ abstract class Project (val pspace :ProjectSpace) {
     depends foreach { d => bb.add(d.toString) } // TODO
     if (depends.isEmpty) bb.add("<none>")
 
+    if (!sourceDirs.isEmpty || !testSourceDirs.isEmpty) {
+      bb.addSubHeader("Build Info")
+      bb.addSection("Source dirs:")
+      bb.addKeysValues("compile: " -> sourceDirs.mkString(" "),
+                       "test: "    -> testSourceDirs.mkString(" "))
+      def addSources (forTest :Boolean) {
+        val srcsum = summarizeSources(forTest)
+        if (!srcsum.isEmpty) {
+          bb.addSection((if (forTest) "Test " else "") + "Source files:")
+          bb.addKeysValues(srcsum.asMap.entrySet.map(
+            e => (s".${e.getKey}: ", e.getValue.size.toString)).toSeq)
+        }
+      }
+      addSources(false)
+      addSources(true)
+    }
+
     // add info on our helpers
     store.describeSelf(bb)
     compiler.describeSelf(bb)
@@ -219,6 +237,11 @@ abstract class Project (val pspace :ProjectSpace) {
     if (isEmpty) reindex()
   }
 
+  /** Returns all top-level directories which contain non-test source code. */
+  def sourceDirs :Seq[Path] = Seq()
+  /** Returns all top-level directories which contain test source code. */
+  def testSourceDirs :Seq[Path] = Seq()
+
   /** Returns the Codex store for this project. Created on demand. */
   def store :CodexStore = _store.get
 
@@ -235,6 +258,33 @@ abstract class Project (val pspace :ProjectSpace) {
         FileVisitResult.CONTINUE
       }
     })
+  }
+
+  /** Applies `op` to all source files in this project.
+    * @param forTest if true `op` is applied to the test sources, if false the main sources. */
+  def onSources (forTest :Boolean)(op :Path => Unit) {
+    (if (forTest) testSourceDirs else sourceDirs).filter(Files.exists(_)) foreach { dir =>
+      // TODO: should we be following symlinks? likely so...
+      Files.walkFileTree(dir, new SimpleFileVisitor[Path]() {
+        override def visitFile (file :Path, attrs :BasicFileAttributes) = {
+          if (!attrs.isDirectory) op(file)
+          FileVisitResult.CONTINUE
+        }
+      })
+    }
+  }
+
+  /** Returns a map of all source files in this project, grouped by file suffix. */
+  def summarizeSources (forTest :Boolean) :Multimap[String,Path] = {
+    val bySuff = HashMultimap.create[String,Path]()
+    onSources(forTest) { file =>
+      val fname = file.getFileName.toString
+      fname.lastIndexOf(".") match {
+        case -1 => // skip it!
+        case ii => bySuff.put(fname.substring(ii+1), file)
+      }
+    }
+    bySuff
   }
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
