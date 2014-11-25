@@ -51,6 +51,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     bind("codex-visit-type",   "C-c C-v C-t").
     bind("codex-visit-func",   "C-c C-v C-f").
     bind("codex-visit-value",  "C-c C-v C-v").
+    bind("codex-visit-super",  "C-c C-v C-s").
 
     bind("codex-summarize-module",   "C-c C-s C-m").
     bind("codex-summarize-type",     "C-c C-s C-t").
@@ -82,6 +83,21 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("Queries for a value (completed by the project's Codex) and navigates to its definition.")
   def codexVisitValue () :Unit = codexVisit("Value:", Kind.VALUE)
 
+  @Fn("""If called inside a method, visits the method it immediately overrides, if any.
+         If called inside a class but not a method, visits the class's parent.""")
+  def codexVisitSuper () :Unit = onEncloser(view.point()) { df =>
+    val rel = if (df.kind == Kind.FUNC) Relation.OVERRIDES else Relation.INHERITS
+    val rels = df.relations(rel)
+    if (rels.isEmpty) window.popStatus(s"No $rel found for '${df.name}'.")
+    else {
+      val ref = rels.iterator.next
+      pspace.codex.resolve(project, ref) match {
+        case None => window.popStatus("Unable to resolve: $ref")
+        case Some(df) => pspace.codex.visit(window, view, df)
+      }
+    }
+  }
+
   @Fn("""Queries for a module (completed by the project's Codex) and displays its summary.""")
   def codexSummarizeModule () :Unit = codexSummarize("Module:", Kind.MODULE);
 
@@ -89,36 +105,31 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   def codexSummarizeType () :Unit = codexSummarize("Type:", Kind.TYPE);
 
   @Fn("Displays a summary of the type or module that encloses the point. 'Zooming out.'")
-  def codexSummarizeEncloser () :Unit = index.getOption match {
-    case None => window.popStatus("No Codex index available for this file.")
-    case Some(idx) => idx.encloser(buffer.offset(view.point())) match {
-      case None => window.popStatus("Could not find enclosing type.")
-      case Some(df) =>
-        def loop (df :Def) :Unit =
-          if (df == null) window.popStatus("Could not find enclosing type.")
-          else if (Enclosers(df.kind)) pspace.codex.summarize(window, view, df)
-          else loop(df.outer)
-        loop(df)
-    }
+  def codexSummarizeEncloser () :Unit = onEncloser(view.point()) { df =>
+    def loop (df :Def) :Unit =
+      if (df == null) window.popStatus("Could not find enclosing type.")
+      else if (Enclosers(df.kind)) pspace.codex.summarize(window, view, df)
+      else loop(df.outer)
+    loop(df)
   }
   private val Enclosers = Set(Kind.TYPE, Kind.MODULE)
 
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
   def codexDescribeElement () {
-    onElemAt(view.point(), (elem, loc, df) => {
+    onElemAt(view.point()) { (elem, loc, df) =>
       view.popup() = CodexUtil.mkDefPopup(env, df, loc)
-    })
+    }
   }
 
   @Fn("Displays debugging info for the Codex element at the point.")
   def codexDebugElement () {
-    onElemAt(view.point(), (elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc))
+    onElemAt(view.point())((elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc))
   }
 
   @Fn("Highlights all occurrences of an element in the current buffer.")
   def codexHighlightElement () {
-    onElemAt(view.point(), (elem, loc, df) => {
+    onElemAt(view.point()) { (elem, loc, df) =>
       val bufSource = PSpaceCodex.toSource(buffer.store)
       val dfRef = df.ref
       val usesMap = project.store.usesOf(df).toMapV // source -> uses
@@ -133,15 +144,15 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
       // report the number of uses found in this buffer, and elsewhere in the project
       val count = usesMap.map((src, us) => if (src != bufSource) us.length else 0).fold(0)(_ + _)
       window.emitStatus(s"${highlights().size} occurrences in this buffer, $count in other files.")
-    })
+    }
   }
 
   @Fn("Displays all uses of the element at the point in a separate buffer.")
   def codexFindUses () {
-    onElemAt(view.point(), (elem, loc, df) => {
+    onElemAt(view.point()) { (elem, loc, df) =>
       val state = project.bufferState("codex-find-uses", df)
       window.focus.visit(wspace.createBuffer(s"*codex: ${df.name}*", state))
-    })
+    }
   }
 
   private val renameHistory = new Ring(editor.config(EditorConfig.historySize))
@@ -166,7 +177,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   @Fn("Renames all occurrences of an element.")
   def codexRenameElement () {
-    onElemAt(view.point(), (elem, loc, df) => {
+    onElemAt(view.point()) { (elem, loc, df) =>
       if (df.kind != Kind.FUNC && df.kind != Kind.VALUE) throw Errors.feedback(
         "Rename only supported for methods and variables. Not types or packages.")
 
@@ -193,13 +204,13 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
           "Undoing the rename will not be trivial, continue?").onSuccess { yes =>
         if (yes) doit(true)
       }
-    })
+    }
   }
 
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
   def codexVisitElement () {
-    onElemAt(view.point(), (_, _, df) => pspace.codex.visit(window, view, df))
+    onElemAt(view.point())((_, _, df) => pspace.codex.visit(window, view, df))
   }
 
   @Fn("Queries for a type (completed by the project's Codex) and adds an import for it.")
@@ -239,7 +250,7 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   private def codexSummarize (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(df => pspace.codex.summarize(window, view, df))
 
-  private def onElemAt (loc :Loc, fn :(Element, Loc, Def) => Unit) :Unit = {
+  private def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) :Unit = {
     val elloc = buffer.tagsAt(classOf[Element], loc) match {
       case el :: _ => Some(el.tag -> loc.atCol(el.start))
       case Nil     => index.getOption.flatMap(_.elementAt(loc) map(
@@ -247,10 +258,18 @@ class CodexMode (env :Env, major :ReadingMode) extends MinorMode(env) {
     }
     elloc match {
       case None => window.popStatus("No element could be found at the point.")
-      case Some((elem, loc)) =>
-        val dopt = pspace.codex.resolve(project, elem.ref)
-        if (!dopt.isPresent) window.popStatus(s"Unable to resolve referent for $elem")
-        else fn(elem, loc, dopt.get)
+      case Some((elem, loc)) => pspace.codex.resolve(project, elem.ref) match {
+        case None => window.popStatus(s"Unable to resolve referent for $elem")
+        case Some(df) => fn(elem, loc, df)
+      }
+    }
+  }
+
+  private def onEncloser (loc :Loc)(fn :(Def => Unit)) :Unit = index.getOption match {
+    case None => window.popStatus("No Codex index available for this file.")
+    case Some(idx) => idx.encloser(buffer.offset(loc)) match {
+      case None => window.popStatus("Could not find enclosing type.")
+      case Some(df) => fn(df)
     }
   }
 

@@ -51,7 +51,8 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
   }
 
   /** Resolves `ref`, which originated from a file in `project`. */
-  def resolve (project :Project, ref :Ref) :Optional[Def] = Ref.resolve(stores(project), ref)
+  def resolve (project :Project, ref :Ref) :Option[Def] =
+    Option.from(Ref.resolve(stores(project), ref))
 
   /** Visits the source of `df` in a buffer in `window`. Pushes `curview` onto the visit stack. */
   def visit (window :Window, curview :BufferView, df :Def) {
