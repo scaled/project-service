@@ -45,6 +45,7 @@ class Indexer (val project :Project) {
   /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll () {
     val sums = project.summarizeSources(false)
+    project.store.clear()
     sums.asMap.toMapV foreach { (suff, srcs) =>
       extractor(suff, false) foreach { ex =>
         println(s"Reindexing ${srcs.size} $suff files in ${project.name}")
