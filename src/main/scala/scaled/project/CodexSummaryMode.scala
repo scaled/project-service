@@ -27,7 +27,7 @@ object CodexSummaryMode {
     sig.text.split(System.lineSeparator).mkSeq map { l =>
       val len = l.length
       val lb = Line.builder(indent + l)
-      for (el <- sig.defs ++ sig.uses) {
+      for (el <- sig.uses) {
         val off = el.offset - start
         if (off >= 0 && off < len) styleFor(el.kind) foreach {
           val start = indent.length+off ; val end = start+el.length
