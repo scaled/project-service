@@ -92,6 +92,9 @@ object DocFormatterPlugin {
       }
     }
 
+    /** Returns true if we have at least one line in the currently accumulating block. */
+    def haveLines = !lines.isEmpty
+
     // my kingdom for 'private:' syntax...
     private val fillWidth = bb.fillWidth
     private var listPre = ""
@@ -172,7 +175,7 @@ object DocFormatterPlugin {
     }
 
     private def close (newMode :Int, newListPre :String, newListPreStyle :String) {
-      if (!lines.isEmpty) {
+      if (haveLines) {
         val wantBlank = nextM != ListM || lastM != ListM
         if (!bb.lines.isEmpty && wantBlank) bb.addBlank()
         bb.add(lines.map(_.toLine))
