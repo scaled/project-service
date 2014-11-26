@@ -29,6 +29,7 @@ object CodexUtil {
     df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
       def accept (sig :Sig) = bb.add(CodexSummaryMode.formatSig(sig, ""))
     })
+    if (bb.lines.isEmpty) bb.add(s"No docs or sig for '${df.name}'")
     Popup.lines(bb.lines, Popup.UpRight(loc))
   }
 
