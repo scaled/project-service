@@ -67,9 +67,9 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
     CodexSummaryMode.visitDef(window, df)
   }
 
-  // returns the store for `project`, stores for all top-level projects in this workspace, and then
-  // all the stores for the dependencies of `project`
-  protected def stores (project :Project) :LinkedHashSet[ProjectStore] = {
+  /** Returns the store for `project`, stores for all top-level projects in this workspace, and
+    * then all the stores for the dependencies of `project`. */
+  def stores (project :Project) :LinkedHashSet[ProjectStore] = {
     // TODO: determine whether we want to cache these results and also whether we want to reference
     // the underlying projects...
     val stores = new LinkedHashSet[ProjectStore]()
