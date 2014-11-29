@@ -48,7 +48,8 @@ class Indexer (val project :Project) {
     project.store.clear()
     sums.asMap.toMapV foreach { (suff, srcs) =>
       extractor(suff, false) foreach { ex =>
-        println(s"Reindexing ${srcs.size} $suff files in ${project.name}")
+        project.pspace.wspace.statusMsg.emit(
+          s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         ex.process(srcs, project.store.writer)
       }
     }
