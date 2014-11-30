@@ -40,12 +40,13 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
 
   /** Returns a completer on elements of `kind` in this project's Codex. */
   def completer (project :Project, kind :Kind) :Completer[Def] = new Completer[Def]() {
-    def complete (prefix :String) :Completion[Def] = prefix.split(":", 2) match {
-      case Array(name, path) => elemComp(Query.name(name).kind(kind) find(stores(project)) filter(
-        e => Completer.startsWithI(path)(pathString(e))))
-      case Array(name      ) => elemComp(Query.prefix(name).kind(kind) find(stores(project)))
+    override def minPrefix = 2
+    def complete (glob :String) :Completion[Def] = glob.split(":", 2) match {
+      case Array(name, path) => elemComp(glob, Query.name(name).kind(kind) find(
+        stores(project)) filter(e => Completer.startsWithI(path)(pathString(e))))
+      case Array(name      ) => elemComp(glob, Query.prefix(name).kind(kind) find(stores(project)))
     }
-    private def elemComp (es :Iterable[Def]) = completion(es, elemToString)
+    private def elemComp (pre :String, es :Iterable[Def]) = Completion(pre, es, false)(elemToString)
     private def pathString (d :Def) = d.qualifier
     private val elemToString = (e :Def) => s"${e.name}:${pathString(e)}"
   }

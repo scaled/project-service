@@ -78,9 +78,8 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
 
   val fileCompleter = new Completer[Store]() {
     import Completer._
-    def complete (prefix :String) = {
-      sortedCompletion(allFiles.filter(fileFilter(prefix)).map(Store.apply), f => defang(f.name))
-    }
+    def complete (prefix :String) = Completion(
+      prefix, allFiles.filter(fileFilter(prefix)).map(Store.apply), true)(f => defang(f.name))
   }
 
   override def describeSelf (bb :BufferBuilder) {

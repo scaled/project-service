@@ -81,7 +81,7 @@ abstract class AbstractZipFileProject (ps :ProjectSpace) extends Project(ps) {
         root.lookup(comps).filter(startsWithI(comps.last)).map(
           m => ZipEntryStore(root.zipPath, pathpre + m))
       }
-      sortedCompletion(matches, _.asInstanceOf[ZipEntryStore].entry)
+      Completion(prefix, matches, true)(_.asInstanceOf[ZipEntryStore].entry)
     }
     override def pathSeparator = Some("/")
   }
