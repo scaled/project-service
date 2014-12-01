@@ -5,6 +5,7 @@
 package scaled.project
 
 import codex.model._
+import scala.collection.mutable.{Map => MMap}
 import scaled._
 import scaled.major.ReadingMode
 import scaled.util.{BufferBuilder, Errors}
@@ -48,9 +49,9 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-summarize-type",     "C-c C-s C-t").
     bind("codex-summarize-encloser", "C-c C-z").
 
-    bind("codex-import-type",    "C-c C-i"). // TODO: this should be in Java/Scala mode
-    bind("codex-summarize-type", "C-c C-j").
-    bind("codex-visit-type",     "C-c C-k").
+    bind("codex-import-type",       "C-c C-i"). // TODO: this should be in Java/Scala mode
+    bind("codex-summarize-type",    "C-c C-j").
+    bind("codex-visit-type-member", "C-c C-k").
 
     bind("codex-describe-element",  "C-c C-d").
     bind("codex-debug-element",     "C-c S-C-d").
@@ -94,6 +95,19 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   @Fn("""Queries for a type (completed by the project's Codex) and displays its summary.""")
   def codexSummarizeType () :Unit = codexSummarize("Type:", Kind.TYPE);
+
+  @Fn("""Queries for a type (completed by the project's Codex) then queries for a
+         member of that type and visits it.""")
+  def codexVisitTypeMember () :Unit = codexRead("Type:", Kind.TYPE) { df =>
+    window.mini.read("Member:", "", _memHistory.getOrElseUpdate(df, new Ring(8)),
+                     new Completer[Def]() {
+      def complete (glob :String) = Completion(glob, df.members, true)(_.globalRef.id)
+      // take them to the type if they don't make any attempt to select a member
+      override def commit (comp :Completion[Def], curval :String) =
+        if (curval == "") Some(df) else super.commit(comp, curval)
+    }).onSuccess(mem => codex.visit(window, view, mem))
+  }
+  private val _memHistory = MMap[Def,Ring]()
 
   @Fn("Displays a summary of the type or module that encloses the point. 'Zooming out.'")
   def codexSummarizeEncloser () :Unit = onEncloser(view.point()) { df =>
