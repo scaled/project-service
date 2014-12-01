@@ -45,13 +45,12 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
     def complete (glob :String) :Completion[Def] = {
       val elems = glob.split(":", 2) match {
         case Array(name      ) => query(name)
-        case Array(name, path) => FuzzyMatch(path).filter(query(name), pathString)
+        case Array(name, path) => FuzzyMatch(path).filterBy(query(name))(_.qualifier)
       }
-      Completion(glob, elems, false)(e => s"${e.name}:${pathString(e)}")
+      Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
     }
     private def query (name :String) =
       (Query.prefix(name.take(minPrefix)) kind(kind) find(stores(project))).toSeqV
-    private def pathString (d :Def) = d.qualifier
   }
 
   /** Resolves `ref`, which originated from a file in `project`. */
