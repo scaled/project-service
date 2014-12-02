@@ -38,11 +38,11 @@ abstract class Analyzer extends AutoCloseable {
   /** The current analysis notes. */
   def notes :ValueV[Seq[Note]] = _notes
 
-  /** Returns information for the code element at `loc` in `buffer`. */
-  def elementAt (buffer :Buffer, loc :Loc) :Future[Model.Element]
+  // /** Returns information for the code element at `loc` in `buffer`. */
+  // def elementAt (buffer :Buffer, loc :Loc) :Future[Model.Element]
 
-  /** Returns the nearest enclosing `kind` around `loc` in `buffer`. */
-  def enclosing (buffer :Buffer, loc :Loc, kind :Model.Kind) :Future[Model.Element]
+  // /** Returns the nearest enclosing `kind` around `loc` in `buffer`. */
+  // def enclosing (buffer :Buffer, loc :Loc, kind :Model.Kind) :Future[Model.Element]
 
   /** Initiates analysis of the specified paths.
     * When the analysis is complete, [[notes]] will be updated with the results. */

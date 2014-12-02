@@ -4,6 +4,7 @@
 
 package scaled.project
 
+import codex.model.Def
 import java.nio.file.Path
 import scaled._
 import scaled.util.Errors
@@ -37,12 +38,12 @@ abstract class Tester (project :Project) extends AutoCloseable {
     * triggered as a result of `retest-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runTests (window :Window, interact :Boolean, file :Path, types :Seq[Model.Element]) :Boolean
+  def runTests (window :Window, interact :Boolean, file :Path, types :Seq[Def]) :Boolean
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
     * invoked interactly. Test output will be directed to [[buffer]].
     */
-  def runTest (window :Window, file :Path, elem :Model.Element) :Unit
+  def runTest (window :Window, file :Path, elem :Def) :Unit
 
   /** Reports the results of a test run. */
   protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Visit]) {
