@@ -4,10 +4,12 @@
 
 package scaled.project
 
+import codex.model.Kind
+import java.nio.file.Path
 import javafx.scene.control.Tooltip
 import scala.collection.mutable.ArrayBuffer
 import scaled._
-import scaled.util.BufferBuilder
+import scaled.util.{BufferBuilder, Errors}
 
 /** Provides configuration for [[ProjectMode]]. */
 object ProjectConfig extends Config.Defs {
@@ -29,12 +31,9 @@ object ProjectConfig extends Config.Defs {
   */
 @Minor(name="project", tags=Array("project"),
        desc="""A minor mode that provides project-centric fns.""")
-class ProjectMode (env :Env) extends MinorMode(env) {
+class ProjectMode (env :Env) extends CodexMinorMode(env) {
   import ProjectConfig._
 
-  // TODO: it's possible that our buffer's file could change and become part of a new project;
-  // do we really want to handle that crazy case?
-  val project = Project(buffer)
   import project.pspace
 
   // display the project status in the modeline
@@ -53,8 +52,9 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     bind("recompile-project", "F5").
 
     // test fns
-    bind("run-all-tests",  "C-c S-C-t").
-    bind("run-file-tests", "C-c C-t").
+    bind("run-all-tests",     "C-c S-C-t").
+    bind("run-file-tests",    "C-c C-t").
+    bind("run-test-at-point", "C-c t").
 
     // execution fns
     bind("workspace-execute",       "C-c C-e").
@@ -127,20 +127,26 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          can be located, we fall back to running all tests for the project.
          See project-run-all-tests for info on test output and failure navigation.""")
   def runFileTests () {
-    buffer.store.file match {
-      case None => window.popStatus(
-        "This buffer has no associated file. A file is needed to detect tests.")
-      case Some(file) =>
-        val ran = project.tester.findTestFile(file) match {
-          case None        => project.tester.runAllTests(window, true)
-          case Some(tfile) =>
-            val telems = Seq[Model.Element]() // TODO: ask project for test elements in file
-            project.tester.runTests(window, true, tfile, telems)
-        }
-        if (ran) maybeShowTestOutput()
-        else window.emitStatus("No tests were found.")
+    val file = bufferFile
+    val ran = project.tester.findTestFile(file) match {
+      case None        => project.tester.runAllTests(window, true)
+      case Some(tfile) =>
+        project.tester.runTests(window, true, tfile, Seq())
+    }
+    if (ran) maybeShowTestOutput()
+    else window.emitStatus("No tests were found.")
+  }
+
+  @Fn("Determines the test method enclosing the point and runs it.")
+  def runTestAtPoint () {
+    onEncloser(view.point()) { df =>
+      if (df.kind != Kind.FUNC) window.emitStatus("Point not enclosed by a function.")
+      else project.tester.runTest(window, bufferFile, df)
     }
   }
+
+  private def bufferFile :Path = buffer.store.file getOrElse { throw Errors.feedback(
+      "This buffer has no associated file. A file is needed to detect tests.") }
 
   @Fn("""Forcibly aborts any tests in progress and terminates any daemon currently being used
          to run this project's tests.""")

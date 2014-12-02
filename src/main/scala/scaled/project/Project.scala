@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import codex.model.Kind
+import codex.model.{Def, Kind}
 import codex.store.MapDBStore
 import com.google.common.collect.{HashMultimap, Multimap}
 import java.nio.file.attribute.BasicFileAttributes
@@ -370,8 +370,8 @@ abstract class Project (val pspace :ProjectSpace) {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
     override def runTests (window :Window, iact :Boolean,
-                           file :Path, typess :Seq[Model.Element]) = false
-    override def runTest (window :Window, file :Path, elem :Model.Element) =
+                           file :Path, typess :Seq[Def]) = false
+    override def runTest (window :Window, file :Path, elem :Def) =
       window.emitStatus("${project.name} does not provide a tester.")
   }
 
