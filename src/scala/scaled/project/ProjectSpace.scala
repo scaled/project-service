@@ -70,7 +70,15 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
 
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    Option(byId.get(id)).flatMap(projectInRoot) orElse psvc.resolveById(id).map(resolveBySeed)
+    Option(byId.get(id)).flatMap(projectInRoot) orElse psvc.resolveById(id).map(projectFromSeed)
+
+  /** Hatches the project defined by `seed`. */
+  def projectFromSeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
+    val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
+    projects.put(proj.root, proj)
+    // TODO: check project ids against byId and if any have changed, remap and updateInfo
+    proj
+  }
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project] = projects.values.toSeq
@@ -167,20 +175,13 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     wspace.state[ProjectSpace].clear()
   }
 
-  // the root passed here may have disappeared in the fullness of time, so validate it
   private def projectInRoot (root :Path) =
+    // the root passed here may have disappeared in the fullness of time, so validate it
     if (root == null || !Files.exists(root)) None
     else Option(projects.get(root)) orElse Some(resolveByPaths(List(root)))
 
   private def resolveByPaths (paths :List[Path]) :Project =
-    resolveBySeed(psvc.resolveByPaths(paths))
-
-  private def resolveBySeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
-    val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
-    projects.put(proj.root, proj)
-    // TODO: check project ids against byId and if any have changed, remap and updateInfo
-    proj
-  }
+    projectFromSeed(psvc.resolveByPaths(paths))
 
   private def updateInfo (proj :Project) {
     val ids = metaDir(proj).resolve("info.txt")

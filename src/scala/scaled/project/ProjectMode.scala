@@ -156,7 +156,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     }
   }
 
-  private def testProject = project.testId.flatMap(pspace.projectFor) getOrElse project
+  private def testProject = project.testSeed.map(pspace.projectFromSeed) getOrElse project
   private def bufferFile :Path = buffer.store.file getOrElse { throw Errors.feedback(
       "This buffer has no associated file. A file is needed to detect tests.") }
 
