@@ -59,7 +59,7 @@ abstract class ProjectFinderPlugin (
         case  1 => best = cur.head ; cur = Nil      // stop the search
       }
     }
-    if (best == null) None else Some(seed(best, injectArgs(best)))
+    if (best == null) None else Some(seed(best, injectArgs(paths.head, best)))
   }
 
   /** Applies this finder to the supplied id.
@@ -69,7 +69,7 @@ abstract class ProjectFinderPlugin (
   def apply (id :Project.Id) :Option[Project.Seed] = None
 
   /** Returns any additional injection args for a project created in `root`. */
-  protected def injectArgs (root :Path) :List[Any] = root :: Nil
+  protected def injectArgs (top :Path, root :Path) :List[Any] = root :: Nil
 
   /** Returns a seed for a project in `root`, with injection args `args`. */
   protected def seed (root :Path, args :List[Any]) =

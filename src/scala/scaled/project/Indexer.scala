@@ -37,17 +37,17 @@ class Indexer (val project :Project) {
   def debugReindex (store :Store) {
     val source = PSpaceCodex.toSource(store)
     val path = Paths.get(source.toString)
-    extractor(source.fileExt, isTestSource(path)) foreach { ex =>
+    extractor(source.fileExt) foreach { ex =>
       ex.process(path, new TextWriter(System.console.writer))
     }
   }
 
   /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll () {
-    val sums = project.summarizeSources(false)
+    val sums = project.summarizeSources
     project.store.clear()
     sums.asMap.toMapV foreach { (suff, srcs) =>
-      extractor(suff, false) foreach { ex =>
+      extractor(suff) foreach { ex =>
         project.pspace.wspace.statusMsg.emit(
           s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         ex.process(srcs, project.store.writer)
@@ -58,18 +58,14 @@ class Indexer (val project :Project) {
   /** Performs the actual reindexing of `source`. This method is called on a background thread. */
   protected def reindex (source :Source, force :Boolean) {
     val path = Paths.get(source.toString)
-    if (!isTestSource(path)) { // TODO: handle test sources when we have a separate test store
-      if (force || source.lastModified > project.store.lastIndexed(source)) {
-        extractor(source.fileExt, false) foreach { ex =>
-          println(s"Reindexing: $source")
-          ex.process(path, project.store.writer)
-        }
-      } // else println(s"Source up to date: $source")
-    } else println(s"TODO: reindex test source: $source")
+    if (force || source.lastModified > project.store.lastIndexed(source)) {
+      extractor(source.fileExt) foreach { ex =>
+        println(s"Reindexing: $source")
+        ex.process(path, project.store.writer)
+      }
+    } // else println(s"Source up to date: $source")
     reindexComplete(source)
   }
-
-  private def isTestSource (path :Path) = project.testSourceDirs exists(d => path startsWith d)
 
   /** Called by subclasses to indicate that reindexing of a source file is complete. Reindexing
     * takes place on a background thread, and this method may be called therefrom. */
@@ -82,7 +78,6 @@ class Indexer (val project :Project) {
   }
 
   /** Returns an extractor to use when indexing.
-    * @param suff the suffix of the file being indexed (`java`, `scala`, etc.).
-    * @param forTest whether the file to be indexed is a main or test source file. */
-  protected def extractor (suff :String, forTest :Boolean) :Option[Extractor] = None
+    * @param suff the suffix of the file being indexed (`java`, `scala`, etc.). */
+  protected def extractor (suff :String) :Option[Extractor] = None
 }
