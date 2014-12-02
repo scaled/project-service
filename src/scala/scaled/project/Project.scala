@@ -113,6 +113,9 @@ abstract class Project (val pspace :ProjectSpace) {
     * will properly reference the dependent project and release it when this project hibernates. */
   def depends :Seq[Id] = Seq()
 
+  /** Returns the id of this project's test companion project, if any. */
+  def testId :Option[Id] = None
+
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
 
@@ -170,6 +173,7 @@ abstract class Project (val pspace :ProjectSpace) {
     info += ("Impl: " -> getClass.getName)
     info += ("Root: " -> root.toString)
     ids.foreach { id => info += ("ID: " -> id.toString) }
+    testId.foreach { id => info += ("Tests: " -> id.toString) }
     bb.addKeysValues(info.build())
 
     // if we have warnings, display them

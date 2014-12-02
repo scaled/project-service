@@ -55,6 +55,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     bind("run-all-tests",     "C-c S-C-t").
     bind("run-file-tests",    "C-c C-t").
     bind("run-test-at-point", "C-c t").
+    bind("visit-tests",       "C-x C-t").
 
     // execution fns
     bind("workspace-execute",       "C-c C-e").
@@ -118,7 +119,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
          Failures identified in said output are placed in the visit list and can be navigated
          using `visit-next` and `visit-prev`.""")
   def runAllTests () {
-    if (project.tester.runAllTests(window, true)) maybeShowTestOutput()
+    if (testProject.tester.runAllTests(window, true)) maybeShowTestOutput()
     else window.popStatus("No tests were found.")
   }
 
@@ -127,11 +128,10 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
          can be located, we fall back to running all tests for the project.
          See project-run-all-tests for info on test output and failure navigation.""")
   def runFileTests () {
-    val file = bufferFile
-    val ran = project.tester.findTestFile(file) match {
-      case None        => project.tester.runAllTests(window, true)
-      case Some(tfile) =>
-        project.tester.runTests(window, true, tfile, Seq())
+    val tester = testProject.tester
+    val ran = tester.findTestFile(bufferFile) match {
+      case None        => tester.runAllTests(window, true)
+      case Some(tfile) => tester.runTests(window, true, tfile, Seq())
     }
     if (ran) maybeShowTestOutput()
     else window.emitStatus("No tests were found.")
@@ -146,6 +146,17 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     }
   }
 
+  @Fn("Visits the source file that defines tests for the file in the current buffer.")
+  def visitTests () {
+    val file = bufferFile
+    testProject.tester.findTestFile(file) match {
+      case None => window.popStatus(
+        s"Unable to find test source for ${project.root.relativize(file)}.")
+      case Some(tfile) => window.focus.visitFile(Store(tfile))
+    }
+  }
+
+  private def testProject = project.testId.flatMap(pspace.projectFor) getOrElse project
   private def bufferFile :Path = buffer.store.file getOrElse { throw Errors.feedback(
       "This buffer has no associated file. A file is needed to detect tests.") }
 
@@ -215,7 +226,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   private def projectHistory = Workspace.historyRing(wspace, "project-name")
 
   private def maybeShowTestOutput () =
-    if (config(showOutputOnTest)) window.focus.visit(project.tester.buffer())
+    if (config(showOutputOnTest)) window.focus.visit(testProject.tester.buffer())
 
   private def execute (exec :Execution) {
     pspace.execs.execute(window, exec)
