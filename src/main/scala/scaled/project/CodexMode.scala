@@ -55,8 +55,9 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
     bind("codex-describe-element",  "C-c C-d").
     bind("codex-debug-element",     "C-c S-C-d").
-    bind("codex-highlight-element", "C-c C-h").
+
     bind("codex-find-uses",         "C-c C-f").
+    bind("codex-highlight-element", "C-c C-h").
     bind("codex-rename-element",    "C-c C-r").
     bind("codex-visit-element",     "M-.");
 

@@ -46,15 +46,15 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     bind("describe-projects", "C-h S-p").
 
     // file fns
-    bind("project-find-file",       "C-x C-p").
-    bind("project-find-file-other", "C-x C-o").
+    bind("find-file-in-project",    "C-x C-p").
+    bind("find-file-other-project", "C-x C-o").
 
     // compilation fns
-    bind("project-recompile", "F5").
+    bind("recompile-project", "F5").
 
     // test fns
-    bind("project-run-all-tests",  "C-c S-C-t").
-    bind("project-run-file-tests", "C-c C-t").
+    bind("run-all-tests",  "C-c S-C-t").
+    bind("run-file-tests", "C-c C-t").
 
     // execution fns
     bind("workspace-execute",       "C-c C-e").
@@ -79,11 +79,11 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // General FNs
 
   @Fn("Reads a project file name from the minibuffer (with smart completion), and visits it.")
-  def projectFindFile () :Unit = findFileIn(project)
+  def findFileInProject () :Unit = findFileIn(project)
 
   @Fn("""Reads a project name from the minibuffer, then reads a file from that project (with smart
          completion), and visits it.""")
-  def projectFindFileOther () {
+  def findFileOtherProject () {
     val pcomp = Completer.from(pspace.allProjects)(_._2)
     window.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
       findFileIn(pspace.projectIn(pt._1))
@@ -96,13 +96,13 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   @Fn("""Initiates a compilation of the current project. Output from the compilation will be
          displayed in a buffer named *compile:{project}*. Errors will be placed in the visit
          list and can be navigated using `visit-next` and `visit-prev`.""")
-  def projectRecompile () {
+  def recompileProject () {
     project.compiler.recompile(window, true)
   }
 
   @Fn("""Resets the compiler for this project. This can be useful if the compiler misbehaves,
          due perhaps to a command line compiler stomping on its files or something similar.""")
-  def projectResetCompiler () {
+  def resetCompiler () {
     project.compiler.reset()
   }
 
@@ -117,7 +117,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   @Fn("""Runs all of this project's tests. Output is displayed in a buffer named *test{project}*.
          Failures identified in said output are placed in the visit list and can be navigated
          using `visit-next` and `visit-prev`.""")
-  def projectRunAllTests () {
+  def runAllTests () {
     if (project.tester.runAllTests(window, true)) maybeShowTestOutput()
     else window.popStatus("No tests were found.")
   }
@@ -126,7 +126,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          itself if that file contains tests) and runs the tests in it. If no associated test buffer
          can be located, we fall back to running all tests for the project.
          See project-run-all-tests for info on test output and failure navigation.""")
-  def projectRunFileTests () {
+  def runFileTests () {
     buffer.store.file match {
       case None => window.popStatus(
         "This buffer has no associated file. A file is needed to detect tests.")
@@ -144,7 +144,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   @Fn("""Forcibly aborts any tests in progress and terminates any daemon currently being used
          to run this project's tests.""")
-  def projectAbortTests () {
+  def abortTests () {
     project.tester.abort()
   }
 
