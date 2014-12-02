@@ -49,5 +49,4 @@ class DocFormatterTest {
 
     expect.zip(bb.lines.map(_.asString)) foreach { case (want, got) => assertEquals(want, got) }
   }
-
 }

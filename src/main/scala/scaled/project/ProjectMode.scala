@@ -140,8 +140,9 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   @Fn("Determines the test method enclosing the point and runs it.")
   def runTestAtPoint () {
     onEncloser(view.point()) { df =>
-      if (df.kind != Kind.FUNC) window.emitStatus("Point not enclosed by a function.")
-      else project.tester.runTest(window, bufferFile, df)
+      if (df.kind != Kind.FUNC) throw Errors.feedback("Point not enclosed by a function.")
+      project.tester.runTest(window, bufferFile, df)
+      maybeShowTestOutput()
     }
   }
 
