@@ -17,6 +17,10 @@ object ProjectConfig extends Config.Defs {
   @Var("If true, the project will be automatically recompiled on file save.")
   val recompileOnSave = key(true)
 
+  @Var("""If true, any test companion project will be automatically recompiled after
+          a successful main project recompile.""")
+  val recompileTests = key(true)
+
   @Var("If true, the test output buffer will be shown when tests are run interactively.")
   val showOutputOnTest = key(false)
 }
@@ -73,7 +77,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.storeV onEmit {
-    if (config(recompileOnSave)) project.compiler.recompile(window, false)
+    if (config(recompileOnSave)) project.compiler.recompile(window, config(recompileTests), false)
   })
 
   //
@@ -98,7 +102,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
          displayed in a buffer named *compile:{project}*. Errors will be placed in the visit
          list and can be navigated using `visit-next` and `visit-prev`.""")
   def recompileProject () {
-    project.compiler.recompile(window, true)
+    project.compiler.recompile(window, config(recompileTests), true)
   }
 
   @Fn("""Resets the compiler for this project. This can be useful if the compiler misbehaves,
@@ -119,7 +123,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
          Failures identified in said output are placed in the visit list and can be navigated
          using `visit-next` and `visit-prev`.""")
   def runAllTests () {
-    if (testProject.tester.runAllTests(window, true)) maybeShowTestOutput()
+    if (tester.runAllTests(window, true)) maybeShowTestOutput()
     else window.popStatus("No tests were found.")
   }
 
@@ -128,7 +132,6 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
          can be located, we fall back to running all tests for the project.
          See project-run-all-tests for info on test output and failure navigation.""")
   def runFileTests () {
-    val tester = testProject.tester
     val ran = tester.findTestFile(bufferFile) match {
       case None        => tester.runAllTests(window, true)
       case Some(tfile) => tester.runTests(window, true, tfile, Seq())
@@ -149,26 +152,22 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   @Fn("Visits the source file that defines tests for the file in the current buffer.")
   def visitTests () {
     val file = bufferFile
-    testProject.tester.findTestFile(file) match {
+    tester.findTestFile(file) match {
       case None => window.popStatus(
-        s"Unable to find test source for ${project.root.relativize(file)}.")
+        s"Unable to find test source for ${project.root.path.relativize(file)}.")
       case Some(tfile) => window.focus.visitFile(Store(tfile))
     }
   }
 
-  private def testProject = project.testSeed.map(pspace.projectFromSeed) getOrElse project
-  private def bufferFile :Path = buffer.store.file getOrElse { throw Errors.feedback(
-      "This buffer has no associated file. A file is needed to detect tests.") }
-
   @Fn("""Forcibly aborts any tests in progress and terminates any daemon currently being used
          to run this project's tests.""")
   def abortTests () {
-    project.tester.abort()
+    tester.abort()
   }
 
   @Fn("Displays the buffer that contains test output for this project.")
   def showTestOutput () {
-    window.focus.visit(project.tester.buffer())
+    window.focus.visit(tester.buffer())
   }
 
   //
@@ -225,8 +224,10 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   private def projectHistory = Workspace.historyRing(wspace, "project-name")
 
-  private def maybeShowTestOutput () =
-    if (config(showOutputOnTest)) window.focus.visit(testProject.tester.buffer())
+  private def bufferFile :Path = buffer.store.file getOrElse { throw Errors.feedback(
+      "This buffer has no associated file. A file is needed to detect tests.") }
+  private def tester = (project.testCompanion || project).tester
+  private def maybeShowTestOutput () = if (config(showOutputOnTest)) showTestOutput()
 
   private def execute (exec :Execution) {
     pspace.execs.execute(window, exec)

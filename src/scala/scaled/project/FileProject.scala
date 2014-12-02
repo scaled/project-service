@@ -15,9 +15,9 @@ import scaled.util.BufferBuilder
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
   * of the root of a project.
   */
-final class FileProject (val root :Path, ps :ProjectSpace) extends AbstractFileProject(ps) {
+final class FileProject (val root :Project.Root, ps :ProjectSpace) extends AbstractFileProject(ps) {
   override def isIncidental = true
-  override def name = root.getFileName.toString
+  override def name = root.path.getFileName.toString
   override def idName = s"file-$name" // TODO: use whole path?
 }
 
@@ -63,12 +63,12 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
     }
   }
   private val dirMap = new HashMap[Path,Dir]() ; {
-    dirMap.put(root, new Dir(root))
+    dirMap.put(root.path, new Dir(root.path))
   }
 
   private var _allFiles :Set[Path] = _
   private def allFiles = {
-    dirMap.get(root).refresh()
+    dirMap.get(root.path).refresh()
     if (_allFiles == null) {
       _allFiles = Set() ++ dirMap.values.toOrdV.flatMap(_.files)
       // println(s"Rebuilt all files map (size: ${_allFiles.size})")

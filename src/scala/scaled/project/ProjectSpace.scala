@@ -35,15 +35,15 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   private val dsdir = Files.createDirectories(root.resolve("Depends"))
 
   // currently resolved projects
-  private val projects = new HashMap[Path,Project]()
+  private val projects = new HashMap[Root,Project]()
   // metadata on all projects added to this workspace; lazily resolved
   lazy private val (byId, toName) = {
-    val byId = new HashMap[Id,Path]() ; val toName = new HashMap[Path,String]()
+    val byId = new HashMap[Id,Root]() ; val toName = new HashMap[Root,String]()
     Files.list(psdir).collect(Collectors.toList[Path]).foreach { dir =>
       if (Files.isDirectory(dir)) {
         try {
           val info = List() ++ Files.readAllLines(dir.resolve("info.txt"))
-          val root = Paths.get(info.head)
+          val root = rootFromString(info.head)
           toName.put(root, dir.getFileName.toString)
           info.tail.flatMap(inflateId) foreach { id => byId.put(id, root) }
         } catch {
@@ -61,10 +61,10 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   def log = msvc.log
 
   /** Returns `(root, name)` for all projects in this workspace. */
-  def allProjects :Seq[(Path,String)] = toName.toMapV.toSeq
+  def allProjects :Seq[(Root,String)] = toName.toMapV.toSeq
 
   /** Resolves (if necessary) and returns the project which is rooted at `root`. */
-  def projectIn (root :Path) :Project = projectInRoot(root) getOrElse {
+  def projectIn (root :Root) :Project = projectInRoot(root) getOrElse {
     throw Errors.feedback(s"No project in $root")
   }
 
@@ -142,7 +142,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     if (Files.exists(ddir)) Files.move(ddir, pdir)
     else Files.createDirectories(ddir)
     // add this project's root to our workspace's hint path
-    wspace.addHintPath(proj.root)
+    wspace.addHintPath(proj.root.path)
     // write this project's id info its metadata dir
     updateInfo(proj)
   }
@@ -158,7 +158,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     // move this project's metadir out of Projects back into Depends
     Files.move(pdir, dsdir.resolve(proj.idName))
     // remove this project's root from our workspace's hint path
-    wspace.removeHintPath(proj.root)
+    wspace.removeHintPath(proj.root.path)
     // remove the project's info.txt file
     Files.deleteIfExists(pdir.resolve("info.txt"))
   }
@@ -175,17 +175,17 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     wspace.state[ProjectSpace].clear()
   }
 
-  private def projectInRoot (root :Path) =
+  private def projectInRoot (root :Root) =
     // the root passed here may have disappeared in the fullness of time, so validate it
-    if (root == null || !Files.exists(root)) None
-    else Option(projects.get(root)) orElse Some(resolveByPaths(List(root)))
+    if (root == null || !Files.exists(root.path)) None
+    else Option(projects.get(root)) orElse Some(resolveByPaths(List(root.path)))
 
   private def resolveByPaths (paths :List[Path]) :Project =
     projectFromSeed(psvc.resolveByPaths(paths))
 
   private def updateInfo (proj :Project) {
     val ids = metaDir(proj).resolve("info.txt")
-    Files.write(ids, List(proj.root.toString) ++ proj.ids.map(_.deflate))
+    Files.write(ids, List(rootToString(proj.root)) ++ proj.ids.map(_.deflate))
   }
 }
 

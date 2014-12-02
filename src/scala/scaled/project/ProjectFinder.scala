@@ -59,7 +59,10 @@ abstract class ProjectFinderPlugin (
         case  1 => best = cur.head ; cur = Nil      // stop the search
       }
     }
-    if (best == null) None else Some(seed(best, injectArgs(paths.head, best)))
+    if (best == null) None else {
+      val root = mkRoot(paths.head, best)
+      Some(seed(root, injectArgs(root)))
+    }
   }
 
   /** Applies this finder to the supplied id.
@@ -69,11 +72,16 @@ abstract class ProjectFinderPlugin (
   def apply (id :Project.Id) :Option[Project.Seed] = None
 
   /** Returns any additional injection args for a project created in `root`. */
-  protected def injectArgs (top :Path, root :Path) :List[Any] = root :: Nil
+  protected def injectArgs (root :Project.Root) :List[Any] = root :: Nil
 
   /** Returns a seed for a project in `root`, with injection args `args`. */
-  protected def seed (root :Path, args :List[Any]) =
+  protected def seed (root :Project.Root, args :List[Any]) =
     Project.Seed(root, name, intelligent, clazz, args)
+
+  /** Creates a `Root` for `path`. The default assumes non-test-mode.
+    * @param seed the original seed path from which the root was identified.
+    */
+  protected def mkRoot (seed :Path, path :Path) = Project.Root(path, false)
 
   /** Returns true if `dir/file` exists. Helpy helper! */
   protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))

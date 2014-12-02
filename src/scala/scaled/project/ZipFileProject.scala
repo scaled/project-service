@@ -16,9 +16,9 @@ final class ZipFileProject (val zipPaths :Seq[Path], ps :ProjectSpace)
     extends AbstractZipFileProject(ps) {
   def this (zipPath :Path, ps :ProjectSpace) = this(Seq(zipPath), ps)
 
-  override val root = zipPaths.head
+  override val root = Project.Root(zipPaths.head, false)
   override def isIncidental = true
-  override def name = root.getFileName.toString
+  override def name = root.path.getFileName.toString
   override def idName = s"zip-$name" // TODO: use whole path?
 }
 

@@ -62,13 +62,13 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
       prio
     }
     // if there are any non-intelligent project matches, use the deepest match
-    else if (!dseeds.isEmpty) dseeds.maxBy(_.root.getNameCount)
+    else if (!dseeds.isEmpty) dseeds.maxBy(_.root.path.getNameCount)
     // if all else fails, create a FileProject for the root
     else {
       val root = paths.last ; val file = root.getFileName.toString
       val clazz = if ((file endsWith ".zip") || (file endsWith ".jar")) classOf[ZipFileProject]
                   else classOf[FileProject]
-      Project.Seed(root, "file", false, clazz, List(root))
+      Project.Seed(Project.Root(root, false), "file", false, clazz, List(root))
     }
   }
 
@@ -91,7 +91,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   override def unknownProject (ps :ProjectSpace) = new Project(ps) {
     val fileCompleter = Completer.file
-    override val root = Paths.get("")
+    override val root = Project.Root(Paths.get(""), false)
     override def isIncidental = true
     override def name = "<unknown>"
     override def idName = "unknown"

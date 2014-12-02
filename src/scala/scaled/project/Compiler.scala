@@ -69,10 +69,12 @@ abstract class Compiler (project :Project) extends AutoCloseable {
   def buffer () :Buffer = project.createBuffer(s"*compile:${project.name}*", "log")
 
   /** Initiates a recompilation of this project, if supported.
+    * @param testsToo if true, the tests companion project will be recompiled if this compilation
+    * succeeds.
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
     */
-  def recompile (window :Window, interactive :Boolean) {
+  def recompile (window :Window, testsToo :Boolean, interactive :Boolean) {
     val buf = buffer()
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
@@ -102,8 +104,12 @@ abstract class Compiler (project :Project) extends AutoCloseable {
         val msg = s"Compilation $result with ${errs.size} error(s)."
         window.emitStatus(msg)
       }
+
+      if (success && testsToo) {
+        project.testCompanion.foreach { _.compiler.recompile(window, false, interactive) }
+      }
     }
-    if (interactive) window.emitStatus("Recompile initiated...")
+    if (interactive) window.emitStatus(s"${project.name} recompiling...")
   }
 
   /** Requests that this compiler be reset. If a connection to an external compiler is being
