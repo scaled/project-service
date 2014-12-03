@@ -8,7 +8,7 @@ import codex.model._
 import scala.collection.mutable.{Map => MMap}
 import scaled._
 import scaled.major.ReadingMode
-import scaled.util.{BufferBuilder, Errors}
+import scaled.util.BufferBuilder
 
 /** A minor mode which provides fns for interacting with a project's Codex.
   *
@@ -81,13 +81,11 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   def codexVisitSuper () :Unit = onEncloser(view.point()) { df =>
     val rel = if (df.kind == Kind.FUNC) Relation.OVERRIDES else Relation.INHERITS
     val rels = df.relations(rel)
-    if (rels.isEmpty) window.popStatus(s"No $rel found for '${df.name}'.")
-    else {
-      val ref = rels.iterator.next
-      codex.resolve(project, ref) match {
-        case None => window.popStatus("Unable to resolve: $ref")
-        case Some(df) => codex.visit(window, view, df)
-      }
+    if (rels.isEmpty) abort(s"No $rel found for '${df.name}'.")
+    val ref = rels.iterator.next
+    codex.resolve(project, ref) match {
+      case None     => abort("Unable to resolve: $ref")
+      case Some(df) => codex.visit(window, view, df)
     }
   }
 
@@ -174,7 +172,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     }
 
     def validate (elM :Matcher) = locs foreach { loc =>
-      if (!buffer.line(loc).matches(elM, loc.col)) throw Errors.feedback(
+      if (!buffer.line(loc).matches(elM, loc.col)) abort(
         s"$store not in sync with index @ $loc. Can't rename.")
     }
 
@@ -184,11 +182,11 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("Renames all occurrences of an element.")
   def codexRenameElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      if (df.kind != Kind.FUNC && df.kind != Kind.VALUE) throw Errors.feedback(
+      if (df.kind != Kind.FUNC && df.kind != Kind.VALUE) abort(
         "Rename only supported for methods and variables. Not types or packages.")
 
       val renamers = project.store.usesOf(df).toMapV.map(new Renamer(df, _, _))
-      if (renamers.isEmpty) throw Errors.feedback(
+      if (renamers.isEmpty) abort(
         "No uses found for element at point. Perhaps try codex-reindex-project?")
 
       def doit (save :Boolean) {

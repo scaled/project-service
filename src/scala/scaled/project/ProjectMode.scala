@@ -145,7 +145,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   def runTestAtPoint () {
     onEncloser(view.point()) { df =>
       def ffunc (df :Def) :Def =
-        if (df == null) throw Errors.feedback("Unable to find enclosing test function.")
+        if (df == null) abort("Unable to find enclosing test function.")
         else if (tester.isTestFunc(df)) df
         else ffunc(df.outer)
       project.tester.runTest(window, bufferFile, ffunc(df)).onSuccess { _ =>
@@ -239,7 +239,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   private def projectHistory = Workspace.historyRing(wspace, "project-name")
 
-  private def bufferFile :Path = buffer.store.file getOrElse { throw Errors.feedback(
+  private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
   private def maybeShowTestOutput () = if (config(showOutputOnTest)) showTestOutput()

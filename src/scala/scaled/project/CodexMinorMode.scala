@@ -36,25 +36,25 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   protected def codexSummarize (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(df => codex.summarize(window, view, df))
 
-  protected def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) :Unit = {
+  protected def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) {
     val elloc = buffer.tagsAt(classOf[Element], loc) match {
       case el :: _ => Some(el.tag -> loc.atCol(el.start))
       case Nil     => index.getOption.flatMap(_.elementAt(loc) map(
         el => (el, buffer.loc(el.offset))))
     }
     elloc match {
-      case None => window.popStatus("No element could be found at the point.")
+      case None => abort("No element could be found at the point.")
       case Some((elem, loc)) => codex.resolve(project, elem.ref) match {
-        case None => window.popStatus(s"Unable to resolve referent for $elem")
+        case None => abort(s"Unable to resolve referent for $elem")
         case Some(df) => fn(elem, loc, df)
       }
     }
   }
 
   protected def onEncloser (loc :Loc)(fn :(Def => Unit)) :Unit = index.getOption match {
-    case None => window.popStatus("No Codex index available for this file.")
+    case None => abort("No Codex index available for this file.")
     case Some(idx) => idx.encloser(buffer.offset(loc)) match {
-      case None => window.popStatus("Could not find enclosing type.")
+      case None => abort("Could not find enclosing type.")
       case Some(df) => fn(df)
     }
   }
