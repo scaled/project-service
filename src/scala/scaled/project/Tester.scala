@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import codex.model.Def
+import codex.model.{Def, Kind}
 import java.nio.file.Path
 import scaled._
 import scaled.util.Errors
@@ -24,6 +24,10 @@ abstract class Tester (project :Project) extends AutoCloseable {
   /** Locates the test file that's associated with the specified source file. */
   def findTestFile (file :Path) :Option[Path] = None
 
+  /** Returns true if `df` represents a test function. By default all functions are considered so,
+    * but a tester may wish to refine this notion. */
+  def isTestFunc (df :Def) :Boolean = df.kind == Kind.FUNC
+
   /** Runs all tests in the project. Test output will be directed to [[buffer]].
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-all-on-save`.
@@ -42,8 +46,9 @@ abstract class Tester (project :Project) extends AutoCloseable {
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
     * invoked interactly. Test output will be directed to [[buffer]].
+    * @return a future which will be completed when the test completes.
     */
-  def runTest (window :Window, file :Path, elem :Def) :Unit
+  def runTest (window :Window, file :Path, elem :Def) :Future[Unit]
 
   /** Reports the results of a test run. */
   protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Visit]) {

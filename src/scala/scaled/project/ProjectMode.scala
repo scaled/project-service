@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import codex.model.Kind
+import codex.model.{Def, Kind}
 import java.nio.file.Path
 import javafx.scene.control.Tooltip
 import scala.collection.mutable.ArrayBuffer
@@ -56,9 +56,10 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     bind("recompile-project", "F5").
 
     // test fns
-    bind("run-all-tests",     "C-c S-C-t").
-    bind("run-file-tests",    "C-c C-t").
-    bind("run-test-at-point", "C-c t").
+    bind("run-all-tests",     "C-c C-t C-a").
+    bind("run-file-tests",    "C-c C-t C-f").
+    bind("run-test-at-point", "C-c C-t C-o").
+    bind("run-closest-test",  "C-c C-t C-t").
     bind("visit-tests",       "C-x C-t").
 
     // execution fns
@@ -143,9 +144,23 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   @Fn("Determines the test method enclosing the point and runs it.")
   def runTestAtPoint () {
     onEncloser(view.point()) { df =>
-      if (df.kind != Kind.FUNC) throw Errors.feedback("Point not enclosed by a function.")
-      project.tester.runTest(window, bufferFile, df)
-      maybeShowTestOutput()
+      def ffunc (df :Def) :Def =
+        if (df == null) throw Errors.feedback("Unable to find enclosing test function.")
+        else if (tester.isTestFunc(df)) df
+        else ffunc(df.outer)
+      project.tester.runTest(window, bufferFile, ffunc(df)).onSuccess { _ =>
+        // display the test output as a popup over the point
+        view.popup() = Popup(tester.buffer().lines, Popup.UpRight(view.point()), true, false)
+      }
+    }
+  }
+
+  @Fn("""Attempts to run-test-at-point but falls back to run-file-tests if no tests can be
+         found at the point.""")
+  def runClosestTest () {
+    try runTestAtPoint()
+    catch {
+      case fe :Errors.FeedbackException => runFileTests()
     }
   }
 

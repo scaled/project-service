@@ -384,8 +384,10 @@ abstract class Project (val pspace :ProjectSpace) {
     override def runAllTests (window :Window, iact :Boolean) = false
     override def runTests (window :Window, iact :Boolean,
                            file :Path, typess :Seq[Def]) = false
-    override def runTest (window :Window, file :Path, elem :Def) =
+    override def runTest (window :Window, file :Path, elem :Def) = {
       window.emitStatus("${project.name} does not provide a tester.")
+      Future.success(())
+    }
   }
 
   protected def createProjectStore () :CodexStore = new CodexStore()
