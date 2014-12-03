@@ -60,6 +60,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     bind("run-file-tests",    "C-c C-t C-f").
     bind("run-test-at-point", "C-c C-t C-o").
     bind("run-closest-test",  "C-c C-t C-t").
+    bind("repeat-last-test",  "C-c C-t C-r", "F6").
     bind("visit-tests",       "C-x C-t").
 
     // execution fns
@@ -124,21 +125,21 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
          Failures identified in said output are placed in the visit list and can be navigated
          using `visit-next` and `visit-prev`.""")
   def runAllTests () {
-    if (tester.runAllTests(window, true)) maybeShowTestOutput()
-    else window.popStatus("No tests were found.")
+    if (!tester.runAllTests(window, true)) abort(s"No tests found in ${project.name}.")
+    tester.lastTest() = (window, None)
+    maybeShowTestOutput()
   }
 
   @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
          itself if that file contains tests) and runs the tests in it. If no associated test buffer
          can be located, we fall back to running all tests for the project.
          See project-run-all-tests for info on test output and failure navigation.""")
-  def runFileTests () {
-    val ran = tester.findTestFile(bufferFile) match {
-      case None        => tester.runAllTests(window, true)
-      case Some(tfile) => tester.runTests(window, true, tfile, Seq())
-    }
-    if (ran) maybeShowTestOutput()
-    else window.emitStatus("No tests were found.")
+  def runFileTests () :Unit = tester.findTestFile(bufferFile) match {
+    case None        => runAllTests()
+    case Some(tfile) =>
+      if (!tester.runTests(window, true, tfile, Seq())) abort(s"No tests found in $tfile.")
+      tester.lastTest() = (window, Some(tfile))
+      maybeShowTestOutput()
   }
 
   @Fn("Determines the test method enclosing the point and runs it.")
@@ -162,6 +163,17 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     catch {
       case fe :Errors.FeedbackException => runFileTests()
     }
+  }
+
+  @Fn("""Repeats the last run-all-tests or run-file-tests, in the window it was run.
+         If no test has been run in this project, all tests are run.""")
+  def repeatLastTest () :Unit = (tester.lastTest.getOption match {
+    case None                       => runAllTests() ; None
+    case Some((window, None))       => tester.runAllTests(window, true) ; Some(window)
+    case Some((window, Some(path))) => tester.runTests(window, true, path, Seq()) ; Some(window)
+  }) foreach { win =>
+    maybeShowTestOutput()
+    window.toFront()
   }
 
   @Fn("Visits the source file that defines tests for the file in the current buffer.")

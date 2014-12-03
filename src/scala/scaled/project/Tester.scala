@@ -12,6 +12,9 @@ import scaled.util.Errors
 /** Provides an interface for interacting with test frameworks. */
 abstract class Tester (project :Project) extends AutoCloseable {
 
+  /** A value used to maintain the most recent test invocation. See [[ProjectMode]]. */
+  val lastTest = OptValue[(Window,Option[Path])]()
+
   /** Returns the buffer in which we record test output. It will be created if needed. */
   def buffer () :Buffer = project.createBuffer(s"*test:${project.name}*", "log" /*project-test*/)
 
