@@ -337,6 +337,7 @@ abstract class Project (val pspace :ProjectSpace) {
   /** Populates our status line (`sb`) and status line tooltip (`tb`) strings. */
   protected def makeStatus (sb :StringBuilder, tb :StringBuilder) {
     compiler.addStatus(sb, tb)
+    testCompanion foreach { tproj => tproj.compiler.addStatus(sb, tb) }
   }
   private def makeStatus :(String,String) = {
     val sb = new StringBuilder("(").append(name)
