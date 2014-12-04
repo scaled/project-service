@@ -99,13 +99,18 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("""Queries for a type (completed by the project's Codex) then queries for a
          member of that type and visits it.""")
   def codexVisitTypeMember () :Unit = codexRead("Type:", Kind.TYPE) { df =>
-    window.mini.read("Member:", "", _memHistory.getOrElseUpdate(df, new Ring(8)),
-                     new Completer[Def]() {
-      def complete (glob :String) = Completion(glob, df.members, true)(_.globalRef.id)
-      // take them to the type if they don't make any attempt to select a member
-      override def commit (comp :Completion[Def], curval :String) =
-        if (curval == "") Some(df) else super.commit(comp, curval)
-    }).onSuccess(mem => codex.visit(window, view, mem))
+    val mems = df.members.toSeq
+    if (mems.isEmpty) codex.visit(window, view, df) // if the def has no members, just jump to it
+    else {
+      val comp = new Completer[Def]() {
+        def complete (glob :String) = Completion(glob, mems, true)(_.globalRef.id)
+        // take them to the type if they don't make any attempt to select a member
+        override def commit (comp :Completion[Def], curval :String) =
+          if (curval == "") Some(df) else super.commit(comp, curval)
+      }
+      window.mini.read("Member:", "", _memHistory.getOrElseUpdate(df, new Ring(8)), comp).
+        onSuccess(codex.visit(window, view, _))
+    }
   }
   private val _memHistory = MMap[Def,Ring]()
 
