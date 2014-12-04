@@ -126,7 +126,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   def runAllTests () {
     if (!tester.runAllTests(window, true)) abort(s"No tests found in ${project.name}.")
     tester.lastTest() = (window, None)
-    maybeShowTestOutput()
+    maybeShowTestOutput(window)
   }
 
   @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
@@ -138,7 +138,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     case Some(tfile) =>
       if (!tester.runTests(window, true, tfile, Seq())) abort(s"No tests found in $tfile.")
       tester.lastTest() = (window, Some(tfile))
-      maybeShowTestOutput()
+      maybeShowTestOutput(window)
   }
 
   @Fn("Determines the test method enclosing the point and runs it.")
@@ -167,12 +167,12 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   @Fn("""Repeats the last run-all-tests or run-file-tests, in the window it was run.
          If no test has been run in this project, all tests are run.""")
   def repeatLastTest () :Unit = (tester.lastTest.getOption match {
-    case None                       => runAllTests() ; None
-    case Some((window, None))       => tester.runAllTests(window, true) ; Some(window)
-    case Some((window, Some(path))) => tester.runTests(window, true, path, Seq()) ; Some(window)
+    case None                    => runAllTests() ; None
+    case Some((win, None      )) => tester.runAllTests(win, true)           ; Some(win)
+    case Some((win, Some(path))) => tester.runTests(win, true, path, Seq()) ; Some(win)
   }) foreach { win =>
-    maybeShowTestOutput()
-    window.toFront()
+    maybeShowTestOutput(win)
+    win.toFront()
   }
 
   @Fn("Visits the source file that defines tests for the file in the current buffer.")
@@ -253,7 +253,8 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
-  private def maybeShowTestOutput () = if (config(showOutputOnTest)) showTestOutput()
+  private def maybeShowTestOutput (win :Window) =
+    if (config(showOutputOnTest)) win.focus.visit(tester.buffer())
 
   private def execute (exec :Execution) {
     pspace.execs.execute(window, exec)
