@@ -19,7 +19,7 @@ object PSpaceCodex {
 
   /** Convert a `Store` to a `Source`. */
   def toSource (store :Store) :Source = store match {
-    case fs :FileStore => new Source.File(fs.path.toString)
+    case fs  :FileStore     => new Source.File(fs.path.toString)
     case zes :ZipEntryStore => new Source.ArchiveEntry(zes.zipFile.toString, zes.entry)
     case _ => throw new IllegalArgumentException(s"Can't convert $store to Codex Source.")
   }

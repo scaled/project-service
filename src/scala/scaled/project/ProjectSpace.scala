@@ -94,10 +94,8 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   /** The history ring for execution invocations. */
   val execHistory = new Ring(32)
 
-  /** An execution queue on which Codex indexing is run. This serializes all indexing actions which
-    * avoids grinding a user's machine to a halt with multiple full indexes, and it ensures that a
-    * single indexer doesn't perform simultaneous reindexes. */
-  val indexQueue :Pipe[Unit] = msvc.process(())
+  /** Handles the indexing of project source code. */
+  lazy val indexer = new Indexer(this)
 
   /** Emits a description of this project space to `bb`. */
   def describeSelf (bb :BufferBuilder) {

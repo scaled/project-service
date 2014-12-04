@@ -17,6 +17,7 @@ import scaled.util.BufferBuilder
 @Minor(name="codex", tags=Array("project"),
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
+  import project.pspace
 
   /** Used when highlighting uses in our buffer. */
   val highlights = Value(Set[Use]())
@@ -34,7 +35,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   // request that our store be indexed (which should eventually populate `index`)
   note(buffer.storeV.onValueNotify { store =>
     // don't attempt to index non- or not-yet-existent files
-    if (store.exists) project.indexer.queueReindex(store, false)
+    if (store.exists) pspace.indexer.queueReindex(project, store, false)
   })
 
   override def keymap = super.keymap.
@@ -229,13 +230,13 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   @Fn("Initiates a reindexing of file in the current buffer.")
   def codexReindexBuffer () {
-    project.indexer.queueReindex(buffer.store, true)
+    pspace.indexer.queueReindex(project, buffer.store, true)
   }
 
   @Fn("""Initiates a debug reindexing of file in the current buffer. The results will be dumped
          to stdout instead of used to populate the index.""")
   def codexDebugReindexBuffer () {
-    project.indexer.debugReindex(buffer.store)
+    pspace.indexer.debugReindex(project, buffer.store)
   }
 
   // TODO: codexReindexWorkspace?

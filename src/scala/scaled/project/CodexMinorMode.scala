@@ -18,12 +18,13 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
   val project = Project(buffer)
-  val codex = project.pspace.codex
+  import project.pspace
+  val codex = pspace.codex
 
   /** The most recent index for the buffer's source file, if any. */
   val index = OptValue[SourceIndex]()
   // if our store gets indexed, store it in `index`
-  note(project.indexer.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
+  note(pspace.indexer.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
 
   protected def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
     window.mini.read(prompt, wordAt(view.point()), codex.history(kind),

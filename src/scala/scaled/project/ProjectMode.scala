@@ -37,7 +37,6 @@ object ProjectConfig extends Config.Defs {
        desc="""A minor mode that provides project-centric fns.""")
 class ProjectMode (env :Env) extends CodexMinorMode(env) {
   import ProjectConfig._
-
   import project.pspace
 
   // display the project status in the modeline

@@ -4,21 +4,25 @@
 
 package scaled.project
 
-import codex.extract.{Extractor, TextWriter, Writer}
+import codex.extract.{Extractor, SourceSet, TextWriter, Writer}
 import codex.model.Source
 import java.nio.file.{Path, Paths}
 import scaled._
 
 /** Handles indexing source files, for Codex. */
-class Indexer (val project :Project) {
-  import project.{metaSvc => msvc}
+class Indexer (val pspace :ProjectSpace) {
+  import pspace.msvc
 
   /** A signal emitted when a source has been reprocessed and indexed. */
   val indexed = Signal[SourceIndex]()
 
-  /** Requests that our project's code be fully reindexed. */
-  def queueReindexAll () {
-    project.pspace.indexQueue.tell(_ => reindexAll())
+  /** An execution queue on which Codex indexing is run. This serializes all indexing actions which
+    * avoids grinding a user's machine to a halt with multiple full indexes. */
+  val indexQueue :Pipe[Unit] = msvc.process(())
+
+  /** Requests that `project`'s code be fully reindexed. */
+  def queueReindexAll (project :Project) {
+    indexQueue.tell(_ => reindexAll(project))
   }
 
   /** Requests that `store` be reindexed by this project's Codex. This requests that the code be
@@ -28,26 +32,25 @@ class Indexer (val project :Project) {
     * @param force if true, file is indexed regardless of whether its last modified time is more
     * recent than the file's last recorded index.
     */
-  def queueReindex (store :Store, force :Boolean) {
+  def queueReindex (project :Project, store :Store, force :Boolean) {
     // invoke the reindex in the background
-    project.pspace.indexQueue.tell(_ => reindex(PSpaceCodex.toSource(store), force))
+    indexQueue.tell(_ => reindex(project, PSpaceCodex.toSource(store), force))
   }
 
   /** Performs a debug reindex of store, writing the output to stdout. */
-  def debugReindex (store :Store) {
+  def debugReindex (project :Project, store :Store) {
     val source = PSpaceCodex.toSource(store)
-    val path = Paths.get(source.toString)
-    extractor(source.fileExt) foreach { ex =>
-      ex.process(path, new TextWriter(System.console.writer))
+    extractor(project, source.fileExt) foreach { ex =>
+      ex.process(SourceSet.create(source), new TextWriter(System.console.writer))
     }
   }
 
   /** Performs a full reindex of this project. This method is called on a background thread. */
-  protected def reindexAll () {
+  protected def reindexAll (project :Project) {
     val sums = project.summarizeSources
     project.store.clear()
-    sums.asMap.toMapV foreach { (suff, srcs) =>
-      extractor(suff) foreach { ex =>
+    sums foreach { (suff, srcs) =>
+      extractor(project, suff) foreach { ex =>
         project.pspace.wspace.statusMsg.emit(
           s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         ex.process(srcs, project.store.writer)
@@ -56,20 +59,19 @@ class Indexer (val project :Project) {
   }
 
   /** Performs the actual reindexing of `source`. This method is called on a background thread. */
-  protected def reindex (source :Source, force :Boolean) {
-    val path = Paths.get(source.toString)
+  protected def reindex (project :Project, source :Source, force :Boolean) {
     if (force || source.lastModified > project.store.lastIndexed(source)) {
-      extractor(source.fileExt) foreach { ex =>
+      extractor(project, source.fileExt) foreach { ex =>
         println(s"Reindexing: $source")
-        ex.process(path, project.store.writer)
+        ex.process(SourceSet.create(source), project.store.writer)
       }
     } // else println(s"Source up to date: $source")
-    reindexComplete(source)
+    reindexComplete(project, source)
   }
 
-  /** Called by subclasses to indicate that reindexing of a source file is complete. Reindexing
-    * takes place on a background thread, and this method may be called therefrom. */
-  protected def reindexComplete (source :Source) {
+  /** Called when reindexing of a source file is complete. Reindexing takes place on a background
+    * thread, and this method is called therefrom. */
+  protected def reindexComplete (project :Project, source :Source) {
     val ib = SourceIndex.builder(PSpaceCodex.toStore(source))
     if (project.store.visit(source, ib)) msvc.exec.runOnUI { indexed.emit(ib.build()) }
     // TODO: until we know what file extensions are known to the indexer, this generates too many
@@ -77,7 +79,17 @@ class Indexer (val project :Project) {
     // else msvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")
   }
 
-  /** Returns an extractor to use when indexing.
-    * @param suff the suffix of the file being indexed (`java`, `scala`, etc.). */
-  protected def extractor (suff :String) :Option[Extractor] = None
+  private def extractor (project :Project, suff :String) :Option[Extractor] = {
+    val iter = extractorPlugins.plugins.filter(_.suffs.contains(suff)).iterator()
+    while (iter.hasNext()) { // blah
+      val exo = iter.next.extractor(project, suff)
+      if (exo.isDefined) return exo
+    }
+    None
+  }
+  private lazy val extractorPlugins = {
+    val set = msvc.service[PluginService].resolvePlugins[ExtractorPlugin]("codex-extractor")
+    pspace.wspace.toClose += set
+    set
+  }
 }

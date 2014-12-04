@@ -4,6 +4,7 @@
 
 package scaled.project
 
+import codex.extract.SourceSet
 import codex.model.{Def, Kind}
 import codex.store.MapDBStore
 import com.google.common.collect.{HashMultimap, Multimap}
@@ -214,8 +215,7 @@ abstract class Project (val pspace :ProjectSpace) {
       val srcsum = summarizeSources
       if (!srcsum.isEmpty) {
         bb.addSection("Source files:")
-        bb.addKeysValues(srcsum.asMap.entrySet.map(
-          e => (s".${e.getKey}: ", e.getValue.size.toString)).toSeq)
+        bb.addKeysValues(srcsum.map((suff, srcs) => (s".$suff: ", srcs.size.toString)))
       }
     }
 
@@ -254,7 +254,7 @@ abstract class Project (val pspace :ProjectSpace) {
         protected def go (window :Window) = CodexSummaryMode.visitTopLevel(window, CodexStore.this)
       })).build())
     }
-    def reindex () :Unit = indexer.queueReindexAll()
+    def reindex () :Unit = pspace.indexer.queueReindexAll(Project.this)
     override def toString = s"codex:$name"
     // when we're resolved, potentially trigger a full initial index
     if (isEmpty) reindex()
@@ -265,10 +265,6 @@ abstract class Project (val pspace :ProjectSpace) {
 
   /** Returns the Codex store for this project. Created on demand. */
   def store :CodexStore = _store.get
-
-  /** Returns the indexer used by this project.
-    * Created lazily, but never released because indexers don't maintain runtime state. */
-  lazy val indexer :Indexer = createIndexer()
 
   /** Applies `op` to all files in this project. The default implementation applies `op` to all
     * files in [[root]] directory and its subdirectories. Subclasses may refine this result. */
@@ -296,7 +292,7 @@ abstract class Project (val pspace :ProjectSpace) {
   }
 
   /** Returns a map of all source files in this project, grouped by file suffix. */
-  def summarizeSources :Multimap[String,Path] = {
+  def summarizeSources :Map[String,SourceSet] = {
     val bySuff = HashMultimap.create[String,Path]()
     onSources { file =>
       val fname = file.getFileName.toString
@@ -305,7 +301,11 @@ abstract class Project (val pspace :ProjectSpace) {
         case ii => bySuff.put(fname.substring(ii+1), file)
       }
     }
-    bySuff
+    val mb = Map.builder[String,SourceSet]()
+    bySuff.asMap.entrySet.toSetV foreach { ent =>
+      mb += (ent.getKey, SourceSet.create(ent.getValue, ent.getValue.size))
+    }
+    mb.build()
   }
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
@@ -400,6 +400,4 @@ abstract class Project (val pspace :ProjectSpace) {
       if (ref != null) metaSvc.exec.runInBG { ref.close() }
     }
   }
-
-  protected def createIndexer () :Indexer = new Indexer(this)
 }
