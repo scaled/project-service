@@ -26,6 +26,8 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   // if our store gets indexed, store it in `index`
   note(pspace.indexer.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
 
+  protected def reqIndex = index getOrElse abort("No Codex index available for this file.")
+
   protected def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
     window.mini.read(prompt, wordAt(view.point()), codex.history(kind),
                      codex.completer(project, kind)).onSuccess(fn)
@@ -52,13 +54,11 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     }
   }
 
-  protected def onEncloser (loc :Loc)(fn :(Def => Unit)) :Unit = index.getOption match {
-    case None => abort("No Codex index available for this file.")
-    case Some(idx) => idx.encloser(buffer.offset(loc)) match {
+  protected def onEncloser (loc :Loc)(fn :(Def => Unit)) :Unit =
+    reqIndex.encloser(buffer.offset(loc)) match {
       case None => abort("Could not find enclosing type.")
       case Some(df) => fn(df)
     }
-  }
 
   /** Returns the "word" at the specified location in the buffer. */
   protected def wordAt (loc :Loc) :String = {
