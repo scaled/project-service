@@ -20,7 +20,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   import project.pspace
 
   /** Used when highlighting uses in our buffer. */
-  val highlights = Value(Set[Use]())
+  val highlights = Value(Seq[Use]())
   highlights.onChange { (nuses, ouses) =>
     ouses foreach upHighlight(false)
     nuses foreach upHighlight(true)
@@ -132,6 +132,19 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     }
   }
 
+  @Fn("Displays debugging info for all elements on the current line.")
+  def codexShowLineElements () {
+    val loc = view.point()
+    val elems = reqIndex.elements(loc.row).toSeq
+    if (elems.isEmpty) abort("No Codex elements on current line.")
+    view.popup() = Popup.text(elems map(_.toString), Popup.UpRight(loc))
+    elems foreach println
+    highlights() = elems collect {
+      case use :Use => use
+      case df  :Def => new Use(df.ref, df.kind, df.offset, df.name.length)
+    }
+  }
+
   @Fn("Displays debugging info for the Codex element at the point.")
   def codexDebugElement () {
     onElemAt(view.point())((elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc))
@@ -146,7 +159,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
       def mkUse (offset :Int) = new Use(dfRef, df.kind, offset, df.name.length)
 
       // create a set of all uses in this buffer, for highlighting
-      val localUses = Set.builder[Use]()
+      val localUses = Seq.builder[Use]()
       usesMap.get(bufSource) foreach { offsets => localUses ++= offsets map mkUse }
       if (df.source() == bufSource) localUses += mkUse(df.offset)
       highlights() = localUses.build()

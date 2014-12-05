@@ -50,7 +50,7 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
       Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
     }
     private def query (name :String) =
-      (Query.prefix(name.take(minPrefix)) kind(kind) find(stores(project))).toSeqV
+      (Query.prefix(name) kind(kind) find(stores(project))).toSeqV
   }
 
   /** Resolves `ref`, which originated from a file in `project`. */

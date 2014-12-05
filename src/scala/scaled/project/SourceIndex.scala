@@ -92,6 +92,9 @@ class SourceIndex (val store :Store, rows :Array[SourceIndex.Row], encls :TreeMa
   def elementAt (loc :Loc) :Option[Element] =
     if (loc.row >= rows.length) None else rows(loc.row).elementAt(loc.col)
 
+  /** Returns all elements on `row` in occurrence order. */
+  def elements (row :Int) :Iterable[Element] = rows(row).elems.values
+
   /** Returns the def that encloses the specified character offset, if any. */
   def encloser (offset :Int) :Option[Def] = encls.floorEntry(offset) match {
     case null => None
