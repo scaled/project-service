@@ -61,13 +61,6 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     }
 
   /** Returns the "word" at the specified location in the buffer. */
-  protected def wordAt (loc :Loc) :String = {
-    import Chars._
-    val p = view.point()
-    val pstart = buffer.scanBackward(isNotWord, p)
-    val start = if (isWord(buffer.charAt(pstart))) pstart else buffer.forward(pstart, 1)
-    val end = if (!isWord(buffer.charAt(start))) start
-              else buffer.scanForward(isNotWord, p)
-    buffer.region(start, end).map(_.asString).mkString
-  }
+  protected def wordAt (loc :Loc) :String =
+    buffer.regionAt(loc, Chars.Word).map(_.asString).mkString
 }
