@@ -161,15 +161,20 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
         }
         addProjectInfo(df.project)
 
-        // enumerate all members of this def and its supertypes, and group the members by the
-        // supertype that defines them
-        val supers = OO.linearizeSupers(stores, df)
-        val trueJ = new Predicate[Def] { def test (df :Def) = true } // TODO: SAM
-        val byOwner = OO.resolveMethods(supers, trueJ).groupBy(_.outer)
-        for (sdf <- supers ; mems <- byOwner.get(sdf)) {
-          if (sdf == df) addParent(df)
-          else { buffer.split(buffer.end) ; addDefInfo(sdf, docr, "") }
-          add(mems)
+        if (df.kind == Kind.TYPE) {
+          // enumerate all members of this def and its supertypes, and group the members by the
+          // supertype that defines them
+          val supers = OO.linearizeSupers(stores, df)
+          val trueJ = new Predicate[Def] { def test (df :Def) = true } // TODO: SAM
+          val byOwner = OO.resolveMethods(supers, trueJ).groupBy(_.outer)
+          for (sdf <- supers ; mems <- byOwner.get(sdf)) {
+            if (sdf == df) addParent(df)
+            else { buffer.split(buffer.end) ; addDefInfo(sdf, docr, "") }
+            add(df.members.filter(m => m.kind == Kind.TYPE || m.kind == Kind.VALUE) ++ mems)
+          }
+        } else {
+          addParent(df)
+          add(df.members)
         }
     }
     view.point() = Loc.Zero
