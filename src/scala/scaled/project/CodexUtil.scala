@@ -4,28 +4,44 @@
 
 package scaled.project
 
-import codex.model.{Def, Doc, Element, Sig}
+import codex.model.{Def, Doc, Element, Ref, Relation, Sig}
+import codex.store.ProjectStore
 import scaled._
 import scaled.util.BufferBuilder
 
 object CodexUtil {
+  import DocFormatterPlugin.Format
+
+  /** Resolves the documentation for `df`. If `df` has no documentation, this will search for
+    * inherited documentation for any def which `df` `Relation.OVERRIDES`.
+    */
+  def resolveDoc (psvc :ProjectService, stores :Iterable[ProjectStore],
+                  docr :DocReader, df :Def) :Format = {
+    def refDoc (ref :Ref) = Option.from(Ref.resolve(stores, ref)) flatMap(findDoc)
+    def relDoc (refs :Iterable[Ref]) :Option[Format] = {
+      val iter = refs.iterator() ; while (iter.hasNext) {
+        val doc = refDoc(iter.next)
+        if (doc.isDefined) return doc
+      }
+      None
+    }
+    def findDoc (df :Def) :Option[Format] = Option.from(df.doc) match {
+      case Some(doc) =>
+        val docf = psvc.docFormatter(df.source.fileExt)
+        Some(docf.format(df, doc, docr.resolve(df.source, doc)))
+      case None => relDoc(df.relations(Relation.OVERRIDES))
+    }
+    findDoc(df) getOrElse DocFormatterPlugin.NoDoc
+  }
 
   /** Creates a popup for `df` including sig and docs at `loc`. */
-  def mkDefPopup (env :Env, df :Def, loc :Loc) :Popup = {
+  def mkDefPopup (env :Env, stores :Iterable[ProjectStore], df :Def, loc :Loc) :Popup = {
     val bb = new BufferBuilder(env.view.width()-2)
-    val fmt = env.msvc.service[ProjectService].docFormatter(df.source.fileExt)
-    df.doc.ifPresent(new java.util.function.Consumer[Doc]() {
-      def accept (doc :Doc) :Unit = try {
-        val r = df.source().reader()
-        val buf = new Array[Char](doc.length)
-        r.skip(doc.offset)
-        r.read(buf)
-        r.close()
-        fmt.format(df, doc, new String(buf)).full("", bb)
-      } catch {
-        case e :Exception => bb.add(Line.fromText(e.toString))
-      }
-    })
+    val fmt = resolveDoc(env.msvc.service[ProjectService], stores, new DocReader(), df)
+    try fmt.full("", bb)
+    catch {
+      case e :Exception => bb.add(Line.fromText(e.toString))
+    }
     df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
       def accept (sig :Sig) = bb.add(CodexSummaryMode.formatSig(sig, ""))
     })
@@ -47,5 +63,4 @@ object CodexUtil {
     text += s"GID:   ${safeGet(df.globalRef)}"
     Popup.text(text, Popup.UpRight(loc))
   }
-
 }

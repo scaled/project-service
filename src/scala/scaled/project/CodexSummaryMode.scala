@@ -68,8 +68,10 @@ object CodexSummaryMode {
 class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingMode(env) {
   import CodexSummaryMode._
 
+  val psvc = env.msvc.service[ProjectService]
   val project = Project(buffer)
   import project.pspace
+  lazy val stores = pspace.codex.stores(project)
 
   override def keymap = super.keymap.
     bind("zoom-out",      "o", "<").
@@ -120,7 +122,6 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   private def act (p :Loc, fn :Info => Unit) = fn(buffer.line(p).lineTag(NoInfo))
 
   if (buffer.start == buffer.end) {
-    val psvc = env.msvc.service[ProjectService]
     val docr = new DocReader()
 
     def add (defs :Iterable[Def]) {
@@ -130,7 +131,6 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
       for (acc <- Access.values) {
         byAcc.get(acc) foreach { defs =>
           for (mem <- defs.toSeq.sortBy(d => (d.flavor, d.name))) {
-            val docf = psvc.docFormatter(mem.source.fileExt)
             if (mem.kind != Kind.SYNTHETIC) {
               // defer the writing of the access separator until we *actually* write a def with
               // this access level; otherwise we could write the level and then discover that all
@@ -140,7 +140,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
                 buffer.split(buffer.end)
                 wroteAcc = acc
               }
-              addDefInfo(mem, docf, docr, "  ")
+              addDefInfo(mem, docr, "  ")
             }
           }
         }
@@ -155,7 +155,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
       case DefMembers(df) => // if we have a def, show it and its members
         def addParent (df :Def) :Unit = if (df != null) {
           addParent(df.outer)
-          addDefInfo(df, psvc.docFormatter(df.source.fileExt), docr, "")
+          addDefInfo(df, docr, "")
           // tack an extra blank line after the module parent
           if (df.kind == Kind.MODULE) buffer.split(buffer.end)
         }
@@ -163,15 +163,12 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
 
         // enumerate all members of this def and its supertypes, and group the members by the
         // supertype that defines them
-        val supers = OO.linearizeSupers(pspace.codex.stores(project), df)
+        val supers = OO.linearizeSupers(stores, df)
         val trueJ = new Predicate[Def] { def test (df :Def) = true } // TODO: SAM
         val byOwner = OO.resolveMethods(supers, trueJ).groupBy(_.outer)
         for (sdf <- supers ; mems <- byOwner.get(sdf)) {
           if (sdf == df) addParent(df)
-          else {
-            buffer.split(buffer.end)
-            addDefInfo(sdf, psvc.docFormatter(sdf.source.fileExt), docr, "")
-          }
+          else { buffer.split(buffer.end) ; addDefInfo(sdf, docr, "") }
           add(mems)
         }
     }
@@ -185,10 +182,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     buffer.split(buffer.end)
   }
 
-  private def addDefInfo (df :Def, docf :DocFormatterPlugin, docr :DocReader, indent :String) {
-    val doc = df.doc
-    val fmt = if (doc.isPresent) docf.format(df, doc.get, docr.resolve(df.source, doc.get))
-              else DocFormatterPlugin.NoDoc
+  private def addDefInfo (df :Def, docr :DocReader, indent :String) {
+    val fmt = CodexUtil.resolveDoc(psvc, stores, docr, df)
     val summary :SeqV[LineV] = fmt.summary(indent, view.width()-1)
     val sig :Seq[LineV] = df.sig match {
       case sigO if (!sigO.isPresent) => Seq(Line(s"$indent<no sig: $df>"))
@@ -208,7 +203,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
         case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
         case _ => visit()
       }
-      override def showDocs () = view.popup() = CodexUtil.mkDefPopup(env, df, end)
+      override def showDocs () = view.popup() = CodexUtil.mkDefPopup(env, stores, df, end)
     }
     while (loc < end) { buffer.setLineTag(loc, info) ; loc = loc.nextL }
   }

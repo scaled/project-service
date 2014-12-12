@@ -128,7 +128,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
          the project's Codex.""")
   def codexDescribeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      view.popup() = CodexUtil.mkDefPopup(env, df, loc)
+      view.popup() = CodexUtil.mkDefPopup(env, pspace.codex.stores(project), df, loc)
     }
   }
 
