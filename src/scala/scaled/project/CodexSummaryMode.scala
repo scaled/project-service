@@ -7,6 +7,7 @@ package scaled.project
 import codex.model._
 import codex.store.ProjectStore
 import java.util.Optional
+import java.util.function.Predicate
 import scaled._
 import scaled.code.CodeConfig
 import scaled.major.ReadingMode
@@ -121,13 +122,14 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
   if (buffer.start == buffer.end) {
     val psvc = env.msvc.service[ProjectService]
     val docr = new DocReader()
-    def add (defs :Seq[Def]) {
+
+    def add (defs :Iterable[Def]) {
       // group defs by access, then within access sort them by flavor, then name
       val byAcc = defs.groupBy(_.access)
       var wroteAcc :Access = null
       for (acc <- Access.values) {
         byAcc.get(acc) foreach { defs =>
-          for (mem <- defs.sortBy(d => (d.flavor, d.name))) {
+          for (mem <- defs.toSeq.sortBy(d => (d.flavor, d.name))) {
             val docf = psvc.docFormatter(mem.source.fileExt)
             if (mem.kind != Kind.SYNTHETIC) {
               // defer the writing of the access separator until we *actually* write a def with
@@ -144,10 +146,12 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
         }
       }
     }
+
     tgt match {
       case TopLevelMembers(store) => // otherwise show the top-level members
         addProjectInfo(store)
-        add(store.topLevelDefs.toSeq)
+        add(store.topLevelDefs)
+
       case DefMembers(df) => // if we have a def, show it and its members
         def addParent (df :Def) :Unit = if (df != null) {
           addParent(df.outer)
@@ -156,8 +160,20 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
           if (df.kind == Kind.MODULE) buffer.split(buffer.end)
         }
         addProjectInfo(df.project)
-        addParent(df)
-        add(df.members.toSeq)
+
+        // enumerate all members of this def and its supertypes, and group the members by the
+        // supertype that defines them
+        val supers = OO.linearizeSupers(pspace.codex.stores(project), df)
+        val trueJ = new Predicate[Def] { def test (df :Def) = true } // TODO: SAM
+        val byOwner = OO.resolveMethods(supers, trueJ).groupBy(_.outer)
+        for (sdf <- supers ; mems <- byOwner.get(sdf)) {
+          if (sdf == df) addParent(df)
+          else {
+            buffer.split(buffer.end)
+            addDefInfo(sdf, psvc.docFormatter(sdf.source.fileExt), docr, "")
+          }
+          add(mems)
+        }
     }
     view.point() = Loc.Zero
   }
