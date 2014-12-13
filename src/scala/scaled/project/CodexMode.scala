@@ -151,8 +151,13 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
 
   @Fn("Displays debugging info for the Codex element at the point.")
-  def codexDebugElement () {
-    onElemAt(view.point())((elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc))
+  def codexDebugElement () :Unit = onElemAt(view.point()) {
+    (elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc)
+  }
+
+  @Fn("Displays debugging info for the Codex element enclosing the point.")
+  def codexDebugEncloser () :Unit = onEncloser(view.point()) {
+    df => view.popup() = CodexUtil.mkDebugPopup(df, buffer.loc(df.offset))
   }
 
   @Fn("Highlights all occurrences of an element in the current buffer.")
