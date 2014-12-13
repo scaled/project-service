@@ -59,6 +59,7 @@ object CodexUtil {
     text += s"Exp:   ${df.exported}"
     text += s"Name:  ${df.name}"
     text += s"Off:   ${df.offset}"
+    text += s"Body:  ${df.bodyStart}:${df.bodyEnd}"
     text += s"Src:   ${safeGet(df.source)}"
     text += s"GID:   ${safeGet(df.globalRef)}"
     Popup.text(text, Popup.UpRight(loc))
