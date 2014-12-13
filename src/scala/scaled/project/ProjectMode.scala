@@ -57,7 +57,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     // test fns
     bind("run-all-tests",     "C-c C-t C-a").
     bind("run-file-tests",    "C-c C-t C-f").
-    bind("run-test-at-point", "C-c C-t C-o").
+    bind("run-test-at-point", "C-c C-t C-p").
     bind("run-closest-test",  "C-c C-t C-t").
     bind("repeat-last-test",  "C-c C-t C-r", "F6").
     bind("visit-tests",       "C-x C-t").
@@ -123,22 +123,20 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   @Fn("""Runs all of this project's tests. Output is displayed in a buffer named *test{project}*.
          Failures identified in said output are placed in the visit list and can be navigated
          using `visit-next` and `visit-prev`.""")
-  def runAllTests () {
+  def runAllTests () :Unit = runTest { _ =>
     if (!tester.runAllTests(window, true)) abort(s"No tests found in ${project.name}.")
-    tester.lastTest() = (window, None)
     maybeShowTestOutput(window)
   }
 
   @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
-         itself if that file contains tests) and runs the tests in it. If no associated test buffer
-         can be located, we fall back to running all tests for the project.
+         itself if that file contains tests) and runs the tests in it.
          See project-run-all-tests for info on test output and failure navigation.""")
   def runFileTests () :Unit = tester.findTestFile(bufferFile) match {
-    case None        => runAllTests()
-    case Some(tfile) =>
+    case None        => abort(s"Cannot find test file for $bufferFile")
+    case Some(tfile) => runTest { _ =>
       if (!tester.runTests(window, true, tfile, Seq())) abort(s"No tests found in $tfile.")
-      tester.lastTest() = (window, Some(tfile))
       maybeShowTestOutput(window)
+    }
   }
 
   @Fn("Determines the test method enclosing the point and runs it.")
@@ -148,32 +146,32 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
         if (df == null) abort("Unable to find enclosing test function.")
         else if (tester.isTestFunc(df)) df
         else ffunc(df.outer)
-      project.tester.runTest(window, bufferFile, ffunc(df)).onSuccess { _ =>
-        // display the test output as a popup over the point
-        view.popup() = Popup(tester.buffer().lines, Popup.UpRight(view.point()), true, false)
+      val tfunc = ffunc(df)
+      runTest { view =>
+        project.tester.runTest(window, bufferFile, tfunc).onSuccess { _ =>
+          // display the test output as a popup over the point
+          view.popup() = Popup(tester.buffer().lines, Popup.UpRight(view.point()), true, false)
+        }
       }
     }
   }
 
   @Fn("""Attempts to run-test-at-point but falls back to run-file-tests if no tests can be
-         found at the point.""")
+         found at the point and run-all-tests if run-file-tests fails.""")
   def runClosestTest () {
     try runTestAtPoint()
     catch {
-      case fe :Errors.FeedbackException => runFileTests()
+      case fe :Errors.FeedbackException =>
+        try runFileTests()
+        catch {
+          case fe :Errors.FeedbackException => runAllTests()
+        }
     }
   }
 
   @Fn("""Repeats the last run-all-tests or run-file-tests, in the window it was run.
          If no test has been run in this project, all tests are run.""")
-  def repeatLastTest () :Unit = (tester.lastTest.getOption match {
-    case None                    => runAllTests() ; None
-    case Some((win, None      )) => tester.runAllTests(win, true)           ; Some(win)
-    case Some((win, Some(path))) => tester.runTests(win, true, path, Seq()) ; Some(win)
-  }) foreach { win =>
-    maybeShowTestOutput(win)
-    win.toFront()
-  }
+  def repeatLastTest () :Unit = tester.lastTest.getOption.foreach(_.apply(view))
 
   @Fn("Visits the source file that defines tests for the file in the current buffer.")
   def visitTests () {
@@ -253,8 +251,15 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
-  private def maybeShowTestOutput (win :Window) =
-    if (config(showOutputOnTest)) win.focus.visit(tester.buffer())
+  private def maybeShowTestOutput (win :Window) = if (config(showOutputOnTest)) {
+    win.focus.visit(tester.buffer())
+    win.toFront()
+  }
+
+  private def runTest (action :RBufferView => Unit) {
+    tester.lastTest() = action
+    action(view)
+  }
 
   private def execute (exec :Execution) {
     pspace.execs.execute(window, exec)
