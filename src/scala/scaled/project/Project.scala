@@ -314,7 +314,7 @@ abstract class Project (val pspace :ProjectSpace) {
     hibernate()
   }
 
-  override def toString = s"$name ($root.path)"
+  override def toString = s"$name (${root.path})"
   protected def log = metaSvc.log
 
   /** Causes this project to free up ephemeral resources, which will be recreated if the project is
