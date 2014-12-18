@@ -368,10 +368,10 @@ abstract class Project (val pspace :ProjectSpace) {
   class NoopCompiler extends Compiler(this) {
     override def describeSelf (bb :BufferBuilder) {} // nada
     override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def recompile (window :Window, testsToo :Boolean, interactive :Boolean) {
-      if (interactive) window.emitStatus("Compilation is not supported by this project.")
+    override def compile (window :Window, config :Compiler.Config) {
+      if (config.interactive) window.emitStatus("Compilation is not supported by this project.")
     }
-    override protected def compile (buffer :Buffer) = Future.success(true)
+    override protected def compile (buffer :Buffer, incr :Boolean) = Future.success(true)
     override protected def nextError (buffer :Buffer, start :Loc) = None
   }
 

@@ -32,6 +32,15 @@ object Compiler {
     override def toString = s"project has $count compile error(s)"
   }
 
+  /** Configures a compile. See [[Compiler.compile]].
+    * @param tests if true, the tests companion project will be compiled if this compilation
+    * succeeds.
+    * @param incremental if true, do an incremental compile, otherwise do a full compile.
+    * @param interactive whether the compile was initiated interactively; controls feedback
+    * reporting.
+    */
+  case class Config (tests :Boolean, incremental :Boolean, interactive :Boolean)
+
   /** Creates a [[Visit]] for the supplied compiler error. */
   def errorVisit (path :String, loc :Loc, descrip :Seq[String]) :Visit = new Visit() {
     override protected def go (window :Window) = {
@@ -68,18 +77,16 @@ abstract class Compiler (project :Project) extends AutoCloseable {
   /** Returns the buffer in which we record compiler output. It will be created if needed. */
   def buffer () :Buffer = project.createBuffer(s"*compile:${project.name}*", "log")
 
-  /** Initiates a recompilation of this project, if supported.
-    * @param testsToo if true, the tests companion project will be recompiled if this compilation
-    * succeeds.
+  /** Initiates a compilation of this project's source code, if supported.
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
     */
-  def recompile (window :Window, testsToo :Boolean, interactive :Boolean) {
+  def compile (window :Window, config :Config) {
     val buf = buffer()
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
     _status() = Compiling
-    compile(buf).onFailure(window.emitError).onSuccess { success =>
+    compile(buf, config.incremental).onFailure(window.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
       val ebuf = Seq.builder[Visit]
       @inline @tailrec def unfold (loc :Loc) :Unit = nextError(buf, loc) match {
@@ -99,18 +106,23 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
       buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
       // report feedback to the user if this was requested interactively
-      if (interactive) {
+      if (config.interactive) {
         val result = if (success) "succeeded" else "failed"
         val msg = s"Compilation $result with ${errs.size} error(s)."
         window.emitStatus(msg)
       }
 
-      if (success && testsToo) {
-        project.testCompanion.foreach { _.compiler.recompile(window, false, interactive) }
+      if (success && config.tests) {
+        project.testCompanion.foreach { _.compiler.compile(window, config.copy(tests=false)) }
       }
     }
-    if (interactive) window.emitStatus(s"${project.name} recompiling...")
+    if (config.interactive) window.emitStatus(s"${project.name} recompiling...")
   }
+
+  /** Requests that the build artifacts be deleted so that the next recompilation processes all
+    * source files in the project.
+    */
+  def clean () {} // nada by default
 
   /** Requests that this compiler be reset. If a connection to an external compiler is being
     * maintained, it should be closed so that the next [[recompile]] request causes a new compiler
@@ -124,7 +136,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
 
   /** Initiates a compilation, sends output to `buffer`, returns a future that indicates compilation
     * success or failure. */
-  protected def compile (buffer :Buffer) :Future[Boolean]
+  protected def compile (buffer :Buffer, incremental :Boolean) :Future[Boolean]
 
   /** Scans `buffer` from `start` to find the next error.
     *

@@ -52,7 +52,8 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     bind("find-file-other-project", "C-x C-o").
 
     // compilation fns
-    bind("recompile-project", "F5").
+    bind("compile-incremental", "F5").
+    bind("compile-full",        "S-F5").
 
     // test fns
     bind("run-all-tests",     "C-c C-t C-a").
@@ -78,7 +79,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.storeV onEmit {
-    if (config(recompileOnSave)) project.compiler.recompile(window, config(recompileTests), false)
+    if (config(recompileOnSave)) compile(true, false)
   })
 
   //
@@ -99,12 +100,15 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   //
   // Compile FNs
 
-  @Fn("""Initiates a compilation of the current project. Output from the compilation will be
-         displayed in a buffer named *compile:{project}*. Errors will be placed in the visit
-         list and can be navigated using `visit-next` and `visit-prev`.""")
-  def recompileProject () {
-    project.compiler.recompile(window, config(recompileTests), true)
-  }
+  @Fn("""Initiates an incremntal compilation of the current project. Output is displayed in a
+         buffer named *compile:{project}*. Errors are placed in the visit list and can be
+         navigated using `visit-next` and `visit-prev`.""")
+  def compileIncremental () :Unit = compile(true, true)
+
+  @Fn("""Initiates an full compilation of the current project. Output is displayed in a buffer
+         named *compile:{project}*. Errors are placed in the visit list and can be navigated
+         using `visit-next` and `visit-prev`.""")
+  def compileFull () :Unit = compile(false, true)
 
   @Fn("""Resets the compiler for this project. This can be useful if the compiler misbehaves,
          due perhaps to a command line compiler stomping on its files or something similar.""")
@@ -254,6 +258,11 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   private def maybeShowTestOutput (win :Window) = if (config(showOutputOnTest)) {
     win.focus.visit(tester.buffer())
     win.toFront()
+  }
+
+  private def compile (incremental :Boolean, interactive :Boolean) {
+    val cfg = Compiler.Config(config(recompileTests), incremental, interactive)
+    project.compiler.compile(window, cfg)
   }
 
   private def runTest (action :RBufferView => Unit) {
