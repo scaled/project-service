@@ -9,36 +9,8 @@ import codex.store.ProjectStore
 import java.util.Optional
 import java.util.function.Predicate
 import scaled._
-import scaled.code.CodeConfig
-import scaled.major.ReadingMode
-import scaled.util.BufferBuilder
 
 object CodexSummaryMode {
-
-  def styleFor (kind :Kind) = kind match {
-    case Kind.MODULE => Some(CodeConfig.moduleStyle)
-    case Kind.TYPE   => Some(CodeConfig.typeStyle)
-    case Kind.FUNC   => Some(CodeConfig.functionStyle)
-    case Kind.VALUE  => Some(CodeConfig.variableStyle)
-    case _           => None
-  }
-
-  def formatSig (sig :Sig, indent :String) :Seq[LineV] = {
-    var start = 0
-    sig.text.split(System.lineSeparator).mkSeq map { l =>
-      val len = l.length
-      val lb = Line.builder(indent + l)
-      for (el <- sig.uses) {
-        val off = el.offset - start
-        if (off >= 0 && off < len) styleFor(el.kind) foreach {
-          val start = indent.length+off ; val end = start+el.length
-          s => lb.withStyle(s, start, end).withTag(el, start, end)
-        }
-      }
-      start += len + System.lineSeparator.length
-      lb.build()
-    }
-  }
 
   sealed trait Target {
     def name :String
@@ -65,7 +37,7 @@ object CodexSummaryMode {
 
 @Major(name="codex-summary", tags=Array("project"),
        desc="""A major mode that displays a summary of a def and its members.""")
-class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingMode(env) {
+class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexReadingMode(env) {
   import CodexSummaryMode._
 
   val psvc = env.msvc.service[ProjectService]
@@ -79,9 +51,6 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     bind("show-docs",     "SPACE").
     bind("visit",         "v", ".").
     bind("visit-or-zoom", "ENTER");
-
-  // we use the code mode styles even though we're not a code mode
-  override def stylesheets = stylesheetURL("/code.css") :: super.stylesheets
 
   //
   // FNs
@@ -192,7 +161,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends ReadingM
     val summary :SeqV[LineV] = fmt.summary(indent, view.width()-1)
     val sig :Seq[LineV] = df.sig match {
       case sigO if (!sigO.isPresent) => Seq(Line(s"$indent<no sig: $df>"))
-      case sigO => formatSig(sigO.get, indent)
+      case sigO => CodexUtil.formatSig(sigO.get, indent)
     }
 
     // start by appending our summary and signature to the buffer
