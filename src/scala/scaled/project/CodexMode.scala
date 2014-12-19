@@ -55,6 +55,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-visit-type-member", "C-c C-k").
 
     bind("codex-describe-element",  "C-c C-d").
+    bind("codex-summarize-element", "S-C-c S-C-d").
     bind("codex-debug-element",     "C-c S-C-d").
 
     bind("codex-find-uses",         "C-c C-f").
@@ -134,6 +135,20 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   def codexDescribeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
       view.popup() = CodexUtil.mkDefPopup(env, pspace.codex.stores(project), df, loc)
+    }
+  }
+
+  @Fn("""Displays the documentation and signature for the element at the point in a separate buffer
+         (rather than in a popup). This can be useful when the docs are very long, or you wish
+         to search them, etc.""")
+  def codexSummarizeElement () {
+    onElemAt(view.point()) { (elem, loc, df) =>
+      val info = CodexUtil.summarizeDef(env, pspace.codex.stores(project), df)
+      val buf = wspace.createBuffer(s"${df.name}:${df.qualifier}",
+                                    project.bufferState("codex-info"), true)
+      buf.delete(buf.start, buf.end)
+      buf.append(info.lines)
+      frame.visit(buf)
     }
   }
 
