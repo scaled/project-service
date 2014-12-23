@@ -108,10 +108,10 @@ class Executions (pspace :ProjectSpace) {
   def executions :SeqV[Execution] = _execs
 
   /** Invokes `exec`, sending output to an appropriately named buffer in `window`. */
-  def execute (window :Window, exec :Execution) {
+  def execute (window :Window, exec :Execution, project :Project) {
     val id = exec.param("runner")
     _runners.plugins.find(_.id == id) match {
-      case Some(r) => r.execute(window, exec)
+      case Some(r) => r.execute(window, exec, project)
       case None => window.popStatus(
         s"Unable to find runner with id '$id' for execution '${exec.name}'.")
     }

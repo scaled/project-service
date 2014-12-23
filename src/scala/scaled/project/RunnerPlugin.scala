@@ -13,10 +13,12 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
   /** The string which identifies this runner. Used in exec config as: `name.runner: id`. */
   def id :String
 
-  /** Invokes `exec`, sending output to an appropriately named buffer in `window`. */
-  def execute (window :Window, exec :Execution) {
+  /** Invokes `exec`, sending output to an appropriately named buffer in `window`.
+    * @param project the active project when the execution was initiated.
+    */
+  def execute (window :Window, exec :Execution, project :Project) {
     val bufname = s"*exec:${exec.name}*"
-    val buffer = window.workspace.createBuffer(bufname, State.inits(Mode.Hint("log")), true)
+    val buffer = window.workspace.createBuffer(bufname, project.bufferState("log"), true)
     val cfg = config(exec)
     val info = Seq() ++ cfg.env.map { (k, v) => s"Env: $k = $v" } ++ Seq(
       s"Cwd: ${cfg.cwd}", s"Cmd: ${cfg.cmd.mkString(" ")}", "Output:")

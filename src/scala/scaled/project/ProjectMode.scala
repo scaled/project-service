@@ -222,10 +222,8 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     pspace.execs.visitConfig(window)
   }
 
-  @Fn("Describes the current project.")
-  def describeProject () {
-    project.visitDescription(window)
-  }
+  //
+  // Meta FNs
 
   // TODO: move this into workspace mode, have ProjectSpace participate in describe calldowns
   @Fn("Displays summary info for all projects in this workspace.")
@@ -233,6 +231,11 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     val bb = new BufferBuilder(view.width()-1)
     pspace.describeSelf(bb)
     window.focus.visit(bb.applyTo(project.createBuffer(s"*${wspace.name}:projects*", "help")))
+  }
+
+  @Fn("Describes the current project.")
+  def describeProject () {
+    project.visitDescription(window)
   }
 
   @Fn("Adds the current project to the current workspace.")
@@ -271,7 +274,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   }
 
   private def execute (exec :Execution) {
-    pspace.execs.execute(window, exec)
+    pspace.execs.execute(window, exec, project)
     // track our last execution in the workspace state
     wspace.state[Execution]() = exec
   }
