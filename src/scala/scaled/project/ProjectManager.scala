@@ -68,7 +68,8 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
       val root = paths.last ; val file = root.getFileName.toString
       val clazz = if ((file endsWith ".zip") || (file endsWith ".jar")) classOf[ZipFileProject]
                   else classOf[FileProject]
-      Project.Seed(Project.Root(root, false), "file", false, clazz, List(root))
+      val proot = Project.Root(root, false)
+      Project.Seed(proot, "file", false, clazz, List(proot))
     }
   }
 
