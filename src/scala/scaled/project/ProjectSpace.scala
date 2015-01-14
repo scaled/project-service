@@ -10,6 +10,7 @@ import java.util.HashMap
 import java.util.stream.Collectors
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
+import scaled.major.TextConfig
 import scaled.util.{BufferBuilder, Errors}
 
 /** Manages the projects in a workspace. */
@@ -83,11 +84,25 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     bb.addSubHeader(s"Workspace Projects")
     val allps = allProjects
     if (allps.isEmpty) bb.add("<none>")
-    else bb.addKeysValues(allps.map(p => (s"${p._2} ", p._1.toString)).sorted)
+    else {
+      val width = (0 /: allps)((m, p) => math.max(m, p._2.length))
+      def pad (name :String) = name + (" " * (width-name.length))
+      allps.sortBy(_._2) foreach { case (root, name) =>
+        val key = pad(name)
+        val lb = Line.builder(s"$key ${root.toString}").
+          withLineTag(Visit.Tag(new Visit() {
+            protected def go (window :Window) = projectIn(root).visitDescription(window)
+          })).
+          withStyle(TextConfig.prefixStyle, 0, key.length)
+        bb.add(lb.build())
+      }
+    }
 
     bb.addSubHeader("Loaded Projects")
     for (p <- loadedProjects) {
-      bb.addSection(p.name)
+      bb.addSection(Line.builder(p.name).withLineTag(Visit.Tag(new Visit() {
+        protected def go (window :Window) = p.visitDescription(window)
+      })))
       bb.addKeysValues("Kind: " -> p.getClass.getName,
                        "Root: " -> p.root.toString(),
                        "Ids: "  -> p.ids.mkString(" "),
