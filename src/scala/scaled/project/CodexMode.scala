@@ -50,7 +50,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-summarize-type",     "C-c C-s C-t").
     bind("codex-summarize-encloser", "C-c C-z").
 
-    bind("codex-import-type",       "C-c C-i"). // TODO: this should be in Java/Scala mode
     bind("codex-summarize-type",    "C-c C-j").
     bind("codex-visit-type-member", "C-c C-k").
 
@@ -261,11 +260,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     onElemAt(view.point())((_, _, df) => codex.visit(window, view, df))
   }
 
-  @Fn("Queries for a type (completed by the project's Codex) and adds an import for it.")
-  def codexImportType () {
-    codexRead("Type:", Kind.TYPE)(insertImport)
-  }
-
   @Fn("Initiates a reindexing of the current project.")
   def codexReindexProject () {
     project.store.reindex()
@@ -283,66 +277,4 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
 
   // TODO: codexReindexWorkspace?
-
-  //
-  // Implementation details
-
-  // TODO: this should be in java-mode and/or scala-mode...
-  private val importM = Matcher.regexp("^import ")
-  private val packageM = Matcher.regexp("^package ")
-  private val firstDefM = Matcher.regexp("(class|interface|object|trait)")
-  private def insertImport (df :Def) {
-    val suff = if (major.name == "scala") "" else ";"
-    val fqName = df.fqName
-    val text = s"import $fqName$suff"
-
-    // first figure out where we're going to stop looking
-    val firstDef = buffer.findForward(firstDefM, buffer.start) match {
-      case Loc.None => buffer.end
-      case loc => loc
-    }
-
-    // TODO: handle fancy scala grouped imports...
-
-    // look for an existing "import " statement in the buffer and scan down from there to find the
-    // position at which to insert the new statement
-    def loop (prev :Loc) :Loc = {
-      val next = buffer.findForward(importM, prev.nextStart, firstDef)
-      // if we see no more import statements...
-      if (next == Loc.None) {
-        // if we saw at least one import statement, then insert after the last one we saw
-        if (prev != buffer.start) prev.nextStart
-        // otherwise fail the search and fall back to inserting after 'package'
-        else Loc.None
-      }
-      else {
-        val ltext = buffer.line(next).asString
-        // if we have this exact import, abort (we'll catch and report this below)
-        if (ltext == text) throw new IllegalStateException(s"$fqName already imported.")
-        // if our import sorts earlier than this import, insert here
-          else if (text < ltext) next
-        // otherwise check the next import statement
-          else loop(next)
-      }
-    }
-    try {
-      val (loc, lines) = loop(buffer.start) match {
-        // if we failed to find existing import statements, look for a package statement
-        case Loc.None => buffer.findForward(packageM, buffer.start, firstDef) match {
-          case Loc.None =>
-            // fuck's sake, put the import at the top of the file (with a blank line after)
-            (buffer.start, List(text, "", ""))
-          case loc =>
-            // insert a blank line after 'package' and then our import
-            (loc.nextStart, List("", text, ""))
-        }
-        case loc =>
-        // put the import at the specified location
-        (loc, List(text, ""))
-      }
-      buffer.insert(loc, lines map (Line.apply))
-    } catch {
-      case ie :IllegalStateException => window.popStatus(ie.getMessage)
-    }
-  }
 }
