@@ -166,9 +166,12 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     try runTestAtPoint()
     catch {
       case fe :Errors.FeedbackException =>
+        window.emitStatus(fe.getMessage)
         try runFileTests()
         catch {
-          case fe :Errors.FeedbackException => runAllTests()
+          case fe :Errors.FeedbackException =>
+            window.emitStatus(fe.getMessage)
+            runAllTests()
         }
     }
   }
