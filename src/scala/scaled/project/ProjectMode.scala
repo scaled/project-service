@@ -262,8 +262,13 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
   private def maybeShowTestOutput (win :Window) = if (config(showOutputOnTest)) {
-    win.focus.visit(tester.buffer())
-    win.toFront()
+    val tbuf = tester.buffer()
+    // if our buffer is already in a frame, just to-front its window, otherwise display it in the
+    // current window's focus
+    win.workspace.windowForBuffer(tbuf) match {
+      case Some(twin) => println(s"found $twin") ; twin.toFront()
+      case None       => println(s"nope $win") ; win.focus.visit(tbuf) ; win.toFront()
+    }
   }
 
   private def compile (incremental :Boolean, interactive :Boolean) {

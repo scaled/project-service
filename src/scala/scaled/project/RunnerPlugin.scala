@@ -27,7 +27,7 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
     SubProcess(cfg, pspace.msvc.exec, buffer)
     // TODO: associate the subprocess with the buffer, kill the subprocess (if it's still alive)
     // when the buffer is killed?
-    window.focus.visit(buffer)
+    (window.workspace.frameForBuffer(buffer) || window.focus).visit(buffer)
   }
 
   /** Returns text describing one or more example executions. These should be in comments prefixed
