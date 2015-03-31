@@ -212,18 +212,22 @@ abstract class Project (val pspace :ProjectSpace) {
 
     if (!sourceDirs.isEmpty) {
       bb.addSubHeader("Build Info")
-      bb.addSection("Source dirs:")
-      bb.addKeysValues("compile: " -> sourceDirs.mkString(" "))
-      val srcsum = summarizeSources
-      if (!srcsum.isEmpty) {
-        bb.addSection("Source files:")
-        bb.addKeysValues(srcsum.map((suff, srcs) => (s".$suff: ", srcs.size.toString)))
-      }
+      describeBuild(bb)
     }
 
     // add info on our helpers
     store.describeSelf(bb)
     compiler.describeSelf(bb)
+  }
+
+  protected def describeBuild (bb :BufferBuilder) {
+    bb.addSection("Source dirs:")
+    bb.addKeysValues("compile: " -> sourceDirs.mkString(" "))
+    val srcsum = summarizeSources
+    if (!srcsum.isEmpty) {
+      bb.addSection("Source files:")
+      bb.addKeysValues(srcsum.map((suff, srcs) => (s".$suff: ", srcs.size.toString)))
+    }
   }
 
   /** Instructs the project to update its status info. This is generally called by project helpers
