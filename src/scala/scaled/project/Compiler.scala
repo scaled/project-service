@@ -59,6 +59,9 @@ object Compiler {
 abstract class Compiler (project :Project) extends AutoCloseable {
   import Compiler._
 
+  /** The current set of compiler errors, if any. */
+  val errors = OptValue[Visit.List]()
+
   /** Appends compiler status to our modeline status string and tooltip.
     * @param sb the builder for the status line
     * @param tb the builder for the tooltip */
@@ -96,11 +99,11 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       unfold(buf.start)
 
       val errs = ebuf.build()
-      window.visits() = new Visit.List("compile error", errs)
       _status() = errs.size match {
         case 0 => NoErrors
         case n => Errors(n)
       }
+      errors() = Visit.List("compile error", errs)
 
       val duration = System.currentTimeMillis - start
       val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"

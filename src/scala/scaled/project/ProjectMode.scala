@@ -82,6 +82,23 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     if (config(recompileOnSave)) compile(true, false)
   })
 
+  // when new compiler errors are generated, always stuff them into the visit list
+  note(project.compiler.errors onValue updateErrors(true))
+  // but when we first visit this buffer, only stuff them into the visit list if we're not already
+  // visiting some other list (or already this project's errors)
+  updateErrors(false)(project.compiler.errors.getOption)
+
+  private def updateErrors (force :Boolean)(errsOpt :Option[Visit.List]) = errsOpt match {
+    case None => // nada
+    case Some(errs) =>
+      // only switch to our project's errors if we're not currently visiting something else
+      val (thing, visits) = window.visits match {
+        case OptValue(list) => (list.thing, list.visits)
+        case _              => (errs.thing, Seq())
+      }
+      if (force || (thing == errs.thing && (visits ne errs.visits))) window.visits() = errs
+  }
+
   //
   // General FNs
 
