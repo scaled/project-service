@@ -103,7 +103,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
         case 0 => NoErrors
         case n => Errors(n)
       }
-      errors() = Visit.List("compile error", errs)
+      errors() = new Visit.List("compile error", errs)
 
       val duration = System.currentTimeMillis - start
       val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
