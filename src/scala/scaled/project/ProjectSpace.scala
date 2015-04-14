@@ -48,14 +48,22 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   /** Returns `(root, name)` for all projects in this workspace. */
   def allProjects :Seq[(Root,String)] = pdb.toInfo.values.map(_.rootName).toSeq
 
-  /** Resolves (if necessary) and returns the project which is rooted at `root`. */
-  def projectIn (root :Root) :Project = projectInRoot(root) getOrElse {
+  /** Resolves (if necessary) and returns the project which is rooted at `root`.
+    * @throws FeedbackException if the project in `root` has disappeared. */
+  def reqProjectIn (root :Root) :Project = projectIn(root) getOrElse {
     throw Errors.feedback(s"No project in $root")
   }
 
+  /** Resolves (if necessary) and returns the project which is rooted at `root`.
+    * Returns `None` if the project in `root` has disappeared. */
+  def projectIn (root :Root) :Option[Project] =
+    // the root passed here may have disappeared in the fullness of time, so validate it
+    if (root == null || !Files.exists(root.path)) None
+    else Option(projects.get(root)) orElse Some(resolveByPaths(List(root.path)))
+
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    Option(pdb.byId.get(id)).flatMap(projectInRoot) orElse psvc.resolveById(id).map(projectFromSeed)
+    Option(pdb.byId.get(id)).flatMap(projectIn) orElse psvc.resolveById(id).map(projectFromSeed)
 
   /** Hatches the project defined by `seed`. */
   def projectFromSeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
@@ -91,7 +99,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
         val key = pad(name)
         val lb = Line.builder(s"$key ${root.toString}").
           withLineTag(Visit.Tag(new Visit() {
-            protected def go (window :Window) = projectIn(root).visitDescription(window)
+            protected def go (window :Window) = reqProjectIn(root).visitDescription(window)
           })).
           withStyle(TextConfig.prefixStyle, 0, key.length)
         bb.add(lb.build())
@@ -139,11 +147,6 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     codex.close()
     wspace.state[ProjectSpace].clear()
   }
-
-  private def projectInRoot (root :Root) =
-    // the root passed here may have disappeared in the fullness of time, so validate it
-    if (root == null || !Files.exists(root.path)) None
-    else Option(projects.get(root)) orElse Some(resolveByPaths(List(root.path)))
 
   private def resolveByPaths (paths :List[Path]) :Project =
     projectFromSeed(psvc.resolveByPaths(paths))

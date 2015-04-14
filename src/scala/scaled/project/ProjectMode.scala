@@ -110,7 +110,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   def findFileOtherProject () {
     val pcomp = Completer.from(pspace.allProjects)(_._2)
     window.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
-      findFileIn(pspace.projectIn(pt._1))
+      findFileIn(pspace.reqProjectIn(pt._1))
     }
   }
 

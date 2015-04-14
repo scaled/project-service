@@ -77,7 +77,7 @@ class PSpaceCodex (pspace :ProjectSpace) extends AutoCloseable {
     // the underlying projects...
     val stores = new LinkedHashSet[ProjectStore]()
     stores.add(project.store)
-    pspace.allProjects map(_._1) map(pspace.projectIn) foreach { proj =>
+    pspace.allProjects map(_._1) flatMap(pspace.projectIn) foreach { proj =>
       if (proj != project) stores.add(proj.store)
     }
     for (dep <- project.depends) project.depend(dep) match {
