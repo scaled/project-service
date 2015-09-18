@@ -305,7 +305,11 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   private def execute (exec :Execution) {
     case class ExecWindow (window :Window)
     // figure out which window to use for our execution
-    val execwin = wspace.state[ExecWindow].getOption getOrElse ExecWindow(maybeCreateExecWindow)
+    val execwin = wspace.state[ExecWindow].getOption getOrElse {
+      val win = maybeCreateExecWindow
+      win.onClose.onEmit { wspace.state[ExecWindow].clear() }
+      ExecWindow(win)
+    }
     pspace.execs.execute(execwin.window, exec, project)
     // track our last execution data in the workspace state
     wspace.state[Execution]() = exec
