@@ -23,6 +23,10 @@ object ProjectConfig extends Config.Defs {
 
   @Var("If true, the test output buffer will be shown when tests are run interactively.")
   val showOutputOnTest = key(false)
+
+  @Var("""If non-empty, the geometry of a window to open the first time an execution is performed.
+          Output will be shown in this window. Geometry is of the form 'WxH+X+Y'.""")
+  var execWindowGeom = key("")
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -299,8 +303,20 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   }
 
   private def execute (exec :Execution) {
-    pspace.execs.execute(window, exec, project)
-    // track our last execution in the workspace state
+    case class ExecWindow (window :Window)
+    // figure out which window to use for our execution
+    val execwin = wspace.state[ExecWindow].getOption getOrElse ExecWindow(maybeCreateExecWindow)
+    pspace.execs.execute(execwin.window, exec, project)
+    // track our last execution data in the workspace state
     wspace.state[Execution]() = exec
+    wspace.state[ExecWindow]() = execwin
+  }
+
+  private def maybeCreateExecWindow = Geometry.apply(config(execWindowGeom)) match {
+    case None            => window // use the default window
+    case sg @ Some(geom) => // create a new window with this geometry
+      val win = wspace.openWindow(sg)
+      win.focus.visit(buffer)
+      win
   }
 }
