@@ -30,7 +30,8 @@ object CodexSummaryMode {
 
   private def visit (win :Window, tgt :Target) {
     val buf = win.workspace.createBuffer(
-      tgt.name, tgt.project.bufferState("codex-summary", tgt), true)
+      Store.scratch(tgt.name, tgt.project.root.path),
+      tgt.project.bufferState("codex-summary", tgt), true)
     win.focus.visit(buf)
   }
 }

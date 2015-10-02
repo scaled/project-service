@@ -168,8 +168,8 @@ abstract class Project (val pspace :ProjectSpace) {
   /** Creates a simple buffer configured to be part of this project. A buffer with the same name
     * will be reused. This is useful for incidental buffers related to the project like compiler
     * output, test output, etc. */
-  def createBuffer (name :String, mode :String) :Buffer =
-    pspace.wspace.createBuffer(name, bufferState(mode), true)
+  def createBuffer (name :String, mode :String, args :Any*) :Buffer =
+    pspace.wspace.createBuffer(Store.scratch(name, root.path), bufferState(mode, args :_*), true)
 
   /** Visits a buffer containing a description of this project. */
   def visitDescription (window :Window) {

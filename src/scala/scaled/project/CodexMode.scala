@@ -143,8 +143,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   def codexSummarizeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
       val info = CodexUtil.summarizeDef(env, pspace.codex.stores(project), df)
-      val buf = wspace.createBuffer(s"${df.name}:${df.qualifier}",
-                                    project.bufferState("codex-info"), true)
+      val buf = project.createBuffer(s"${df.name}:${df.qualifier}", "codex-info")
       buf.delete(buf.start, buf.end)
       buf.append(info.lines)
       frame.visit(buf)
@@ -197,8 +196,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("Displays all uses of the element at the point in a separate buffer.")
   def codexFindUses () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      val state = project.bufferState("codex-find-uses", df)
-      window.focus.visit(wspace.createBuffer(s"*codex: ${df.name}*", state))
+      window.focus.visit(project.createBuffer(s"*codex: ${df.name}*", "codex-find-uses", df))
     }
   }
 
