@@ -162,7 +162,6 @@ abstract class Project (val pspace :ProjectSpace) {
     * configured to be a part of this project. */
   def bufferState (mode :String, args :Any*) :List[State.Init[_]] = List(
     State.init(Mode.Hint(mode, args :_*)),
-    State.init(Mode.Tags("project")),
     State.init(classOf[Project], this))
 
   /** Creates a simple buffer configured to be part of this project. A buffer with the same name
