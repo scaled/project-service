@@ -2,6 +2,7 @@
 #
 # Builds and tests (for travis-ci.org)
 
+set -e
 wget https://raw.githubusercontent.com/scaled/pacman/master/bin/build-test.sh
 
 # build and test a bunch of project-related packages
