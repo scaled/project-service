@@ -5,11 +5,12 @@
 wget https://raw.githubusercontent.com/scaled/pacman/master/bin/build-test.sh
 
 # build and test a bunch of project-related packages
-GITROOT=git:https://github.com/scaled/
-sh build-test.sh $GITROOT/project-service.git
-sh build-test.sh $GITROOT/java-project.git
-sh build-test.sh $GITROOT/scala-project.git
-sh build-test.sh $GITROOT/maven-project.git
-sh build-test.sh $GITROOT/sbt-project.git
+GITROOT=git:https://github.com/scaled
+sh build-test.sh \
+  $GITROOT/project-service.git \
+  $GITROOT/java-project.git \
+  $GITROOT/scala-project.git \
+  $GITROOT/maven-project.git \
+  $GITROOT/sbt-project.git
 
 rm build-test.sh
