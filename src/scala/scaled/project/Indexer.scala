@@ -8,6 +8,7 @@ import codex.extract.{Extractor, SourceSet, TextWriter, Writer}
 import codex.model.Source
 import java.nio.file.{Path, Paths}
 import scaled._
+import scaled.util.Errors
 
 /** Handles indexing source files, for Codex. */
 class Indexer (val pspace :ProjectSpace) {
@@ -39,6 +40,7 @@ class Indexer (val pspace :ProjectSpace) {
 
   /** Performs a debug reindex of store, writing the output to stdout. */
   def debugReindex (project :Project, store :Store) {
+    if (System.console == null) throw Errors.feedback("No console, can't emit debug output.")
     val source = PSpaceCodex.toSource(store)
     extractor(project, source.fileExt) foreach { ex =>
       ex.process(SourceSet.create(source), new TextWriter(System.console.writer))
@@ -54,6 +56,7 @@ class Indexer (val pspace :ProjectSpace) {
         project.pspace.wspace.statusMsg.emit(
           s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         ex.process(srcs, project.store.writer)
+        project.pspace.wspace.statusMsg.emit(s"Reindex of ${project.name} $suff files complete.")
       }
     }
   }
