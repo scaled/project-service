@@ -87,7 +87,9 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
     def showDocs () {}
     override def key :Any = classOf[Info]
   }
-  private val NoInfo = new Info()
+  private val NoInfo = new Info() {
+    override def toString = "NoInfo"
+  }
 
   private def act (p :Loc, fn :Info => Unit) = fn(buffer.line(p).lineTag(NoInfo))
 
@@ -179,6 +181,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
         case _ => visit()
       }
       override def showDocs () = view.popup() = CodexUtil.mkDefPopup(env, stores, df, end)
+      override def toString = "Def($df)"
     }
     while (loc < end) { buffer.setLineTag(loc, info) ; loc = loc.nextL }
   }
