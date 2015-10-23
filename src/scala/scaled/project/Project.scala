@@ -174,6 +174,12 @@ abstract class Project (val pspace :ProjectSpace) {
     * (compiler output, test output, etc.). */
   def logBuffer :Buffer = createBuffer(s"*$name:log*", "log")
 
+  /** Appends `msg` to this project's [[logBuffer]]. This method can be called from any thread, but
+    * is a bit expensive. Append to [[logBuffer]] yourself if you have a lot of logging to do and
+    * know you're on the UI thread. */
+  def log (msg :String) :Unit = pspace.wspace.editor.exec.runOnUI(
+    logBuffer.append(Line.fromTextNL(msg)))
+
   /** Visits a buffer containing a description of this project. */
   def visitDescription (window :Window) {
     val buf = createBuffer(s"*project:${name}*", "help")

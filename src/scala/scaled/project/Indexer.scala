@@ -53,10 +53,9 @@ class Indexer (val pspace :ProjectSpace) {
     project.store.clear()
     sums foreach { (suff, srcs) =>
       extractor(project, suff) foreach { ex =>
-        project.pspace.wspace.statusMsg.emit(
-          s"Reindexing ${srcs.size} $suff files in ${project.name}...")
+        project.log(s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         ex.process(srcs, project.store.writer)
-        project.pspace.wspace.statusMsg.emit(s"Reindex of ${project.name} $suff files complete.")
+        project.log(s"Reindex of ${project.name} $suff files complete.")
       }
     }
   }
@@ -65,7 +64,7 @@ class Indexer (val pspace :ProjectSpace) {
   protected def reindex (project :Project, source :Source, force :Boolean) {
     if (force || source.lastModified > project.store.lastIndexed(source)) {
       extractor(project, source.fileExt) foreach { ex =>
-        println(s"Reindexing: $source")
+        project.log(s"Reindexing: $source")
         ex.process(SourceSet.create(source), project.store.writer)
       }
     } // else println(s"Source up to date: $source")
