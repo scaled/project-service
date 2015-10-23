@@ -87,7 +87,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
   def compile (window :Window, config :Config) {
     val buf = buffer()
     val start = System.currentTimeMillis
-    buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compilation started at ${new Date}..."))
+    buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
     _status() = Compiling
     compile(buf, config.incremental).onFailure(window.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
