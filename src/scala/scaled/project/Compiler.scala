@@ -77,15 +77,12 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     bb.addKeyValue("Status: ", _status().toString)
   }
 
-  /** Returns the buffer in which we record compiler output. It will be created if needed. */
-  def buffer () :Buffer = project.createBuffer(s"*compile:${project.name}*", "log")
-
   /** Initiates a compilation of this project's source code, if supported.
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
     */
   def compile (window :Window, config :Config) {
-    val buf = buffer()
+    val buf = project.logBuffer
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
     _status() = Compiling

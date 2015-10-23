@@ -170,6 +170,10 @@ abstract class Project (val pspace :ProjectSpace) {
   def createBuffer (name :String, mode :String, args :Any*) :Buffer =
     pspace.wspace.createBuffer(Store.scratch(name, root.path), bufferState(mode, args :_*), true)
 
+  /** Returns a buffer to which incidental log output relating to this project can be sent
+    * (compiler output, test output, etc.). */
+  def logBuffer :Buffer = createBuffer(s"*$name:log*", "log")
+
   /** Visits a buffer containing a description of this project. */
   def visitDescription (window :Window) {
     val buf = createBuffer(s"*project:${name}*", "help")

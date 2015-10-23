@@ -15,9 +15,6 @@ abstract class Tester (project :Project) extends AutoCloseable {
   /** A value used to capture (and reinvoke) the most recent test invocation. */
   val lastTest = OptValue[RBufferView => Unit]()
 
-  /** Returns the buffer in which we record test output. It will be created if needed. */
-  def buffer () :Buffer = project.createBuffer(s"*test:${project.name}*", "log" /*project-test*/)
-
   /** Frees any resources maintained by this instance. */
   def close () {} // nada by default
 

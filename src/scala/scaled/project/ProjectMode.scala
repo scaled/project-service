@@ -139,7 +139,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   @Fn("Displays the buffer that contains compiler output for this project.")
   def showCompilerOutput () {
-    frame.visit(project.compiler.buffer())
+    frame.visit(project.logBuffer)
   }
 
   //
@@ -175,7 +175,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
       runTest { view =>
         project.tester.runTest(window, bufferFile, tfunc).onSuccess { _ =>
           // display the test output as a popup over the point
-          view.popup() = Popup(tester.buffer().lines, Popup.UpRight(view.point()), true, false)
+          view.popup() = Popup(project.logBuffer.lines, Popup.UpRight(view.point()), true, false)
         }
       }
     }
@@ -219,7 +219,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   @Fn("Displays the buffer that contains test output for this project.")
   def showTestOutput () {
-    window.focus.visit(tester.buffer())
+    window.focus.visit(project.logBuffer)
   }
 
   //
@@ -283,7 +283,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
   private def maybeShowTestOutput (win :Window) = if (config(showOutputOnTest)) {
-    val tbuf = tester.buffer()
+    val tbuf = project.logBuffer
     // if our buffer is already in a frame, just to-front its window, otherwise display it in the
     // current window's focus
     win.workspace.windowForBuffer(tbuf) match {
