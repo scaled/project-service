@@ -98,6 +98,18 @@ object Project {
     throw new IllegalStateException(s"No project configured in buffer: '$buffer'")
   }
 
+  /** Applies `op` to all files in the directory trees rooted at `dirs`. */
+  def onFiles (dirs :Seq[Path], op :Path => Unit) :Unit =
+    dirs.filter(Files.exists(_)) foreach { dir =>
+      // TODO: should we be following symlinks? likely so...
+      Files.walkFileTree(dir, new SimpleFileVisitor[Path]() {
+        override def visitFile (file :Path, attrs :BasicFileAttributes) = {
+          if (!attrs.isDirectory) op(file)
+          FileVisitResult.CONTINUE
+        }
+      })
+    }
+
   // separate Id components by VT; they will be embedded in strings that are themselves separated by
   // HT, so we want to play nicely with that
   private final val Sep = 11.toChar
@@ -283,28 +295,11 @@ abstract class Project (val pspace :ProjectSpace) {
 
   /** Applies `op` to all files in this project. The default implementation applies `op` to all
     * files in [[root]] directory and its subdirectories. Subclasses may refine this result. */
-  def onFiles (op :Path => Unit) {
-    Files.walkFileTree(root.path, new SimpleFileVisitor[Path]() {
-      override def visitFile (file :Path, attrs :BasicFileAttributes) = {
-        if (!Files.isDirectory(file)) op(file)
-        FileVisitResult.CONTINUE
-      }
-    })
-  }
+  def onFiles (op :Path => Unit) :Unit = Project.onFiles(Seq(root.path), op)
 
   /** Applies `op` to all source files in this project.
     * @param forTest if true `op` is applied to the test sources, if false the main sources. */
-  def onSources (op :Path => Unit) {
-    sourceDirs.filter(Files.exists(_)) foreach { dir =>
-      // TODO: should we be following symlinks? likely so...
-      Files.walkFileTree(dir, new SimpleFileVisitor[Path]() {
-        override def visitFile (file :Path, attrs :BasicFileAttributes) = {
-          if (!attrs.isDirectory) op(file)
-          FileVisitResult.CONTINUE
-        }
-      })
-    }
-  }
+  def onSources (op :Path => Unit) :Unit = Project.onFiles(sourceDirs, op)
 
   /** Returns a map of all source files in this project, grouped by file suffix. */
   def summarizeSources :Map[String,SourceSet] = {
