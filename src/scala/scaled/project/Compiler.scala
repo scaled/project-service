@@ -42,9 +42,13 @@ object Compiler {
   case class Config (tests :Boolean, incremental :Boolean, interactive :Boolean)
 
   /** Creates a [[Visit]] for the supplied compiler error. */
-  def errorVisit (path :String, loc :Loc, descrip :Seq[String]) :Visit = new Visit() {
+  def errorVisit (path :String, loc :Loc, descrip :Seq[String]) :Visit =
+    errorVisit(Store(path), loc, descrip)
+
+  /** Creates a [[Visit]] for the supplied compiler error. */
+  def errorVisit (file :Store, loc :Loc, descrip :Seq[String]) :Visit = new Visit() {
     override protected def go (window :Window) = {
-      val view = window.focus.visitFile(Store(path))
+      val view = window.focus.visitFile(file)
       view.point() = loc
       // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
       // its position up or down, left or right to fit yet still point to loc
