@@ -121,8 +121,8 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       // report feedback to the user if this was requested interactively
       if (config.interactive) {
         val result = if (success) "succeeded" else "failed"
-        val msg = s"Compilation $result: ${errs.size} error(s), ${warns.size} warning(s)."
-        window.emitStatus(msg)
+        window.emitStatus(s"${project.name} compile $result: " +
+          s"${errs.size} error(s), ${warns.size} warning(s).")
       }
 
       if (success && config.tests) {
