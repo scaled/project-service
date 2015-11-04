@@ -48,9 +48,17 @@ object Compiler {
     override protected def go (window :Window) = {
       val view = window.focus.visitFile(file)
       view.point() = loc
-      // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
-      // its position up or down, left or right to fit yet still point to loc
-      val pop = Popup.text(descrip, Popup.UpRight(loc))
+      val maxWidth = view.width()-2
+      val wrapped = if (!descrip.exists(_.length > maxWidth)) descrip
+      else {
+        val wbuf = Seq.builder[String]
+        for (line <- descrip) {
+          if (line.length <= maxWidth) wbuf += line
+          else for (seg <- line.grouped(maxWidth)) wbuf += seg
+        }
+        wbuf.build
+      }
+      val pop = Popup.text(wrapped, Popup.UpRight(loc))
       view.showPopup(if (isError) pop.toError else pop)
     }
   }
