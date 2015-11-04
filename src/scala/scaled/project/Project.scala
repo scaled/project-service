@@ -233,7 +233,7 @@ abstract class Project (val pspace :ProjectSpace) {
 
     if (!sourceDirs.isEmpty) {
       bb.addSubHeader("Build Info")
-      describeBuild(bb)
+      describeBuild(bb, summarizeSources)
     }
 
     // add info on our helpers
@@ -241,13 +241,14 @@ abstract class Project (val pspace :ProjectSpace) {
     compiler.describeSelf(bb)
   }
 
-  protected def describeBuild (bb :BufferBuilder) {
+  protected def describeBuild (bb :BufferBuilder, srcsum :Map[String,SourceSet]) {
     bb.addSection("Source dirs:")
     bb.addKeysValues("compile: " -> sourceDirs.mkString(" "))
-    val srcsum = summarizeSources
     if (!srcsum.isEmpty) {
       bb.addSection("Source files:")
       bb.addKeysValues(srcsum.map((suff, srcs) => (s".$suff: ", srcs.size.toString)))
+      bb.addSection("Compiler options:")
+      compiler.describeOptions(bb)
     }
   }
 
@@ -381,8 +382,8 @@ abstract class Project (val pspace :ProjectSpace) {
     override def compile (window :Window, config :Compiler.Config) {
       if (config.interactive) window.emitStatus("Compilation is not supported by this project.")
     }
-    override protected def compile (buffer :Buffer, incr :Boolean) = Future.success(true)
-    override protected def nextError (buffer :Buffer, start :Loc) = None
+    override protected def compile (buffer :Buffer, file :Option[Path]) = Future.success(true)
+    override protected def nextNote (buffer :Buffer, start :Loc) = Compiler.NoMoreNotes
   }
 
   protected def createTester () :Tester = new NoopTester()

@@ -4,6 +4,7 @@
 
 package scaled.project
 
+import java.nio.file.{Path, Paths}
 import java.util.Date
 import scala.annotation.tailrec
 import scaled._
@@ -24,37 +25,38 @@ object Compiler {
   object Compiling extends Status("\u231B") { // hourglass
     override def toString = "project is currently compiling"
   }
-  object NoErrors extends Status("\u263A") { // smiley
-    override def toString = "project has no compile errors"
+  object NoProblems extends Status("\u263A") { // smiley
+    override def toString = "project has no compile errors or warnings"
   }
-  case class Errors (count :Int) extends Status("\u2639") { // frownz!
-    override def indicator = s" $glyph $count"
-    override def toString = s"project has $count compile error(s)"
+  case class Problems (errors :Int, warnings :Int) extends Status("\u2639") { // frownz!
+    override def indicator = s" e$errors w$warnings"
+    override def toString = s"project has $errors error(s) and $warnings warning(s)"
   }
 
   /** Configures a compile. See [[Compiler.compile]].
     * @param tests if true, the tests companion project will be compiled if this compilation
     * succeeds.
-    * @param incremental if true, do an incremental compile, otherwise do a full compile.
     * @param interactive whether the compile was initiated interactively; controls feedback
     * reporting.
+    * @param file the source file that triggered this compile by being saved, if any, which will
+    * result in an incremental recompile, or `None` for a full recompile.
     */
-  case class Config (tests :Boolean, incremental :Boolean, interactive :Boolean)
+  case class Config (tests :Boolean, interactive :Boolean, file :Option[Path])
 
-  /** Creates a [[Visit]] for the supplied compiler error. */
-  def errorVisit (path :String, loc :Loc, descrip :Seq[String]) :Visit =
-    errorVisit(Store(path), loc, descrip)
-
-  /** Creates a [[Visit]] for the supplied compiler error. */
-  def errorVisit (file :Store, loc :Loc, descrip :Seq[String]) :Visit = new Visit() {
+  /** Encapsulates a compiler warning or error. */
+  case class Note (file :Store, loc :Loc, descrip :Seq[String], isError :Boolean) extends Visit {
     override protected def go (window :Window) = {
       val view = window.focus.visitFile(file)
       view.point() = loc
       // TODO: use different kind of popup that has an arrow pointing to loc and otherwise adjust
       // its position up or down, left or right to fit yet still point to loc
-      view.showPopup(Popup.text(descrip, Popup.UpRight(loc)).toError)
+      val pop = Popup.text(descrip, Popup.UpRight(loc))
+      view.showPopup(if (isError) pop.toError else pop)
     }
   }
+
+  /** A sentinel tuple instance indicating that note parsing is done. */
+  val NoMoreNotes = (null :Note, Loc.Zero)
 }
 
 /** Provides an interface whereby project mode can initiate project compilation and display
@@ -62,6 +64,9 @@ object Compiler {
   */
 abstract class Compiler (project :Project) extends AutoCloseable {
   import Compiler._
+
+  /** The current set of compiler warnings, if any. */
+  val warnings = OptValue[Visit.List]()
 
   /** The current set of compiler errors, if any. */
   val errors = OptValue[Visit.List]()
@@ -81,6 +86,11 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     bb.addKeyValue("Status: ", _status().toString)
   }
 
+  /** Adds info on compiler options to the project info buffer. */
+  def describeOptions (bb :BufferBuilder) {
+    // nothing by default
+  }
+
   /** Initiates a compilation of this project's source code, if supported.
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
@@ -90,21 +100,20 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
     _status() = Compiling
-    compile(buf, config.incremental).onFailure(window.emitError).onSuccess { success =>
+    compile(buf, config.file).onFailure(window.emitError).onSuccess { success =>
       // scan the results buffer for compiler errors
-      val ebuf = Seq.builder[Visit]
-      @inline @tailrec def unfold (loc :Loc) :Unit = nextError(buf, loc) match {
-        case Some((err, next)) => ebuf += err ; unfold(next)
-        case None => // done!
+      val wbuf = Seq.builder[Note]
+      val ebuf = Seq.builder[Note]
+      @inline @tailrec def unfold (loc :Loc) :Unit = nextNote(buf, loc) match {
+        case NoMoreNotes  => // done!
+        case (note, next) => (if (note.isError) ebuf else wbuf) += note ; unfold(next)
       }
       unfold(buf.start)
 
-      val errs = ebuf.build()
-      _status() = errs.size match {
-        case 0 => NoErrors
-        case n => Errors(n)
-      }
-      errors() = new Visit.List("compile error", errs)
+      val warns = wbuf.build() ; val errs  = ebuf.build()
+      _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
+      warnings() = new Visit.List("compile warning", warns)
+      errors()   = new Visit.List("compile error", errs)
 
       val duration = System.currentTimeMillis - start
       val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
@@ -112,7 +121,7 @@ abstract class Compiler (project :Project) extends AutoCloseable {
       // report feedback to the user if this was requested interactively
       if (config.interactive) {
         val result = if (success) "succeeded" else "failed"
-        val msg = s"Compilation $result with ${errs.size} error(s)."
+        val msg = s"Compilation $result: ${errs.size} error(s), ${warns.size} warning(s)."
         window.emitStatus(msg)
       }
 
@@ -138,17 +147,15 @@ abstract class Compiler (project :Project) extends AutoCloseable {
     * and release any resources retained by this instance. */
   def close () {} // nada by default
 
-  /** Initiates a compilation, sends output to `buffer`, returns a future that indicates compilation
-    * success or failure. */
-  protected def compile (buffer :Buffer, incremental :Boolean) :Future[Boolean]
+  /** Initiates a compilation, sends output to `buffer`.
+    * @param file the file that triggered this compile on save, or `None` for full recompile.
+    * @return a future that indicates compilation success or failure. */
+  protected def compile (buffer :Buffer, file :Option[Path]) :Future[Boolean]
 
-  /** Scans `buffer` from `start` to find the next error.
-    *
-    * @return a tuple containing a [[Visit]] which will visit the next error (see
-    * [[Compiler.errorVisit]]), and the location at which to search for subsequent errors, or
-    * `None` if no next error was found.
-    */
-  protected def nextError (buffer :Buffer, start :Loc) :Option[(Visit,Loc)]
+  /** Scans `buffer` from `start` to find the next compiler note.
+    * @return the next note found in the buffer and the position at which to seek further notes,
+    * or `NoMoreNotes` if nothing more was found. */
+  protected def nextNote (buffer :Buffer, start :Loc) :(Note,Loc)
 
   private[this] val _status = Value[Status](Unknown)
   _status onEmit { project.updateStatus() }

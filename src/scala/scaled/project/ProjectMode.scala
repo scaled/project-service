@@ -59,6 +59,10 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     bind("compile-incremental", "F5").
     bind("compile-full",        "S-F5").
 
+    // warning navigation fns
+    bind("visit-next-warning", "C-S-]").
+    bind("visit-prev-warning", "C-S-[").
+
     // test fns
     bind("run-all-tests",     "C-c C-t C-a").
     bind("run-file-tests",    "C-c C-t C-f").
@@ -140,6 +144,22 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   @Fn("Displays the buffer that contains compiler output for this project.")
   def showCompilerOutput () {
     frame.visit(project.logBuffer)
+  }
+
+  @Fn("Navigates to the next warning in the current compiler warning list, if any.")
+  def visitNextWarning () {
+    project.compiler.warnings.getOption match {
+      case None     => window.popStatus("No current compiler warnings.")
+      case Some(vs) => vs.next(window)
+    }
+  }
+
+  @Fn("Navigates to the previous warning in the current compiler warning list, if any.")
+  def visitPrevWarning () {
+    project.compiler.warnings.getOption match {
+      case None     => window.popStatus("No current compiler warnings.")
+      case Some(vs) => vs.prev(window)
+    }
   }
 
   //
@@ -293,7 +313,8 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   }
 
   private def compile (incremental :Boolean, interactive :Boolean) {
-    val cfg = Compiler.Config(config(recompileTests), incremental, interactive)
+    val cfg = Compiler.Config(config(recompileTests), interactive,
+                              if (incremental) buffer.store.file else None)
     project.compiler.compile(window, cfg)
   }
 
