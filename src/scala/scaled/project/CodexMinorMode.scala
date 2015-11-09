@@ -5,6 +5,7 @@
 package scaled.project
 
 import codex.model._
+import java.util.function.Consumer
 import scaled._
 import scaled.util.{Chars}
 
@@ -32,6 +33,9 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     window.mini.read(prompt, wordAt(view.point()), codex.history(kind),
                      codex.completer(project, kind)).onSuccess(fn)
   }
+
+  protected def codexRead (prompt :String, kind :Kind, fn :Consumer[Def]) :Unit =
+    codexRead(prompt, kind)(fn.accept(_))
 
   protected def codexVisit (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(df => codex.visit(window, view, df))
