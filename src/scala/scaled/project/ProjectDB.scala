@@ -91,10 +91,12 @@ class ProjectDB (wsroot :Path, log :Logger) {
       info.unmap()
       // grab the project's metadata directory then remove it from toName
       val pdir = metaDir(proj)
-      // move this project's metadir out of Projects back into Depends
-      Files.move(pdir, dsdir.resolve(proj.idName))
-      // remove the project's info.txt file
-      Files.deleteIfExists(pdir.resolve("info.txt"))
+      if (Files.exists(pdir)) {
+        // move this project's metadir out of Projects back into Depends
+        Files.move(pdir, dsdir.resolve(proj.idName))
+        // remove the project's info.txt file
+        Files.deleteIfExists(pdir.resolve("info.txt"))
+      }
       true
   }
 
