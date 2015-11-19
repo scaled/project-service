@@ -52,8 +52,9 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     bind("describe-projects", "C-h S-p").
 
     // file fns
-    bind("find-file-in-project",    "C-x C-p").
-    bind("find-file-other-project", "C-x C-o").
+    bind("find-file-in-project",      "C-x C-p").
+    bind("find-file-in-test-project", "C-x S-C-p").
+    bind("find-file-other-project",   "C-x C-o").
 
     // compilation fns
     bind("compile-incremental", "F5").
@@ -112,6 +113,10 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   @Fn("Reads a project file name from the minibuffer (with smart completion), and visits it.")
   def findFileInProject () :Unit = findFileIn(project)
+
+  @Fn("""Like find-file-in-project except it only searches in the test companion project.
+         If no test companion project exists, this project is searched.""")
+  def findFileInTestProject () :Unit = findFileIn(project.testCompanion || project)
 
   @Fn("""Reads a project name from the minibuffer, then reads a file from that project (with smart
          completion), and visits it.""")
