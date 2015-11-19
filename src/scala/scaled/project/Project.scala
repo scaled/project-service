@@ -153,13 +153,7 @@ abstract class Project (val pspace :ProjectSpace) {
   /** The history ring for file names in this project. */
   val fileHistory = new Ring(32) // TODO: how might we configure this?
 
-  /** Completes files in this project. The string representation of the files should not be
-    * prefixed with path information, but rather suffixed and only where necessary to avoid
-    * name collisions.
-    *
-    * Thus one might see as possible completions: `Bar.scala Baz.scala(util/) Baz.scala(data/)`
-    * When completing on `Ba`.
-    */
+  /** Completes files in this project. */
   val fileCompleter :Completer[Store]
 
   /** The meta service, for easy access. */
