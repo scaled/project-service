@@ -329,24 +329,10 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   }
 
   private def execute (exec :Execution) {
-    case class ExecWindow (window :Window)
-    // figure out which window to use for our execution
-    val execwin = wspace.state[ExecWindow].getOption getOrElse {
-      val win = maybeCreateExecWindow
-      win.onClose.onEmit { wspace.state[ExecWindow].clear() }
-      ExecWindow(win)
-    }
-    pspace.execs.execute(execwin.window, exec, project)
-    // track our last execution data in the workspace state
+    // figure out the geometry of the window in which to display exec output
+    val geom = Geometry.apply(config(execWindowGeom)) || window.geometry
+    pspace.execs.execute(exec, project, geom)
+    // track our last execution in the workspace state
     wspace.state[Execution]() = exec
-    wspace.state[ExecWindow]() = execwin
-  }
-
-  private def maybeCreateExecWindow = Geometry.apply(config(execWindowGeom)) match {
-    case None            => window // use the default window
-    case sg @ Some(geom) => // create a new window with this geometry
-      val win = wspace.openWindow(sg)
-      win.focus.visit(buffer)
-      win
   }
 }
