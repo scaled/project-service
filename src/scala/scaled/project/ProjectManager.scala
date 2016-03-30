@@ -54,15 +54,21 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     val dseeds = filterDegenerate(rdseeds)
     // if there's exactly one intelligent project match, great!
     if (iseeds.size == 1) iseeds.head
-    // if more than one intelligent matches: choose the project with highest prio, per prefTypes
+    // if more than one intelligent matches: choose the deepest
     else if (iseeds.size > 1) {
-      val prio = iseeds.minBy(s => config(prefTypes).indexOf(s.name) match {
-        case -1 => Short.MaxValue
-        case ii => ii
-      })
-      log.log(s"Multiple project matches in '${prio.root}'. " +
-              s"Choosing ${prio.name} from ${iseeds.map(_.name)}).")
-      prio
+      val deepestDepth = iseeds.map(_.root.path.getNameCount).max
+      val diseeds = iseeds.filter(_.root.path.getNameCount == deepestDepth)
+      if (diseeds.size == 1) diseeds.head
+      else {
+        // if there are >1 at the deepest depth, choose the project with highest prio, per prefTypes
+        val prio = diseeds.minBy(s => config(prefTypes).indexOf(s.name) match {
+          case -1 => Short.MaxValue
+          case ii => ii
+        })
+        log.log(s"Multiple project matches in '${prio.root}'. " +
+          s"Choosing ${prio.name} from ${diseeds.map(_.name)}).")
+        prio
+      }
     }
     // if there are any non-intelligent project matches, use the deepest match
     else if (!dseeds.isEmpty) dseeds.maxBy(_.root.path.getNameCount)

@@ -129,8 +129,8 @@ abstract class Project (val pspace :ProjectSpace) {
   def name :String
 
   /** Returns a unique name to use for this project when it has been resolved automatically as a
-    * dependency of another project and has no user-facing name. This is used to create a directory,
-    * so the name must not include non-filesystem-safe characters. */
+    * dependency of another project and has no user-facing name. This is used to create a
+    * directory, so the name must not include non-filesystem-safe characters. */
   def idName :String
 
   /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
