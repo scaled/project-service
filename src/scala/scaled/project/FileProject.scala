@@ -8,6 +8,7 @@ import java.nio.file.LinkOption
 import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path}
 import java.util.HashMap
+import java.util.regex.Pattern
 import scaled._
 import scaled.util.BufferBuilder
 
@@ -38,7 +39,7 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
         val fs = { val stream = Files.list(dir)
                    try stream.iterator.toSeq finally stream.close() }
         val (nd, nf) = fs.partition(Files.isDirectory(_, LinkOption.NOFOLLOW_LINKS))
-        val nfiles = nf.filter(Files.isRegularFile(_)).toSet
+        val nfiles = nf.filterNot(ignore).filter(Files.isRegularFile(_)).toSet
         if (files != nfiles) {
           files = nfiles
           _allFiles = null
@@ -92,17 +93,42 @@ abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
 
   override def onFiles (op :Path => Unit) :Unit = allFiles foreach op
 
-  protected def ignore (dir :Path) :Boolean = {
-    val name = dir.getFileName.toString
-    name.startsWith(".") || ignores(name)
-  }
-  protected def ignores :Set[String] = FileProject.stockIgnores
+  protected def ignore (dir :Path) :Boolean = ignores.exists(_(dir))
+  protected def ignores = FileProject.stockIgnores
 }
 
 object FileProject {
 
+  /** Used to ignore files in projects. */
+  abstract class Ignorer {
+    /** Returns true if `path` should be ignored. */
+    def apply (path :Path) :Boolean
+    /** Returns a meaningful description of this ignorer. */
+    def toString :String
+  }
+
+  /** An ignorer for all files/dir with name that starts with `.`. */
+  val dotfileIgnorer = new Ignorer {
+    override def apply (path :Path) = path.getFileName.toString.startsWith(".")
+    override def toString = ".*"
+  }
+
+  /** Returns an ignorer for files/dirs with `name`. */
+  def ignoreName (name :String) = new Ignorer {
+    override def apply (path :Path) = path.getFileName.toString == name
+    override def toString = name
+  }
+
+  /** Returns an ignorer for files/dirs with name that match `regex`. */
+  def ignoreRegex (regex :String) = new Ignorer {
+    val pattern = Pattern.compile(regex)
+    override def apply (path :Path) = pattern.matcher(path.getFileName.toString).matches
+    override def toString = s"m/$regex/"
+  }
+
   /** The standard set of directories that are ignored when enumerating all project dirs. */
-  val stockIgnores = Set(".git", ".hg", ".svn") // TODO: more
+  val stockIgnores = Seq(dotfileIgnorer, ignoreName(".git"),
+                         ignoreName(".hg"), ignoreName(".svn")) // TODO: more?
 
   /** Creates file projects rooted at .git directories. */
   @Plugin(tag="project-finder")
