@@ -5,7 +5,6 @@
 package scaled.project
 
 import codex.model._
-import java.util.function.Consumer
 import scaled._
 import scaled.util.{Chars}
 
@@ -29,13 +28,9 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
 
   protected def reqIndex = index getOrElse abort("No Codex index available for this file.")
 
-  protected def codexRead (prompt :String, kind :Kind)(fn :Def => Unit) {
+  protected def codexRead (prompt :String, kind :Kind)(fn :JConsumer[Def]) :Unit =
     window.mini.read(prompt, wordAt(view.point()), codex.history(kind),
                      codex.completer(project, kind)).onSuccess(fn)
-  }
-
-  protected def codexRead (prompt :String, kind :Kind, fn :Consumer[Def]) :Unit =
-    codexRead(prompt, kind)(fn.accept(_))
 
   protected def codexVisit (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(df => codex.visit(window, view, df))
@@ -58,10 +53,10 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     }
   }
 
-  protected def onEncloser (loc :Loc)(fn :(Def => Unit)) :Unit =
+  protected def onEncloser (loc :Loc)(fn :JConsumer[Def]) :Unit =
     reqIndex.encloser(buffer.offset(loc)) match {
       case None => abort("Could not find enclosing type.")
-      case Some(df) => fn(df)
+      case Some(df) => fn.accept(df)
     }
 
   /** Returns the "word" at the specified location in the buffer. */
