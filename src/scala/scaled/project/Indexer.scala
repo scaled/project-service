@@ -75,7 +75,9 @@ class Indexer (val pspace :ProjectSpace) {
     * thread, and this method is called therefrom. */
   protected def reindexComplete (project :Project, source :Source) {
     val ib = SourceIndex.builder(PSpaceCodex.toStore(source))
-    if (project.store.visit(source, ib)) msvc.exec.runOnUI { indexed.emit(ib.build()) }
+    if (project.store.visit(source, ib)) msvc.exec.runOnUI(pspace.wspace) {
+      indexed.emit(ib.build())
+    }
     // TODO: until we know what file extensions are known to the indexer, this generates too many
     // spurious warnings to be useful
     // else msvc.log.log(s"ProjectStore claims ignorance of just-indexed source? $source")

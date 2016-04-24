@@ -74,13 +74,13 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
         while (add(offat(oo))) oo += 1
         if (srcdef) add(df.offset)
       }
-      env.exec.runOnUI {
+      env.exec.runOnUI(window) {
         buffer append lines
         buffer split buffer.end
       }
     }
 
-    env.exec.runOnUI {
+    env.exec.runOnUI(window) {
       visitList = new Visit.List("use", visits.build())
       window.visits() = visitList
       view.point() = Loc.Zero
