@@ -312,8 +312,8 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     // if our buffer is already in a frame, just to-front its window, otherwise display it in the
     // current window's focus
     win.workspace.windowForBuffer(tbuf) match {
-      case Some(twin) => println(s"found $twin") ; twin.toFront()
-      case None       => println(s"nope $win") ; win.focus.visit(tbuf) ; win.toFront()
+      case Some(twin) => twin.toFront()
+      case None       => win.focus.visit(tbuf) ; win.toFront()
     }
   }
 
