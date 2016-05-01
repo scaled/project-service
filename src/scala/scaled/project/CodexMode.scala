@@ -14,7 +14,7 @@ import scaled.util.BufferBuilder
   *
   * Any major mode that includes the `project` tag will trigger the activation of this minor mode.
   */
-@Minor(name="codex", tags=Array("project"),
+@Minor(name="codex", stateTypes=Array(classOf[Project]),
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   import project.pspace

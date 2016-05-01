@@ -36,7 +36,7 @@ object CodexSummaryMode {
   }
 }
 
-@Major(name="codex-summary", tags=Array("project"),
+@Major(name="codex-summary",
        desc="""A major mode that displays a summary of a def and its members.""")
 class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexReadingMode(env) {
   import CodexSummaryMode._

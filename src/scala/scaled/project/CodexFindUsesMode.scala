@@ -20,7 +20,7 @@ object CodexFindUsesConfig extends Config.Defs {
   val matchStyle = EditorConfig.matchStyle // standard matchStyle
 }
 
-@Major(name="codex-find-uses", tags=Array("project"),
+@Major(name="codex-find-uses",
        desc="""A major mode that displays all known uses of a def.""")
 class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
   import CodexFindUsesConfig._
