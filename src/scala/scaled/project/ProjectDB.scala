@@ -6,14 +6,18 @@ package scaled.project
 
 import java.io.PrintWriter
 import java.nio.file.{Files, Path, Paths}
-import java.util.HashMap
 import java.util.stream.Collectors
+import java.util.{Map => JMap, HashMap}
 import scaled._
 import scaled.util.Errors
 
 /** Maintains metadata for all projects known to a project space. */
 class ProjectDB (wsroot :Path, log :Logger) {
   import Project._
+  private val codec = new Codec()
+
+  /** A file that contains info on all of our projects. */
+  private val configFile = wsroot.resolve("Config").resolve("projects.conf")
 
   /** The directory in which metadata is stored for known projects. */
   val psdir = Files.createDirectories(wsroot.resolve("Projects"))
@@ -29,25 +33,34 @@ class ProjectDB (wsroot :Path, log :Logger) {
     def metaDir = psdir.resolve(name)
     def map () :Unit = ids foreach { id => byId.put(id, root) }
     def unmap () :Unit = ids foreach { id => byId.remove(id) }
-    def save () :Unit = Files.write(
-      metaDir.resolve("info.txt"), Seq(rootToString(root)) ++ ids.map(_.deflate))
   }
 
   /** Current metadata for all known projects. */
-  val toInfo = {
-    val imap = new HashMap[Root,Info]()
-    // read info.txt for all known projects and map them by root
-    Files.list(psdir).collect(Collectors.toList[Path]).foreach { pdir =>
-      if (Files.isDirectory(pdir)) try {
-        val lines = List() ++ Files.readAllLines(pdir.resolve("info.txt"))
-        val root = rootFromString(lines.head)
-        imap.put(root, Info(root, pdir.getFileName.toString, lines.tail.flatMap(inflateId).toSeq))
-      } catch {
-        case e :Throwable => log.log(s"Failed to resolve info for $pdir: $e")
-      }
+  val toInfo = new HashMap[Root,Info]()
+
+  /*ctor*/ {
+    // load metadata from our config file
+    if (Files.exists(configFile)) {
+      ConfigFile.read(configFile).map(readInfo).foreach { info => toInfo.put(info.root, info) }
     }
-    imap.values foreach { _.map() } // map all the infos we read
-    imap
+    // if we have no config file, potentially migrate from the old per-project info style
+    else {
+      val vtab = new StringBuilder().append(11.toChar).toString
+      val codec = new Codec(vtab, vtab)
+      // read info.txt for all known projects and map them by root
+      Files.list(psdir).collect(Collectors.toList[Path]).foreach { pdir =>
+        if (Files.isDirectory(pdir)) try {
+          val lines = List() ++ Files.readAllLines(pdir.resolve("info.txt"))
+          val root = codec.readRoot(lines.head)
+          val info = Info(root, pdir.getFileName.toString, lines.tail.flatMap(codec.readId).toSeq)
+          toInfo.put(root, info)
+        } catch {
+          case e :Throwable => log.log(s"Failed to resolve info for $pdir: $e")
+        }
+      }
+      writeConfig()
+    }
+    toInfo.values foreach { _.map() } // map all the infos we read
   }
 
   /** Returns the directory into which `proj` should store its metadata. */
@@ -77,8 +90,8 @@ class ProjectDB (wsroot :Path, log :Logger) {
     val ddir = dsdir.resolve(proj.idName) ; val pdir = metaDir(proj)
     if (Files.exists(ddir)) Files.move(ddir, pdir)
     else Files.createDirectories(ddir)
-    // write this project's id info its metadata dir
-    info.save()
+    // write out our project metadata db
+    writeConfig()
 
     true
   }
@@ -94,8 +107,8 @@ class ProjectDB (wsroot :Path, log :Logger) {
       if (Files.exists(pdir)) {
         // move this project's metadir out of Projects back into Depends
         Files.move(pdir, dsdir.resolve(proj.idName))
-        // remove the project's info.txt file
-        Files.deleteIfExists(pdir.resolve("info.txt"))
+        // write our project metadata db
+        writeConfig()
       }
       true
   }
@@ -111,8 +124,17 @@ class ProjectDB (wsroot :Path, log :Logger) {
         toInfo.put(proj.root, ninfo)
         oinfo.unmap()
         ninfo.map()
-        ninfo.save()
+        writeConfig()
       }
       // TODO: name change?
+  }
+
+  private def readInfo (lines :Seq[String]) :Info =
+    Info(codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(codec.readId).toSeq)
+  private def showInfo (info :Info) :Seq[String] =
+    Seq(codec.showRoot(info.root), info.name) ++ info.ids.map(codec.showId)
+
+  private def writeConfig () {
+    ConfigFile.write(configFile, toInfo.values.toSeq.sortBy(_.name).map(showInfo))
   }
 }
