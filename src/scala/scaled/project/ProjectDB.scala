@@ -6,6 +6,7 @@ package scaled.project
 
 import java.io.PrintWriter
 import java.nio.file.{Files, Path, Paths}
+import java.security.MessageDigest
 import java.util.stream.Collectors
 import java.util.{Map => JMap, HashMap}
 import scaled._
@@ -14,15 +15,12 @@ import scaled.util.Errors
 /** Maintains metadata for all projects known to a project space. */
 class ProjectDB (wsroot :Path, log :Logger) {
   import Project._
-  private val codec = new Codec()
 
   /** A file that contains info on all of our projects. */
   private val configFile = wsroot.resolve("Config").resolve("projects.conf")
 
-  /** The directory in which metadata is stored for known projects. */
+  /** The directory in which metadata is stored for projects and depends. */
   val psdir = Files.createDirectories(wsroot.resolve("Projects"))
-  /** The directory in which metadata is stored for depend projects. */
-  val dsdir = Files.createDirectories(wsroot.resolve("Depends"))
 
   /** All known projects mapped by id. */
   val byId = new HashMap[Id,Root]()
@@ -30,7 +28,6 @@ class ProjectDB (wsroot :Path, log :Logger) {
   /** Metadata for a named project. */
   case class Info (root :Root, name :String, ids :Seq[Id]) {
     val rootName = (root, name)
-    def metaDir = psdir.resolve(name)
     def map () :Unit = ids foreach { id => byId.put(id, root) }
     def unmap () :Unit = ids foreach { id => byId.remove(id) }
   }
@@ -46,7 +43,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
     // if we have no config file, potentially migrate from the old per-project info style
     else {
       val vtab = new StringBuilder().append(11.toChar).toString
-      val codec = new Codec(vtab, vtab)
+      val codec = new CodecImpl(vtab, vtab)
       // read info.txt for all known projects and map them by root
       Files.list(psdir).collect(Collectors.toList[Path]).foreach { pdir =>
         if (Files.isDirectory(pdir)) try {
@@ -64,12 +61,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   }
 
   /** Returns the directory into which `proj` should store its metadata. */
-  def metaDir (proj :Project) :Path = toInfo.get(proj.root) match {
-    // if it's an incidental project (e.g. a random Maven dependency), use an id-based dir
-    case null => dsdir.resolve(proj.idName)
-    // if this is a named project in this workspace, use a dir based on its name
-    case info => info.metaDir
-  }
+  def metaDir (proj :Project) :Path = psdir.resolve(md5hex(proj.root.toString))
 
   /** Adds `proj` to this database.
     * @return true if added, false if project was already added. */
@@ -82,15 +74,10 @@ class ProjectDB (wsroot :Path, log :Logger) {
       proj.name + s"-$ext"
     }
 
+    // map the project and write out our updated metadata db
     val info = Info(proj.root, name, proj.ids)
     toInfo.put(proj.root, info)
     info.map()
-
-    // move this project's metadir from Depends into Projects (or create it if it doesn't exist)
-    val ddir = dsdir.resolve(proj.idName) ; val pdir = metaDir(proj)
-    if (Files.exists(ddir)) Files.move(ddir, pdir)
-    else Files.createDirectories(ddir)
-    // write out our project metadata db
     writeConfig()
 
     true
@@ -102,14 +89,8 @@ class ProjectDB (wsroot :Path, log :Logger) {
     case null => false
     case info =>
       info.unmap()
-      // grab the project's metadata directory then remove it from toName
-      val pdir = metaDir(proj)
-      if (Files.exists(pdir)) {
-        // move this project's metadir out of Projects back into Depends
-        Files.move(pdir, dsdir.resolve(proj.idName))
-        // write our project metadata db
-        writeConfig()
-      }
+      // write our project metadata db
+      writeConfig()
       true
   }
 
@@ -129,10 +110,25 @@ class ProjectDB (wsroot :Path, log :Logger) {
       // TODO: name change?
   }
 
+  private def md5hex (text :String) = toHex(digest.digest(text.getBytes))
+  private def toHex (data :Array[Byte]) = {
+    val cs = new Array[Char](data.length*2)
+    val chars = Chars
+    var in = 0 ; var out = 0 ; while (in < data.length) {
+      val b = data(in).toInt & 0xFF
+      cs(out) = chars(b/16)
+      cs(out+1) = chars(b%16)
+      in += 1 ; out += 2
+    }
+    new String(cs)
+  }
+  private val digest = MessageDigest.getInstance("MD5")
+  private final val Chars = "0123456789ABCDEF"
+
   private def readInfo (lines :Seq[String]) :Info =
-    Info(codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(codec.readId).toSeq)
+    Info(Codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(Codec.readId).toSeq)
   private def showInfo (info :Info) :Seq[String] =
-    Seq(codec.showRoot(info.root), info.name) ++ info.ids.map(codec.showId)
+    Seq(Codec.showRoot(info.root), info.name) ++ info.ids.map(Codec.showId)
 
   private def writeConfig () {
     ConfigFile.write(configFile, toInfo.values.toSeq.sortBy(_.name).map(showInfo))

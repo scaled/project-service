@@ -69,7 +69,9 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   def projectFromSeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
     projects.put(proj.root, proj)
-    pdb.checkInfo(proj) // make sure this project's metadata is up to date
+    proj.init()
+    // make sure this project is and remains properly mapped in the project DB
+    proj.metaV.onValueNotify { _ => pdb.checkInfo(proj) }
     proj
   }
 

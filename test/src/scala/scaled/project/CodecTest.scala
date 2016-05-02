@@ -11,9 +11,7 @@ import scaled._
 
 class CodecTest {
   import Project._
-
-  val codec = new Codec()
-  import codec._
+  import Codec._
 
   @Test def testReadShowRoot () {
     def test (root :Root) {

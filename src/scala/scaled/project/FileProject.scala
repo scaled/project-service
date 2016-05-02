@@ -16,16 +16,20 @@ import scaled.util.BufferBuilder
   * project. This will be used if we see a `.git`, `.hg`, etc. directory or some other indicator
   * of the root of a project.
   */
-final class FileProject (val root :Project.Root, ps :ProjectSpace) extends AbstractFileProject(ps) {
+final class FileProject (ps :ProjectSpace, r :Project.Root) extends AbstractFileProject(ps, r) {
   override def isIncidental = true
-  override def name = root.path.getFileName.toString
-  override def idName = s"file-$name" // TODO: use whole path?
+
+  override def init () {
+    metaV() = metaV().copy(
+      name = root.path.getFileName.toString
+    )
+  }
 }
 
 /** A base class for projects that are rooted in a directory.
   * Provides a completer over all files in the directory tree.
   */
-abstract class AbstractFileProject (ps :ProjectSpace) extends Project(ps) {
+abstract class AbstractFileProject (ps :ProjectSpace, r :Project.Root) extends Project(ps, r) {
 
   private class Dir (dir :Path) {
     var files = Set[Path]()

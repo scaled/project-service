@@ -20,7 +20,6 @@ class ConfigFileTest {
 
     val path = Paths.get(System.getProperty("java.io.tmpdir")).resolve("test.tmp")
     // println(path)
-    val codec = new Codec()
     ConfigFile.write(path, config)
     assertEquals(config, ConfigFile.read(path))
   }

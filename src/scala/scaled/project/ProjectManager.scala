@@ -99,13 +99,12 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   override def docFormatter (suff :String) = docfMap.getOrElse(suff, DocFormatterPlugin.Default)
 
-  override def unknownProject (ps :ProjectSpace) = new Project(ps) {
-    val fileCompleter = Completer.file
-    override val root = Project.Root(Paths.get(""), false)
-    override def isIncidental = true
-    override def name = "<unknown>"
-    override def idName = "unknown"
-  }
+  override def unknownProject (ps :ProjectSpace) =
+    new Project(ps, Project.Root(Paths.get(""), false)) {
+      val fileCompleter = Completer.file
+      override def isIncidental = true
+      override def init () {}
+    }
 
   override def didStartup () {}
   override def willShutdown () {}

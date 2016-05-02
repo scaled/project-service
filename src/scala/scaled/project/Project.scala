@@ -80,32 +80,45 @@ object Project {
         }
       })
     }
+
+  /** Defines the basic persistent metadata for a project. When a project is first resolved, the
+    * metadata is quickly restored from a file. The project is then given a chance to refresh that
+    * metadata from canonical project files (which could take a long time due to things like Gradle
+    * or SBT initialization). Any time the project metadata changes, it's saved so that it can be
+    * rapdily read in again next time we have a cold start. */
+  case class Meta (val name :String, val ids :Seq[Id], val sourceDirs :Seq[Path])
+
+  /** The default meta for a freshly opened and totally unknown project. */
+  val DefaultMeta = Meta("<unknown>", Seq(), Seq())
 }
 
-/** Provides services for a particular project. */
-abstract class Project (val pspace :ProjectSpace) {
+/** Provides services for a particular project.
+  * @param pspace the project space of which this project is a part.
+  * @param root the directory in which this project is rooted. */
+abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   import Project._
-
-  /** Returns the root of this project. */
-  val root :Root
 
   /** Indicates that this project should be omitted from lookup by name. */
   def isIncidental = false
 
-  /** Returns the name of this project. */
-  def name :String
-
-  /** Returns a unique name to use for this project when it has been resolved automatically as a
-    * dependency of another project and has no user-facing name. This is used to create a
-    * directory, so the name must not include non-filesystem-safe characters. */
-  def idName :String
+  /** The name of this project. */
+  def name :String = metaV().name
 
   /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
-  def ids :Seq[Id] = Seq()
+  def ids :Seq[Id] = metaV().ids
 
-  /** Returns the ids of project's dependencies. These should be returned in highest to lowest
-    * precedence order. Do not look up project dependencies manually, instead use [[depend]] which
-    * will properly reference the dependent project and release it when this project hibernates. */
+  /** All top-level directories which contain source code. */
+  def sourceDirs :Seq[Path] = metaV().sourceDirs
+
+  /** Tracks the basic project metadata. This should only be updated by the project, but outside
+    * parties may want to react to changes to it. */
+  val metaV = savedValue("meta", DefaultMeta, Codec.writeMeta, Codec.readMeta)
+  // when metaV changes, update our status
+  metaV.onEmit { updateStatus() }
+
+  /** The ids of project's dependencies. These should be in highest to lowest precedence order. Do
+    * not look up project dependencies manually, instead use [[depend]] which will properly
+    * reference the dependent project and release it when this project hibernates. */
   def depends :Seq[Id] = Seq()
 
   /** Returns a seed for this project's test companion project, if any. */
@@ -183,7 +196,8 @@ abstract class Project (val pspace :ProjectSpace) {
     }
 
     bb.addSubHeader("Depends:")
-    depends foreach { d =>
+    val deps = depends
+    deps foreach { d =>
       bb.add(Line.builder(d.toString).withLineTag(Visit.Tag(new Visit() {
         protected def go (window :Window) = depend(d) match {
           case None => window.popStatus(s"Unable to resolve project for $d")
@@ -191,7 +205,7 @@ abstract class Project (val pspace :ProjectSpace) {
         }
       })).build())
     }
-    if (depends.isEmpty) bb.add("<none>")
+    if (deps.isEmpty) bb.add("<none>")
 
     if (!sourceDirs.isEmpty) {
       bb.addSubHeader("Build Info")
@@ -250,9 +264,6 @@ abstract class Project (val pspace :ProjectSpace) {
     if (isEmpty) reindex()
   }
 
-  /** Returns all top-level directories which contain source code. */
-  def sourceDirs :Seq[Path] = Seq()
-
   /** Returns the Codex store for this project. Created on demand. */
   def store :CodexStore = _store.get
 
@@ -287,8 +298,31 @@ abstract class Project (val pspace :ProjectSpace) {
     hibernate()
   }
 
+  /** Called during project resolution after metadata has been restored from the last time this
+    * project was instantiated. This is the time a project should either update its metadata or
+    * trigger a background thread to re-read its metadata and then eventually update the metadata
+    * (back on the main editor thread). */
+  def init () :Unit
+
   override def toString = s"$name (${root.path})"
   protected def log = metaSvc.log
+
+  protected def savedValue[T] (id :String, defval :T, show :(ConfigFile.WriteMap, T) => Unit,
+                               read :Map[String,Seq[String]] => T) :Value[T] = {
+    val confFile = metaFile(id + ".conf")
+    val value = Value(defval)
+    // TODO: robustify
+    if (Files.exists(confFile)) {
+      value() = read(ConfigFile.readMap(confFile))
+    }
+    value.onValue { nvalue =>
+      println(s"$name: writing $nvalue")
+      val out = new ConfigFile.WriteMap(confFile)
+      show(out, nvalue)
+      out.close()
+    }
+    value
+  }
 
   /** Causes this project to free up ephemeral resources, which will be recreated if the project is
     * once again called into service. */
