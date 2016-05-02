@@ -88,17 +88,17 @@ abstract class AbstractFileProject (ps :ProjectSpace, r :Project.Root) extends P
       Completion(prefix, allFiles.map(Store.apply), true)(f => defang(f.name))
   }
 
-  override def describeSelf (bb :BufferBuilder) {
-    super.describeSelf(bb)
+  override def describeMeta (bb :BufferBuilder) {
+    super.describeMeta(bb)
     bb.addSubHeader("Files")
     bb.addKeysValues("files: " -> allFiles.size.toString,
-                     "ignores: " -> ignores.mkString(" "))
+                     "ignores: " -> ignores().mkString(" "))
   }
 
   override def onFiles (op :Path => Unit) :Unit = allFiles foreach op
 
-  protected def ignore (dir :Path) :Boolean = ignores.exists(_(dir))
-  protected def ignores = FileProject.stockIgnores
+  protected def ignore (dir :Path) :Boolean = ignores().exists(_(dir))
+  protected val ignores = Value(FileProject.stockIgnores)
 }
 
 object FileProject {
@@ -137,8 +137,8 @@ object FileProject {
   }
 
   /** The standard set of directories that are ignored when enumerating all project dirs. */
-  val stockIgnores = Seq(dotfileIgnorer, ignoreName(".git"),
-                         ignoreName(".hg"), ignoreName(".svn")) // TODO: more?
+  def stockIgnores = SeqBuffer(dotfileIgnorer, ignoreName(".git"),
+                               ignoreName(".hg"), ignoreName(".svn")) // TODO: more?
 
   /** Creates file projects rooted at .git directories. */
   @Plugin(tag="project-finder")

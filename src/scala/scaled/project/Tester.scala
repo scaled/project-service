@@ -10,7 +10,7 @@ import scaled._
 import scaled.util.Errors
 
 /** Provides an interface for interacting with test frameworks. */
-abstract class Tester (project :Project) extends AutoCloseable {
+abstract class Tester (project :Project) extends Project.Component {
 
   /** A value used to capture (and reinvoke) the most recent test invocation. */
   val lastTest = OptValue[RBufferView => Unit]()
@@ -42,7 +42,7 @@ abstract class Tester (project :Project) extends AutoCloseable {
     * triggered as a result of `retest-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runTests (window :Window, interact :Boolean, file :Path, types :Seq[Def]) :Boolean
+  def runTests (window :Window, interact :Boolean, file :Path, types :SeqV[Def]) :Boolean
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
     * invoked interactly. Test output will be directed to [[buffer]].
@@ -51,7 +51,7 @@ abstract class Tester (project :Project) extends AutoCloseable {
   def runTest (window :Window, file :Path, elem :Def) :Future[Unit]
 
   /** Reports the results of a test run. */
-  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :Seq[Visit]) {
+  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :SeqV[Visit]) {
     window.visits() = new Visit.List("test failure", fails)
     if (interact) {
       val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."

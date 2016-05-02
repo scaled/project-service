@@ -70,7 +70,7 @@ object Compiler {
 /** Provides an interface whereby project mode can initiate project compilation and display
   * compiler feedback in the appropriate buffers.
   */
-abstract class Compiler (project :Project) extends AutoCloseable {
+abstract class Compiler (project :Project) extends Project.Component {
   import Compiler._
 
   /** The current set of compiler warnings, if any. */

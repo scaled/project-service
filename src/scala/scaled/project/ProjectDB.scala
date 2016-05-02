@@ -26,7 +26,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   val byId = new HashMap[Id,Root]()
 
   /** Metadata for a named project. */
-  case class Info (root :Root, name :String, ids :Seq[Id]) {
+  case class Info (root :Root, name :String, ids :SeqV[Id]) {
     val rootName = (root, name)
     def map () :Unit = ids foreach { id => byId.put(id, root) }
     def unmap () :Unit = ids foreach { id => byId.remove(id) }
@@ -125,7 +125,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   private val digest = MessageDigest.getInstance("MD5")
   private final val Chars = "0123456789ABCDEF"
 
-  private def readInfo (lines :Seq[String]) :Info =
+  private def readInfo (lines :SeqV[String]) :Info =
     Info(Codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(Codec.readId).toSeq)
   private def showInfo (info :Info) :Seq[String] =
     Seq(Codec.showRoot(info.root), info.name) ++ info.ids.map(Codec.showId)

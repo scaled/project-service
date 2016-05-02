@@ -13,8 +13,8 @@ import scaled._
 object ConfigFile {
 
   /** Reads `path` into a list of lists of strings. */
-  def read (path :Path) :Seq[Seq[String]] = {
-    val groups = Seq.builder[Seq[String]]()
+  def read (path :Path) :SeqV[SeqV[String]] = {
+    val groups = Seq.builder[SeqV[String]]()
     val lines = Seq.view(Files.readAllLines(path))
     var start = 0
     var end = 0
@@ -34,7 +34,7 @@ object ConfigFile {
   }
 
   /** Writes the config `data` to `path` in a way that can be recovered by [[readConfig]]. */
-  def write (path :Path, data :Ordered[Seq[String]]) {
+  def write (path :Path, data :Ordered[SeqV[String]]) {
     val out = Files.newBufferedWriter(path)
     var first = true
     for (group <- data) {
@@ -50,8 +50,8 @@ object ConfigFile {
 
   /** Reads `path` into a list of lists of strings and then turns that into a map where the first
     * string in each block is the key and the value is the remaining strings in the block. */
-  def readMap (path :Path) :Map[String,Seq[String]] = {
-    val map = Map.builder[String,Seq[String]]()
+  def readMap (path :Path) :Map[String,SeqV[String]] = {
+    val map = Map.builder[String,SeqV[String]]()
     for (group <- read(path)) {
       map.put(group(0), group.drop(1))
     }
@@ -63,7 +63,7 @@ object ConfigFile {
     private val out = Files.newBufferedWriter(path)
     private var first = true
 
-    def write (key :String, data :Seq[String]) {
+    def write (key :String, data :SeqV[String]) {
       if (first) first = false
       else out.newLine() // blank separator
       out.write(key)
