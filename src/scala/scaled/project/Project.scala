@@ -359,7 +359,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     */
   def addComponent[C <: Component] (cclass :Class[C], comp :C) {
     if (_components.containsKey(cclass)) {
-      log.log("$this duplicate component for $cclass: $comp (have: ${_components.get(class)})")
+      log.log(s"$this duplicate component for $cclass: $comp (have: ${_components.get(class)})")
     } else {
       assert(comp != null)
       _components.put(cclass, comp)
