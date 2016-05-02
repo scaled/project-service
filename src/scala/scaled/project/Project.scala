@@ -70,7 +70,7 @@ object Project {
   }
 
   /** Applies `op` to all files in the directory trees rooted at `dirs`. */
-  def onFiles (dirs :Seq[Path], op :Path => Unit) :Unit =
+  def onFiles (dirs :SeqV[Path], op :Path => Unit) :Unit =
     dirs.filter(Files.exists(_)) foreach { dir =>
       // TODO: should we be following symlinks? likely so...
       Files.walkFileTree(dir, new SimpleFileVisitor[Path]() {
@@ -81,6 +81,16 @@ object Project {
       })
     }
 
+  /** Used to read and write project metadata. */
+  trait MetaMeta[T] {
+    /** The default meta for a freshly opened and totally unknown project. */
+    def zero :T
+    /** Reads a `T` from [[ConfigFile]] data. */
+    def read (in :Map[String,Seq[String]]) :T
+    /** Writes `meta` to `out`. */
+    def write (out :ConfigFile.WriteMap, meta :T)
+  }
+
   /** Defines the basic persistent metadata for a project. When a project is first resolved, the
     * metadata is quickly restored from a file. The project is then given a chance to refresh that
     * metadata from canonical project files (which could take a long time due to things like Gradle
@@ -88,8 +98,21 @@ object Project {
     * rapdily read in again next time we have a cold start. */
   case class Meta (val name :String, val ids :Seq[Id], val sourceDirs :Seq[Path])
 
-  /** The default meta for a freshly opened and totally unknown project. */
-  val DefaultMeta = Meta("<unknown>", Seq(), Seq())
+  /** Handles reading and writing [[Meta]]s. */
+  object Meta extends MetaMeta[Meta] {
+    val zero = Meta("<unknown>", Seq(), Seq())
+    def read (in :Map[String,Seq[String]]) :Meta = {
+      val Seq(name) = in("name")
+      val ids = in("ids").flatMap(Codec.readId)
+      val sourceDirs = in("sourceDirs").map(p => Paths.get(p))
+      Meta(name, ids, sourceDirs)
+    }
+    def write (out :ConfigFile.WriteMap, meta :Meta) {
+      out.write("name", Seq(meta.name))
+      out.write("ids", meta.ids.map(Codec.showId))
+      out.write("sourceDirs", meta.sourceDirs.map(_.toString))
+    }
+  }
 }
 
 /** Provides services for a particular project.
@@ -112,7 +135,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Tracks the basic project metadata. This should only be updated by the project, but outside
     * parties may want to react to changes to it. */
-  val metaV = savedValue("meta", DefaultMeta, Codec.writeMeta, Codec.readMeta)
+  val metaV = metaValue("meta", Meta)
   // when metaV changes, update our status
   metaV.onEmit { updateStatus() }
 
@@ -260,8 +283,11 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     }
     def reindex () :Unit = pspace.indexer.queueReindexAll(Project.this)
     override def toString = s"codex:$name"
-    // when we're resolved, potentially trigger a full initial index
-    if (isEmpty) reindex()
+
+    // when our project metadata is resolved/updated, check whether we need a full reindex
+    metaV.onEmit {
+      if (isEmpty) reindex()
+    }
   }
 
   /** Returns the Codex store for this project. Created on demand. */
@@ -301,24 +327,23 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Called during project resolution after metadata has been restored from the last time this
     * project was instantiated. This is the time a project should either update its metadata or
     * trigger a background thread to re-read its metadata and then eventually update the metadata
-    * (back on the main editor thread). */
+    * (back on the main editor thread).
+    */
   def init () :Unit
 
   override def toString = s"$name (${root.path})"
   protected def log = metaSvc.log
 
-  protected def savedValue[T] (id :String, defval :T, show :(ConfigFile.WriteMap, T) => Unit,
-                               read :Map[String,Seq[String]] => T) :Value[T] = {
+  protected def metaValue[T] (id :String, metameta :MetaMeta[T]) :Value[T] = {
     val confFile = metaFile(id + ".conf")
-    val value = Value(defval)
+    val value = Value(metameta.zero)
     // TODO: robustify
     if (Files.exists(confFile)) {
-      value() = read(ConfigFile.readMap(confFile))
+      value() = metameta.read(ConfigFile.readMap(confFile))
     }
     value.onValue { nvalue =>
-      println(s"$name: writing $nvalue")
       val out = new ConfigFile.WriteMap(confFile)
-      show(out, nvalue)
+      metameta.write(out, nvalue)
       out.close()
     }
     value

@@ -52,21 +52,6 @@ class CodecImpl (private val idSep :String, private val rootSep :String) {
     Root(Paths.get(parts(0)), isTest)
   }
 
-  /** Reads a [[Meta]] from [[ConfigFile]] data. */
-  def readMeta (in :Map[String,Seq[String]]) :Meta = {
-    val Seq(name) = in("name")
-    val ids = in("ids").flatMap(readId)
-    val sourceDirs = in("sourceDirs").map(p => Paths.get(p))
-    Meta(name, ids, sourceDirs)
-  }
-
-  /** Writes `meta` to `out`. */
-  def writeMeta (out :ConfigFile.WriteMap, meta :Meta) {
-    out.write("name", Seq(meta.name))
-    out.write("ids", meta.ids.map(showId))
-    out.write("sourceDirs", meta.sourceDirs.map(_.toString))
-  }
-
   protected def deflate (k :String, data :String*) = {
     val sb = new StringBuilder(k)
     for (d <- data) sb.append(idSep).append(d)
