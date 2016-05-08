@@ -91,8 +91,12 @@ abstract class Compiler (project :Project) extends Project.Component {
   /** Adds compiler info to the project info buffer. */
   def describeSelf (bb :BufferBuilder) {
     bb.addSubHeader("Compiler")
-    bb.addKeyValue("Status: ", _status().toString)
+    bb.addKeysValues("Engine:" -> describeEngine,
+                     "Status: " -> _status().toString)
   }
+
+  /** Describes the underlying compiler used by this compiler. */
+  def describeEngine :String
 
   /** Adds info on compiler options to the project info buffer. */
   def describeOptions (bb :BufferBuilder) {
