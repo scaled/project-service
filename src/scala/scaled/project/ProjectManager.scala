@@ -45,13 +45,6 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     map
   }
 
-  // create our codex and stick it into editor state
-  editor.state[Codex]() = new Codex(editor, metaSvc)
-
-  // create a project space whenever a new workspace is opened (it will register itself in
-  // workspace state and clear itself out when the workspace hibernates)
-  editor.workspaceOpened.onValue { ws => new ProjectSpace(ws, metaSvc) }
-
   override def resolveByPaths (paths :List[Path]) :Project.Seed = {
     val (iseeds, rdseeds) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
     val dseeds = filterDegenerate(rdseeds)
@@ -109,8 +102,19 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
       override def init () {}
     }
 
-  override def didStartup () {}
-  override def willShutdown () {}
+  override def didStartup () {
+    // create our codex and stick it into editor state
+    editor.state[Codex]() = new Codex(editor, metaSvc)
+
+    // create a project space whenever a new workspace is opened (it will register itself in
+    // workspace state and clear itself out when the workspace hibernates)
+    editor.workspaceOpened.onValue { ws => new ProjectSpace(ws, metaSvc) }
+  }
+
+  override def willShutdown () {
+    // shutdown our codex
+    editor.state[Codex].get.close()
+  }
 
   // filters out "degenerate" project seeds resolved by paths (i.e. the user's home directory, the
   // root of the file system)

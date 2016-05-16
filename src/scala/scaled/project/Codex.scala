@@ -50,6 +50,11 @@ class Codex (editor :Editor, msvc :MetaService) {
     * avoids grinding a user's machine to a halt with multiple full indexes. */
   val indexQueue :Pipe[Unit] = msvc.process(())
 
+  /** Closes all of our open stores in preparation for editor shutdown. */
+  def close () {
+    storesByRoot.values.foreach { _.close() }
+  }
+
   /** Returns the Codex store for `project. */
   def store (project :Project) :CodexStore = store(project.root)
 
