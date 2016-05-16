@@ -80,7 +80,6 @@ class Codex (editor :Editor, msvc :MetaService) {
     stores.add(store(project))
     project.pspace.allProjects map(_._1) filter(_ != project.root) map(store) foreach(stores.add)
     project.depends flatMap(store) foreach(stores.add)
-    println(stores)
     stores
   }
 
@@ -134,7 +133,6 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Performs any "project just got loaded/reloaded" stuffs needed by the Codex system. */
   def checkProject (project :Project) {
-    println(s"Check $project")
     val pstore = store(project)
 
     // map the project's store by its ids
