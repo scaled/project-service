@@ -6,13 +6,13 @@ package scaled.project
 
 import java.io.PrintWriter
 import java.nio.file.{Files, Path, Paths}
+import java.util.concurrent.ConcurrentHashMap
 import java.util.stream.Collectors
-import java.util.{Map => JMap, HashMap}
 import scaled._
 import scaled.util.Errors
 
 /** Maintains metadata for all projects known to a project space. */
-class ProjectDB (wsroot :Path, log :Logger) {
+class ProjectDB (exec :Executor, wsroot :Path, log :Logger) {
   import Project._
 
   /** A file that contains info on all of our projects. */
@@ -22,7 +22,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   val psdir = Files.createDirectories(wsroot.resolve("Projects"))
 
   /** All known projects mapped by id. */
-  val byId = new HashMap[Id,Root]()
+  val byId = new ConcurrentHashMap[Id,Root]()
 
   /** Metadata for a named project. */
   case class Info (root :Root, name :String, ids :SeqV[Id]) {
@@ -32,7 +32,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   }
 
   /** Current metadata for all known projects. */
-  val toInfo = new HashMap[Root,Info]()
+  val toInfo = new ConcurrentHashMap[Root,Info]()
 
   /*ctor*/ {
     // load metadata from our config file
@@ -114,7 +114,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   private def showInfo (info :Info) :Seq[String] =
     Seq(Codec.showRoot(info.root), info.name) ++ info.ids.map(Codec.showId)
 
-  private def writeConfig () {
+  private def writeConfig () :Unit = exec.runInBG {
     ConfigFile.write(configFile, toInfo.values.toSeq.sortBy(_.name).map(showInfo))
   }
 }

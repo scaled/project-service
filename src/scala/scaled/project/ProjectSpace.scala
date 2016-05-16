@@ -35,7 +35,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   private def root = wspace.root
 
   // metadata for all named projects
-  lazy private val pdb = new ProjectDB(root, log)
+  lazy private val pdb = new ProjectDB(msvc.exec, root, log)
 
   // currently resolved projects
   private val projects = new HashMap[Root,Project]()
