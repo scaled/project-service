@@ -4,12 +4,10 @@
 
 package scaled.project
 
-import java.io.PrintWriter
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Path}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.stream.Collectors
 import scaled._
-import scaled.util.Errors
 
 /** Maintains metadata for all projects known to a project space. */
 class ProjectDB (exec :Executor, wsroot :Path, log :Logger) {

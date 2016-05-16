@@ -80,11 +80,20 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Returns the store for `project`, stores for all top-level in `project`'s workspace, and all
     * the stores for the dependencies of `project`. */
-  def stores (project :Project) :LinkedHashSet[ProjectStore] = {
+  def stores (window :Window, project :Project) :LinkedHashSet[ProjectStore] = {
     val stores = new LinkedHashSet[ProjectStore]()
-    stores.add(store(project))
-    project.pspace.allProjects map(_._1) filter(_ != project.root) map(store) foreach(stores.add)
-    project.depends flatMap(store) foreach(stores.add)
+    def checkedAdd (store :CodexStore) {
+      // if this store is empty; trigger a resolution of its project to cause it to be indexed for
+      // the first time
+      if (store.isEmpty) {
+        window.emitStatus(s"Triggered index of ${store.root}")
+        project.pspace.projectIn(store.root)
+      }
+      stores.add(store)
+    }
+    checkedAdd(store(project))
+    project.pspace.allProjects map(_._1) filter(_ != project.root) map(store) foreach(checkedAdd)
+    project.depends flatMap(store) foreach(checkedAdd)
     stores
   }
 
@@ -106,22 +115,23 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Returns a completer on elements of `kind` in `project`'s Codex. */
-  def completer (project :Project, kind :Kind) :Completer[Def] = new Completer[Def]() {
-    override def minPrefix = 2
-    def complete (glob :String) :Completion[Def] = {
-      val elems = glob.split(":", 2) match {
-        case Array(name      ) => query(name)
-        case Array(name, path) => FuzzyMatch(path).filterBy(query(name))(_.qualifier)
+  def completer (window :Window, project :Project, kind :Kind) :Completer[Def] =
+    new Completer[Def]() {
+      override def minPrefix = 2
+      def complete (glob :String) :Completion[Def] = {
+        val elems = glob.split(":", 2) match {
+          case Array(name      ) => query(name)
+          case Array(name, path) => FuzzyMatch(path).filterBy(query(name))(_.qualifier)
+        }
+        Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
       }
-      Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
+      private def query (name :String) =
+        (Query.prefix(name) kind(kind) find(stores(window, project))).toSeqV
     }
-    private def query (name :String) =
-      (Query.prefix(name) kind(kind) find(stores(project))).toSeqV
-  }
 
   /** Resolves `ref`, which originated from a file in `project`. */
-  def resolve (project :Project, ref :Ref) :Option[Def] =
-    Option.from(Ref.resolve(stores(project), ref))
+  def resolve (window :Window, project :Project, ref :Ref) :Option[Def] =
+    Option.from(Ref.resolve(stores(window, project), ref))
 
   /** Visits the source of `df` in a buffer in `window`. Pushes `curview` onto the visit stack. */
   def visit (window :Window, curview :BufferView, df :Def) {
@@ -142,14 +152,17 @@ class Codex (editor :Editor, msvc :MetaService) {
 
     // map the project's store by its ids
     project.ids.foreach { id => storesById.put(id, pstore) }
+
     // add the project store to the project as a component if it hasn't been added already
     if (!project.component(classOf[CodexStore]).isDefined) {
       project.addComponent(classOf[CodexStore], pstore)
     }
-    // queue an initial reindex of this project if needed
-    if (pstore.isEmpty && !project.sourceDirs.isEmpty) queueReindexAll(project)
-    // TODO: check whether this project has unindexed transitive dependencies and queue those up
-    // for indexing as well
+
+    // queue an initial reindex of this project if needed (we check for non-empty project.ids
+    // because the very first time a project is resolved it will not have processed its metadata
+    // and probably won't know where its source code is; so we wait for it to report back that it
+    // has figured itself out before we attempt to index it)
+    if (pstore.isEmpty && !project.ids.isEmpty) queueReindexAll(project)
   }
 
   /** Requests that `project`'s code be fully reindexed. */
@@ -178,14 +191,15 @@ class Codex (editor :Editor, msvc :MetaService) {
     }
   }
 
-  private val logStore = Store.scratch(s"*codex-messages*", codexDir)
-  private def log (project :Project, msg :String) {
+  /** Logs `msg` to the `codex-messages` buffer. */
+  def log (project :Project, msg :String) {
     val wspace = project.pspace.wspace
     val buffer = wspace.createBuffer(logStore, Nil, true)
     editor.exec.runOnUI(wspace) {
       buffer.append(Line.fromTextNL(msg))
     }
   }
+  private val logStore = Store.scratch(s"*codex-messages*", codexDir)
 
   /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll (project :Project) {
@@ -245,11 +259,4 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
   private lazy val extractorPlugins = msvc.service[PluginService].
     resolvePlugins[ExtractorPlugin]("codex-extractor")
-
-  // def reindex () :Unit = pspace.indexer.queueReindexAll(Project.this)
-
-  // // when our project metadata is resolved/updated, check whether we need a full reindex
-  // metaV.onEmit {
-  //   if (isEmpty) reindex()
-  // }
 }

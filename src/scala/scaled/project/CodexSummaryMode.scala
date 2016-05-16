@@ -44,7 +44,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   val psvc = env.msvc.service[ProjectService]
   val codex = Codex(editor)
   val project = Project(buffer)
-  lazy val stores = codex.stores(project)
+  lazy val stores = codex.stores(window, project)
 
   override def keymap = super.keymap.
     bind("zoom-out",      "o", "<").

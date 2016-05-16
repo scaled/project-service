@@ -29,7 +29,7 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
 
   protected def codexRead (prompt :String, kind :Kind)(fn :JConsumer[Def]) :Unit =
     window.mini.read(prompt, wordAt(view.point()), history(kind),
-                     codex.completer(project, kind)).onSuccess(fn)
+                     codex.completer(window, project, kind)).onSuccess(fn)
 
   protected def codexVisit (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(df => codex.visit(window, view, df))
@@ -45,7 +45,7 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     }
     elloc match {
       case None => abort("No element could be found at the point.")
-      case Some((elem, loc)) => codex.resolve(project, elem.ref) match {
+      case Some((elem, loc)) => codex.resolve(window, project, elem.ref) match {
         case None => abort(s"Unable to resolve referent for $elem")
         case Some(df) => fn(elem, loc, df)
       }

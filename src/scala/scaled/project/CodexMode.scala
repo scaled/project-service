@@ -97,7 +97,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     val rels = df.relations(rel)
     if (rels.isEmpty) abort(s"No $rel found for '${df.name}'.")
     val ref = rels.iterator.next
-    codex.resolve(project, ref) match {
+    codex.resolve(window, project, ref) match {
       case None     => abort("Unable to resolve: $ref")
       case Some(df) => codex.visit(window, view, df)
     }
@@ -141,7 +141,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
          the project's Codex.""")
   def codexDescribeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      view.popup() = CodexUtil.mkDefPopup(env, codex.stores(project), df, loc)
+      view.popup() = CodexUtil.mkDefPopup(env, codex.stores(window, project), df, loc)
     }
   }
 
@@ -150,7 +150,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
          to search them, etc.""")
   def codexSummarizeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      val info = CodexUtil.summarizeDef(env, codex.stores(project), df)
+      val info = CodexUtil.summarizeDef(env, codex.stores(window, project), df)
       val buf = project.createBuffer(s"${df.name}:${df.qualifier}", "codex-info")
       buf.delete(buf.start, buf.end)
       buf.append(info.lines)

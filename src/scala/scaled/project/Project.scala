@@ -236,7 +236,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     val deps = depends
     deps foreach { d =>
       bb.add(Line.builder(d.toString).withLineTag(Visit.Tag(new Visit() {
-        protected def go (window :Window) = depend(d) match {
+        protected def go (window :Window) = pspace.projectFor(d) match {
           case None => window.popStatus(s"Unable to resolve project for $d")
           case Some(p) => p.visitDescription(window)
         }
@@ -283,9 +283,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Instructs the project to update its status info. This is generally called by project helpers
     * that participate in the modeline info. */
   def updateStatus () :Unit = status() = makeStatus
-
-  /** Resolves (if needed), and returns the project that correspond to `depend`. */
-  def depend (depend :Id) :Option[Project] = _depprojs.get.resolve(depend)
 
   /** Returns the compiler that handles compilation for this project. Created on demand. */
   def compiler :Compiler = component(classOf[Compiler]) || NoopCompiler
@@ -408,21 +405,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     val tb = new StringBuilder("Current project: ").append(name)
     makeStatus(sb, tb)
     (sb.append(")").toString, tb.toString)
-  }
-
-  private val _depprojs = new Close.Ref[DependMap](toClose) {
-    override protected def create = new DependMap() // ctor resolves projects
-  }
-  class DependMap {
-    private val deps = new HashMap[Id,Project]()
-
-    def resolve (depend :Id) :Option[Project] = deps.get(depend) match {
-      case null => pspace.projectFor(depend) match {
-        case sp @ Some(p) => deps.put(depend, p) ; sp
-        case None => None
-      }
-      case proj => Some(proj)
-    }
   }
 
   object NoopCompiler extends Compiler(this) {
