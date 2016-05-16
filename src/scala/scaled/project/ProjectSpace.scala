@@ -30,6 +30,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     }
   }
 
+  private val codex = Codex(wspace.editor)
   private val psvc = msvc.service[ProjectService]
   private def root = wspace.root
 
@@ -61,17 +62,28 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     if (root == null || !Files.exists(root.path)) None
     else Option(projects.get(root)) orElse Some(resolveByPaths(List(root.path)))
 
+  /** Resolves the project for `id` if that project is registered our project database. Unlike
+    * [[projectFor]] this will not resolve unregistered projects (usually depends). */
+  def knownProjectFor (id :Id) :Option[Project] =
+    Option(pdb.byId.get(id)).flatMap(projectIn)
+
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    Option(pdb.byId.get(id)).flatMap(projectIn) orElse psvc.resolveById(id).map(projectFromSeed)
+    knownProjectFor(id) orElse psvc.resolveById(id).map(projectFromSeed)
 
   /** Hatches the project defined by `seed`. */
   def projectFromSeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
     projects.put(proj.root, proj)
     proj.init()
-    // make sure this project is and remains properly mapped in the project DB
-    proj.metaV.onValueNotify { _ => pdb.checkInfo(proj) }
+    Thread.dumpStack()
+    // when the project's metadata changes...
+    proj.metaV.onValueNotify { _ =>
+      // make sure the project is properly mapped in the project DB
+      pdb.checkInfo(proj)
+      // let the codex know that it might want to index the project
+      codex.checkProject(proj)
+    }
     proj
   }
 
@@ -83,9 +95,6 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
 
   /** The history ring for execution invocations. */
   val execHistory = new Ring(32)
-
-  /** Handles the indexing of project source code. */
-  lazy val indexer = new Indexer(this)
 
   /** Emits a description of this project space to `bb`. */
   def describeSelf (bb :BufferBuilder) {
@@ -138,15 +147,11 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
     if (!pdb.remove(proj)) throw Errors.feedback(s"${proj.name} not added to this workspace.")
   }
 
-  /** Manages the collection of Codexen for the projects in this space. */
-  val codex :PSpaceCodex = new PSpaceCodex(this)
-
   /** Manages executions for this project space. */
   lazy val execs :Executions = new Executions(this)
 
   override def close () {
     projects.values.foreach(_.dispose())
-    codex.close()
     wspace.state[ProjectSpace].clear()
   }
 

@@ -14,24 +14,24 @@ object CodexSummaryMode {
 
   sealed trait Target {
     def name :String
-    def project :Project
+    def store :CodexStore
   }
   case class DefMembers (df :Def) extends Target {
     def name = s"${df.name}:${df.qualifier}"
-    def project = df.project.asInstanceOf[Project#CodexStore].owner
+    def store = df.project.asInstanceOf[CodexStore]
   }
-  case class TopLevelMembers (store :ProjectStore) extends Target {
+  case class TopLevelMembers (val store :CodexStore) extends Target {
     def name = s"${store.name} defs"
-    def project = store.asInstanceOf[Project#CodexStore].owner
   }
 
   def visitDef (win :Window, df :Def) = visit(win, DefMembers(df))
-  def visitTopLevel (win :Window, store :ProjectStore) = visit(win, TopLevelMembers(store))
+  def visitTopLevel (win :Window, store :CodexStore) = visit(win, TopLevelMembers(store))
 
   private def visit (win :Window, tgt :Target) {
+    val project = ProjectSpace(win.workspace).reqProjectIn(tgt.store.root)
     val buf = win.workspace.createBuffer(
-      Store.scratch(tgt.name, tgt.project.root.path),
-      tgt.project.bufferState("codex-summary", tgt), true)
+      Store.scratch(tgt.name, project.root.path),
+      project.bufferState("codex-summary", tgt), true)
     win.focus.visit(buf)
   }
 }
@@ -42,9 +42,9 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   import CodexSummaryMode._
 
   val psvc = env.msvc.service[ProjectService]
+  val codex = Codex(editor)
   val project = Project(buffer)
-  import project.pspace
-  lazy val stores = pspace.codex.stores(project)
+  lazy val stores = codex.stores(project)
 
   override def keymap = super.keymap.
     bind("zoom-out",      "o", "<").
@@ -60,7 +60,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   def zoomOut () :Unit = tgt match {
     case TopLevelMembers(_) => project.visitDescription(window)
     case DefMembers(df) => df.outer match {
-      case null => visitTopLevel(window, df.project)
+      case null => visitTopLevel(window, df.project.asInstanceOf[CodexStore])
       case odef => visitDef(window, odef)
     }
   }
@@ -174,8 +174,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
 
     // tag all inserted lines with our info
     val info = new Info() {
-      override def zoomIn () = pspace.codex.summarize(window, view, df)
-      override def visit () = pspace.codex.visit(window, view, df)
+      override def zoomIn () = codex.summarize(window, view, df)
+      override def visit () = codex.visit(window, view, df)
       override def visitOrZoom () = df.kind match {
         case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
         case _ => visit()

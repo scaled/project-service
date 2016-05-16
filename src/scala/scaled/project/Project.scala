@@ -5,11 +5,11 @@
 package scaled.project
 
 import codex.extract.SourceSet
-import codex.model.{Def, Kind}
-import codex.store.MapDBStore
+import codex.model.Def
 import com.google.common.collect.{HashMultimap, Multimap}
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{Files, FileVisitResult, Path, Paths, SimpleFileVisitor}
+import java.security.MessageDigest
 import java.util.HashMap
 import scala.collection.mutable.{Map => MMap}
 import scaled._
@@ -53,6 +53,8 @@ object Project {
     * likes to treat those as two separate projects (since nearly all the configuration is
     * duplicated for a project's test "mode"). */
   case class Root (path :Path, testMode :Boolean) {
+    /** Returns a hash name for this root. Used for internal directory names. */
+    def hashName :String = md5hex(toString)
     override def toString = if (testMode) s"$path (test)" else s"$path"
   }
 
@@ -123,6 +125,21 @@ object Project {
     /** Adds info on this project component to the project description buffer. */
     def describeSelf (bb :BufferBuilder) :Unit
   }
+
+  private def md5hex (text :String) = toHex(digest.digest(text.getBytes))
+  private def toHex (data :Array[Byte]) = {
+    val cs = new Array[Char](data.length*2)
+    val chars = Chars
+    var in = 0 ; var out = 0 ; while (in < data.length) {
+      val b = data(in).toInt & 0xFF
+      cs(out) = chars(b/16)
+      cs(out+1) = chars(b%16)
+      in += 1 ; out += 2
+    }
+    new String(cs)
+  }
+  private val digest = MessageDigest.getInstance("MD5")
+  private final val Chars = "0123456789ABCDEF"
 }
 
 /** Provides services for a particular project.
@@ -233,7 +250,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     }
 
     // add info on our helpers
-    store.describeSelf(bb)
     _components.values.foreach { _.describeSelf(bb) }
   }
 
@@ -283,28 +299,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Returns any warnings that should be displayed when describing this project. This includes
     * things like failure to resolve project dependencies, or other configuration issues. */
   def warnings :SeqV[String] = Seq.empty
-
-  /** A [[ProjectStore]] that maintains a reference back to its owning project. */
-  class CodexStore extends MapDBStore(name, metaFile("codex")) {
-    def owner :Project = Project.this
-    def isEmpty :Boolean = !topLevelDefs.iterator.hasNext
-    def describeSelf (bb :BufferBuilder) {
-      bb.addSubHeader("Codex:")
-      bb.add(Line.builder(s"Defs: $defCount").withLineTag(Visit.Tag(new Visit() {
-        protected def go (window :Window) = CodexSummaryMode.visitTopLevel(window, CodexStore.this)
-      })).build())
-    }
-    def reindex () :Unit = pspace.indexer.queueReindexAll(Project.this)
-    override def toString = s"codex:$name"
-
-    // when our project metadata is resolved/updated, check whether we need a full reindex
-    metaV.onEmit {
-      if (isEmpty) reindex()
-    }
-  }
-
-  /** Returns the Codex store for this project. Created on demand. */
-  def store :CodexStore = _store.get
 
   /** Applies `op` to all files in this project. The default implementation applies `op` to all
     * files in [[root]] directory and its subdirectories. Subclasses may refine this result. */
@@ -451,16 +445,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     override def runTest (window :Window, file :Path, elem :Def) = {
       window.emitStatus("${project.name} does not provide a tester.")
       Future.success(())
-    }
-  }
-
-  protected def createProjectStore () :CodexStore = new CodexStore()
-  private val _store = new Close.Box[CodexStore](toClose) {
-    override protected def create = createProjectStore()
-    override protected def willClose (ref :CodexStore) {
-      // don't call super, which would close our project store directly, instead delegate closure
-      // to a background thread; MapDB close can block for a non-trivial duration
-      if (ref != null) metaSvc.exec.runInBG { ref.close() }
     }
   }
 }

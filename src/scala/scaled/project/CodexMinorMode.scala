@@ -15,21 +15,20 @@ import scaled.util.{Chars}
   */
 abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
 
+  val codex = Codex(editor)
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
   val project = Project(buffer)
-  import project.pspace
-  val codex = pspace.codex
 
   /** The most recent index for the buffer's source file, if any. */
   val index = OptValue[SourceIndex]()
   // if our store gets indexed, store it in `index`
-  note(pspace.indexer.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
+  note(codex.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
 
   protected def reqIndex = index getOrElse abort("No Codex index available for this file.")
 
   protected def codexRead (prompt :String, kind :Kind)(fn :JConsumer[Def]) :Unit =
-    window.mini.read(prompt, wordAt(view.point()), codex.history(kind),
+    window.mini.read(prompt, wordAt(view.point()), history(kind),
                      codex.completer(project, kind)).onSuccess(fn)
 
   protected def codexVisit (prompt :String, kind :Kind) :Unit =
@@ -62,4 +61,12 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   /** Returns the "word" at the specified location in the buffer. */
   protected def wordAt (loc :Loc) :String =
     buffer.regionAt(loc, Chars.Word).map(_.asString).mkString
+
+  protected def history (kind :Kind) = kind match {
+    case Kind.MODULE => Workspace.historyRing(wspace, "codex-module")
+    case Kind.TYPE   => Workspace.historyRing(wspace, "codex-type")
+    case Kind.FUNC   => Workspace.historyRing(wspace, "codex-func")
+    case Kind.VALUE  => Workspace.historyRing(wspace, "codex-value")
+    case _           => Workspace.historyRing(wspace, "codex-other")
+  }
 }

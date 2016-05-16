@@ -17,14 +17,14 @@ import scaled.util.BufferBuilder
 @Minor(name="codex", stateTypes=Array(classOf[Project]),
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
-  import project.pspace
 
   /** Used when highlighting uses in our buffer. */
   val highlights = Value(Seq[Use]())
   highlights.onChange { (nuses, ouses) =>
     ouses foreach upHighlight(false)
     nuses foreach upHighlight(true)
-    window.visits() = new Visit.List("occurrence", nuses.toSeq.sortBy(_.offset).map(u => Visit(buffer.store, u.offset)))
+    window.visits() = new Visit.List("occurrence", nuses.toSeq.sortBy(_.offset).map(
+      u => Visit(buffer.store, u.offset)))
   }
   private def upHighlight (on :Boolean)(use :Use) {
     val start = buffer.loc(use.offset) ; val end = buffer.loc(use.offset+use.length)
@@ -35,11 +35,12 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   // request that our store be indexed (which should eventually populate `index`)
   note(buffer.storeV.onValueNotify { store =>
     // don't attempt to index non- or not-yet-existent files
-    if (store.exists) pspace.indexer.queueReindex(project, store, false)
+    if (store.exists) codex.queueReindex(project, store, false)
   })
 
   override def keymap = super.keymap.
-    // "C-h c"   -> "describe-codex", // TODO:?
+    bind("describe-codex", "C-h c").
+
     bind("codex-visit-module", "C-c C-v C-m").
     bind("codex-visit-type",   "C-c C-v C-t").
     bind("codex-visit-func",   "C-c C-v C-f").
@@ -69,6 +70,13 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   //
   // FNs
+
+  @Fn("Describes the internals of the Codex indices.")
+  def describeCodex () {
+    val bb = new BufferBuilder(view.width()-1)
+    codex.describeSelf(bb)
+    window.focus.visit(bb.applyTo(project.createBuffer(s"*codex*", "help")))
+  }
 
   @Fn("Queries for a module (completed by the project's Codex) and navigates to its definition.")
   def codexVisitModule () :Unit = codexVisit("Module:", Kind.MODULE)
@@ -133,7 +141,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
          the project's Codex.""")
   def codexDescribeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      view.popup() = CodexUtil.mkDefPopup(env, pspace.codex.stores(project), df, loc)
+      view.popup() = CodexUtil.mkDefPopup(env, codex.stores(project), df, loc)
     }
   }
 
@@ -142,7 +150,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
          to search them, etc.""")
   def codexSummarizeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      val info = CodexUtil.summarizeDef(env, pspace.codex.stores(project), df)
+      val info = CodexUtil.summarizeDef(env, codex.stores(project), df)
       val buf = project.createBuffer(s"${df.name}:${df.qualifier}", "codex-info")
       buf.delete(buf.start, buf.end)
       buf.append(info.lines)
@@ -176,9 +184,9 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("Highlights all occurrences of an element in the current buffer.")
   def codexHighlightElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      val bufSource = PSpaceCodex.toSource(buffer.store)
+      val bufSource = Codex.toSource(buffer.store)
       val dfRef = df.ref
-      val usesMap = project.store.usesOf(df).toMapV // source -> uses
+      val usesMap = codex.store(project).usesOf(df).toMapV // source -> uses
       def mkUse (offset :Int) = new Use(dfRef, df.kind, offset, df.name.length)
 
       // create a set of all uses in this buffer, for highlighting
@@ -203,7 +211,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   private val renameHistory = new Ring(editor.config(EditorConfig.historySize))
 
   class Renamer (df :Def, src :Source, offsets :Array[Int]) {
-    val store = PSpaceCodex.toStore(src)
+    val store = Codex.toStore(src)
     lazy val buffer = wspace.openBuffer(store)
     lazy val locs = {
       // convert the offsets to locs and sort them in reverse order
@@ -226,7 +234,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
       if (df.kind != Kind.FUNC && df.kind != Kind.VALUE) abort(
         "Rename only supported for methods and variables. Not types or packages.")
 
-      val renamers = project.store.usesOf(df).toMapV.map(new Renamer(df, _, _))
+      val renamers = codex.store(project).usesOf(df).toMapV.map(new Renamer(df, _, _))
       if (renamers.isEmpty) abort(
         "No uses found for element at point. Perhaps try codex-reindex-project?")
 
@@ -260,18 +268,18 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   @Fn("Initiates a reindexing of the current project.")
   def codexReindexProject () {
-    project.store.reindex()
+    codex.queueReindexAll(project)
   }
 
   @Fn("Initiates a reindexing of file in the current buffer.")
   def codexReindexBuffer () {
-    pspace.indexer.queueReindex(project, buffer.store, true)
+    codex.queueReindex(project, buffer.store, true)
   }
 
   @Fn("""Initiates a debug reindexing of file in the current buffer. The results will be dumped
          to stdout instead of used to populate the index.""")
   def codexDebugReindexBuffer () {
-    pspace.indexer.debugReindex(project, buffer.store)
+    codex.debugReindex(project, buffer.store)
   }
 
   // TODO: codexReindexWorkspace?

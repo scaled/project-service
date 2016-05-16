@@ -6,7 +6,6 @@ package scaled.project
 
 import java.io.PrintWriter
 import java.nio.file.{Files, Path, Paths}
-import java.security.MessageDigest
 import java.util.stream.Collectors
 import java.util.{Map => JMap, HashMap}
 import scaled._
@@ -61,7 +60,7 @@ class ProjectDB (wsroot :Path, log :Logger) {
   }
 
   /** Returns the directory into which `proj` should store its metadata. */
-  def metaDir (proj :Project) :Path = psdir.resolve(md5hex(proj.root.toString))
+  def metaDir (proj :Project) :Path = psdir.resolve(proj.root.hashName)
 
   /** Adds `proj` to this database.
     * @return true if added, false if project was already added. */
@@ -109,21 +108,6 @@ class ProjectDB (wsroot :Path, log :Logger) {
       }
       // TODO: name change?
   }
-
-  private def md5hex (text :String) = toHex(digest.digest(text.getBytes))
-  private def toHex (data :Array[Byte]) = {
-    val cs = new Array[Char](data.length*2)
-    val chars = Chars
-    var in = 0 ; var out = 0 ; while (in < data.length) {
-      val b = data(in).toInt & 0xFF
-      cs(out) = chars(b/16)
-      cs(out+1) = chars(b%16)
-      in += 1 ; out += 2
-    }
-    new String(cs)
-  }
-  private val digest = MessageDigest.getInstance("MD5")
-  private final val Chars = "0123456789ABCDEF"
 
   private def readInfo (lines :SeqV[String]) :Info =
     Info(Codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(Codec.readId).toSeq)

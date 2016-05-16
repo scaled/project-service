@@ -25,6 +25,7 @@ object CodexFindUsesConfig extends Config.Defs {
 class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
   import CodexFindUsesConfig._
 
+  val codex = Codex(editor)
   val project = Project(buffer)
   import project.pspace
 
@@ -48,13 +49,13 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
   if (buffer.start == buffer.end) env.exec.runInBG {
     println(s"Finding uses of $df")
     val visits = Seq.builder[Visit]()
-    project.store.usesOf(df).toMapV foreach { (src, offsets) =>
+    codex.store(project).usesOf(df).toMapV foreach { (src, offsets) =>
       println(s"$src -> ${offsets.length}")
       val lines = Seq.builder[Line]()
       val srcstr = src.toString
       lines += Line.builder(srcstr).withStyle(pathStyle, 0, srcstr.length).build()
       val srcdef = (df.source == src)
-      val store = PSpaceCodex.toStore(src)
+      val store = Codex.toStore(src)
       def offat (oo :Int) = if (oo < offsets.length) offsets(oo) else -1
       var oo = 0
       store.readLines { (line, offset) =>
