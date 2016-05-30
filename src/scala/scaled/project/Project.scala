@@ -213,7 +213,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Appends `msg` to this project's [[logBuffer]]. This method can be called from any thread, but
     * is a bit expensive. Append to [[logBuffer]] yourself if you have a lot of logging to do and
     * know you're on the UI thread. */
-  def log (msg :String) :Unit = pspace.wspace.editor.exec.runOnUI(pspace.wspace) {
+  def log (msg :String) :Unit = pspace.wspace.exec.runOnUI {
     logBuffer.append(Line.fromTextNL(msg))
   }
 

@@ -46,7 +46,7 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
   var visitList :Visit.List = _
 
   // look up our uses in the background and append them to the buffer
-  if (buffer.start == buffer.end) env.exec.runInBG {
+  if (buffer.start == buffer.end) window.exec.runInBG {
     println(s"Finding uses of $df")
     val visits = Seq.builder[Visit]()
     codex.store(project).usesOf(df).toMapV foreach { (src, offsets) =>
@@ -75,13 +75,13 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
         while (add(offat(oo))) oo += 1
         if (srcdef) add(df.offset)
       }
-      env.exec.runOnUI(window) {
+      window.exec.runOnUI {
         buffer append lines
         buffer split buffer.end
       }
     }
 
-    env.exec.runOnUI(window) {
+    window.exec.runOnUI {
       visitList = new Visit.List("use", visits.build())
       window.visits() = visitList
       view.point() = Loc.Zero

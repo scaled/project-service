@@ -112,35 +112,37 @@ abstract class Compiler (project :Project) extends Project.Component {
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
     _status() = Compiling
-    compile(buf, config.file).onFailure(window.emitError).onSuccess { success =>
-      // scan the results buffer for compiler errors
-      val wbuf = Seq.builder[Note]
-      val ebuf = Seq.builder[Note]
-      @inline @tailrec def unfold (loc :Loc) :Unit = nextNote(buf, loc) match {
-        case NoMoreNotes  => // done!
-        case (note, next) => (if (note.isError) ebuf else wbuf) += note ; unfold(next)
-      }
-      unfold(buf.start)
+    compile(buf, config.file).via(window.exec.uiExec).
+      onFailure(window.emitError).
+      onSuccess { success =>
+        // scan the results buffer for compiler errors
+        val wbuf = Seq.builder[Note]
+        val ebuf = Seq.builder[Note]
+        @inline @tailrec def unfold (loc :Loc) :Unit = nextNote(buf, loc) match {
+          case NoMoreNotes  => // done!
+          case (note, next) => (if (note.isError) ebuf else wbuf) += note ; unfold(next)
+        }
+        unfold(buf.start)
 
-      val warns = wbuf.build() ; val errs  = ebuf.build()
-      _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
-      warnings() = new Visit.List("compile warning", warns)
-      errors()   = new Visit.List("compile error", errs)
+        val warns = wbuf.build() ; val errs  = ebuf.build()
+        _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
+        warnings() = new Visit.List("compile warning", warns)
+        errors()   = new Visit.List("compile error", errs)
 
-      val duration = System.currentTimeMillis - start
-      val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
-      buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
-      // report feedback to the user if this was requested interactively
-      if (config.interactive) {
-        val result = if (success) "succeeded" else "failed"
-        window.emitStatus(s"${project.name} compile $result: " +
-          s"${errs.size} error(s), ${warns.size} warning(s).")
-      }
+        val duration = System.currentTimeMillis - start
+        val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
+        buf.append(Line.fromTextNL(s"Completed in $durstr, at ${new Date}."))
+        // report feedback to the user if this was requested interactively
+        if (config.interactive) {
+          val result = if (success) "succeeded" else "failed"
+          window.emitStatus(s"${project.name} compile $result: " +
+            s"${errs.size} error(s), ${warns.size} warning(s).")
+        }
 
-      if (success && config.tests) {
-        project.testCompanion.foreach { _.compiler.compile(window, config.copy(tests=false)) }
+        if (success && config.tests) {
+          project.testCompanion.foreach { _.compiler.compile(window, config.copy(tests=false)) }
+        }
       }
-    }
     if (config.interactive) window.emitStatus(s"${project.name} recompiling...")
   }
 

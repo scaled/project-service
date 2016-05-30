@@ -195,7 +195,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   def log (project :Project, msg :String) {
     val wspace = project.pspace.wspace
     val buffer = wspace.createBuffer(logStore, Nil, true)
-    editor.exec.runOnUI(wspace) {
+    wspace.exec.runOnUI {
       buffer.append(Line.fromTextNL(msg))
     }
   }
@@ -237,7 +237,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     * thread, and this method is called therefrom. */
   protected def reindexComplete (project :Project, source :Source) {
     val ib = SourceIndex.builder(toStore(source))
-    if (store(project).visit(source, ib)) msvc.exec.runOnUI(project.pspace.wspace) {
+    if (store(project).visit(source, ib)) project.pspace.wspace.exec.runOnUI {
       indexed.emit(ib.build())
     }
     // TODO: until we know what file extensions are known to the indexer, this generates too many
