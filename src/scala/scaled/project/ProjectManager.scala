@@ -99,7 +99,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     new Project(ps, Project.Root(Paths.get(""), "")) {
       val fileCompleter = Completer.file
       override def isIncidental = true
-      override def init () {}
+      override protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta)
     }
 
   override def didStartup () {

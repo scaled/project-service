@@ -18,11 +18,9 @@ final class ZipFileProject (ps :ProjectSpace, val zipPaths :Seq[Path])
 
   override def isIncidental = true
 
-  override def init () {
-    metaV() = metaV().copy(
-      name = root.path.getFileName.toString
-    )
-  }
+  override protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta.copy(
+    name = root.path.getFileName.toString
+  ))
 }
 
 /** A base class for projects that get their contents from a zip file. Provides a completer over all

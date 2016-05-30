@@ -19,11 +19,9 @@ import scaled.util.BufferBuilder
 final class FileProject (ps :ProjectSpace, r :Project.Root) extends AbstractFileProject(ps, r) {
   override def isIncidental = true
 
-  override def init () {
-    metaV() = metaV().copy(
-      name = root.path.getFileName.toString
-    )
-  }
+  override protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta.copy(
+    name = root.path.getFileName.toString
+  ))
 }
 
 /** A base class for projects that are rooted in a directory.

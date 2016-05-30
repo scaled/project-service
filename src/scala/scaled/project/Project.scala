@@ -149,6 +149,16 @@ object Project {
 abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   import Project._
 
+  /** Tracks the basic project metadata. This should only be updated by the project, but outside
+    * parties may want to react to changes to it. */
+  val metaV = metaValue("meta", Meta)
+  // when metaV changes, update our status
+  metaV.onEmit { updateStatus() }
+
+  /** Returns a future which is complete when this project is ready. */
+  def ready :Future[Project] = _ready
+  private val _ready = Promise[Project]()
+
   /** Indicates that this project should be omitted from lookup by name. */
   def isIncidental = false
 
@@ -160,12 +170,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** All top-level directories which contain source code. */
   def sourceDirs :SeqV[Path] = metaV().sourceDirs
-
-  /** Tracks the basic project metadata. This should only be updated by the project, but outside
-    * parties may want to react to changes to it. */
-  val metaV = metaValue("meta", Meta)
-  // when metaV changes, update our status
-  metaV.onEmit { updateStatus() }
 
   /** The ids of project's dependencies. These should be in highest to lowest precedence order. Do
     * not look up project dependencies manually, instead use [[depend]] which will properly
@@ -196,9 +200,11 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   }
 
   /** Adds this project to `buffer`'s state. Called by [[ProjectSpace]] whenever a buffer is
-    * created. By default adds this project to the buffer, but a project may which to inspect the
-    * path being edited in the buffer and add a different project (a test companion project for
-    * example) instead. */
+    * created (and only after this project has reported itself as ready).
+    *
+    * By default adds this project to the buffer, but a project may which to inspect the path being
+    * edited in the buffer and add a different project (a test companion project for example)
+    * instead. */
   def addToBuffer (buffer :RBuffer) {
     buffer.state[Project]() = this
     import Config.Scope
@@ -339,12 +345,19 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     hibernate()
   }
 
+  /** Initializes this project. Called by [[ProjectSpace]] immediately after resolution. */
+  def init () {
+    computeMeta(metaV()).onSuccess { meta =>
+      metaV() = meta
+      _ready.succeed(this)
+    }.onFailure { err => pspace.wspace.emitError(err) }
+  }
+
   /** Called during project resolution after metadata has been restored from the last time this
-    * project was instantiated. This is the time a project should either update its metadata or
-    * trigger a background thread to re-read its metadata and then eventually update the metadata
-    * (back on the main editor thread).
+    * project was instantiated. The project should recompute its metadata (potentially on a
+    * background thread) and then complete its init future with the updated metadata.
     */
-  def init () :Unit
+  protected def computeMeta (oldMeta :Meta) :Future[Meta]
 
   /** Returns the component for the specified type-key, or `None` if no component is registered. */
   def component[C <: Component] (cclass :Class[C]) :Option[C] =

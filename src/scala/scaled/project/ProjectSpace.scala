@@ -21,10 +21,10 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   wspace.toClose += this // our lifecycle matches that of our workspace
 
   // when a buffer is opened, resolve the project associated with the path being edited by the
-  // buffer, and stuff it and related bits into buffer state
+  // buffer, wait for it to be ready, then stuff it and related bits into buffer state
   wspace.toClose += wspace.bufferOpened.onValue { buf =>
     if (!buf.state[Project].isDefined) psvc.pathsFor(buf.store).
-      map(resolveByPaths) foreach { _.addToBuffer(buf) }
+      map(resolveByPaths) foreach { _.ready.onSuccess { _.addToBuffer(buf) }}
   }
 
   private val codex = Codex(wspace.editor)
@@ -72,7 +72,6 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   def projectFromSeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
     val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
     projects.put(proj.root, proj)
-    proj.init()
     // when the project's metadata changes...
     proj.metaV.onValueNotify { _ =>
       // make sure the project is properly mapped in the project DB
@@ -80,6 +79,8 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
       // let the codex know that it might want to index the project
       codex.checkProject(proj)
     }
+    // trigger initialization of the project
+    proj.init()
     proj
   }
 
