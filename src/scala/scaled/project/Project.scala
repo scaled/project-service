@@ -195,6 +195,16 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     metaDir.resolve(name)
   }
 
+  /** Adds this project to `buffer`'s state. Called by [[ProjectSpace]] whenever a buffer is
+    * created. By default adds this project to the buffer, but a project may which to inspect the
+    * path being edited in the buffer and add a different project (a test companion project for
+    * example) instead. */
+  def addToBuffer (buffer :RBuffer) {
+    buffer.state[Project]() = this
+    import Config.Scope
+    buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
+  }
+
   /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
     * configured to be a part of this project. */
   def bufferState (mode :String, args :Any*) :List[State.Init[_]] = List(

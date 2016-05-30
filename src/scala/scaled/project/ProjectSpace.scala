@@ -20,14 +20,11 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   wspace.state[ProjectSpace]() = this
   wspace.toClose += this // our lifecycle matches that of our workspace
 
-  // when a buffer is opened, stuff its project and related bits into buffer state
+  // when a buffer is opened, resolve the project associated with the path being edited by the
+  // buffer, and stuff it and related bits into buffer state
   wspace.toClose += wspace.bufferOpened.onValue { buf =>
-    val pstate = buf.state[Project]
-    if (!pstate.isDefined) psvc.pathsFor(buf.store).map(resolveByPaths) map { proj =>
-      pstate.update(proj)
-      import Config.Scope
-      buf.state[Scope]() = Scope("project", proj.metaDir, buf.state.get[Scope])
-    }
+    if (!buf.state[Project].isDefined) psvc.pathsFor(buf.store).
+      map(resolveByPaths) foreach { _.addToBuffer(buf) }
   }
 
   private val codex = Codex(wspace.editor)
