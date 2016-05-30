@@ -28,7 +28,7 @@ abstract class Tester (project :Project) extends Project.Component {
     * but a tester may wish to refine this notion. */
   def isTestFunc (df :Def) :Boolean = df.kind == Kind.FUNC
 
-  /** Runs all tests in the project. Test output will be directed to [[buffer]].
+  /** Runs all tests in the project.
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-all-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
@@ -36,8 +36,7 @@ abstract class Tester (project :Project) extends Project.Component {
   def runAllTests (window :Window, interact :Boolean) :Boolean
 
   /** Runs all tests in `file`. If available, model information for all types (classes) in that
-    * compilation unit will also be provided, to make life easier for the test framework. Test
-    * output will be directed to [[buffer]].
+    * compilation unit will also be provided, to make life easier for the test framework.
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
@@ -45,7 +44,7 @@ abstract class Tester (project :Project) extends Project.Component {
   def runTests (window :Window, interact :Boolean, file :Path, types :SeqV[Def]) :Boolean
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
-    * invoked interactly. Test output will be directed to [[buffer]].
+    * invoked interactly.
     * @return a future which will be completed when the test completes.
     */
   def runTest (window :Window, file :Path, elem :Def) :Future[Unit]

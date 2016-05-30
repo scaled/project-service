@@ -44,7 +44,7 @@ object Compiler {
   case class Config (tests :Boolean, interactive :Boolean, file :Option[Path])
 
   /** Encapsulates a compiler warning or error. */
-  case class Note (file :Store, loc :Loc, descrip :Seq[String], isError :Boolean) extends Visit {
+  case class Note (file :Store, loc :Loc, descrip :SeqV[String], isError :Boolean) extends Visit {
     override protected def go (window :Window) = {
       val view = window.focus.visitFile(file)
       view.point() = loc
