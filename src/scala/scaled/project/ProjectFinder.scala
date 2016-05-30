@@ -78,10 +78,10 @@ abstract class ProjectFinderPlugin (
   protected def seed (root :Project.Root, args :List[Any]) =
     Project.Seed(root, name, intelligent, clazz, args)
 
-  /** Creates a `Root` for `path`. The default assumes non-test-mode.
+  /** Creates a `Root` for `path`. The default assumes no module tag.
     * @param seed the original seed path from which the root was identified.
     */
-  protected def mkRoot (seed :Path, path :Path) = Project.Root(path, false)
+  protected def mkRoot (seed :Path, path :Path) = Project.Root(path)
 
   /** Returns true if `dir/file` exists. Helpy helper! */
   protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))

@@ -73,7 +73,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
       val root = paths.head ; val file = root.getFileName.toString
       val clazz = if ((file endsWith ".zip") || (file endsWith ".jar")) classOf[ZipFileProject]
                   else classOf[FileProject]
-      val proot = Project.Root(root, false)
+      val proot = Project.Root(root, "")
       Project.Seed(proot, "file", false, clazz, List(proot))
     }
   }
@@ -96,7 +96,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
   override def docFormatter (suff :String) = docfMap.getOrElse(suff, DocFormatterPlugin.Default)
 
   override def unknownProject (ps :ProjectSpace) =
-    new Project(ps, Project.Root(Paths.get(""), false)) {
+    new Project(ps, Project.Root(Paths.get(""), "")) {
       val fileCompleter = Completer.file
       override def isIncidental = true
       override def init () {}

@@ -18,9 +18,9 @@ class CodecTest {
       val str = showRoot(root)
       assertEquals(root, readRoot(str))
     }
-    test(Root(Paths.get("/foo/bar/baz"), false))
-    test(Root(Paths.get("/foo/bar/baz"), true))
-    test(Root(Paths.get("c:\\monkey\\butter"), true))
+    test(Root(Paths.get("/foo/bar/baz")))
+    test(Root(Paths.get("/foo/bar/baz"), "test"))
+    test(Root(Paths.get("c:\\monkey\\butter"), "pickle-sauce"))
   }
 
   @Test def testReadShowId () {

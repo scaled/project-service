@@ -48,14 +48,15 @@ object Project {
     * version of the Ruby standard libraries for a Ruby project. */
   case class PlatformId (platform :String, version :String) extends Id
 
-  /** Defines a project's root directory and whether or not we're viewing the project in test mode.
-    * Many build systems conflate test configuration with normal build configuration, but Scaled
-    * likes to treat those as two separate projects (since nearly all the configuration is
-    * duplicated for a project's test "mode"). */
-  case class Root (path :Path, testMode :Boolean) {
+  /** Defines a project's root directory and any module tag that is needed to differentiate
+    * multiple modules in the same root directory. Many build systems put main and test modules in
+    * the same directory, and some (like SBT or Gradle) can have a whole tree of modules rooted in
+    * a single directory and managed by a single build file. */
+  case class Root (path :Path, module :String = "") {
     /** Returns a hash name for this root. Used for internal directory names. */
     def hashName :String = md5hex(toString)
-    override def toString = if (testMode) s"$path (test)" else s"$path"
+    def toString (sep :String) = path + sep + module
+    override def toString = toString(if (module.length == 0) "" else ":")
   }
 
   // needed because the wildcard in Seed's ctor (Class) results in existential in unapply

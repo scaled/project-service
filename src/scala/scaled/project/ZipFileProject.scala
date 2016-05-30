@@ -13,7 +13,7 @@ import scaled._
   * but can at least do project-wide file completion using all the files in the zip file(s).
   */
 final class ZipFileProject (ps :ProjectSpace, val zipPaths :Seq[Path])
-    extends AbstractZipFileProject(ps, Project.Root(zipPaths.head, false)) {
+    extends AbstractZipFileProject(ps, Project.Root(zipPaths.head)) {
   def this (ps :ProjectSpace, zipPath :Path) = this(ps, Seq(zipPath))
 
   override def isIncidental = true
