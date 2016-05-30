@@ -130,10 +130,12 @@ object FileProject {
     override def toString = s"m/$regex/"
   }
 
-  /** Returns an ignorer for a specific path. */
-  def ignorePath (_path :Path) = new Ignorer {
+  /** Returns an ignorer for a specific path.
+    * @param relativeTo a path to which _path is relative (usually the project root), used when
+    * showing the ignore in the project description. */
+  def ignorePath (_path :Path, relativeTo :Path) = new Ignorer {
     override def apply (path :Path) = path == _path
-    override def toString = _path.toString
+    override def toString = s"${relativeTo.relativize(_path)}/"
   }
 
   /** The standard set of directories that are ignored when enumerating all project dirs. */
