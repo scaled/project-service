@@ -54,7 +54,7 @@ object DocFormatterPlugin {
       }
       def full (indent :String, bb :BufferBuilder) = format(text, indent, bb)
       private def format (text :String, indent :String, bb :BufferBuilder) {
-        text.split(System.lineSeparator) foreach { l => bb.add(s"$indent$l", CodeConfig.docStyle) }
+        Line.splitText(text) foreach { l => bb.add(s"$indent$l", CodeConfig.docStyle) }
       }
     }
   }

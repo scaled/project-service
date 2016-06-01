@@ -24,20 +24,20 @@ object CodexUtil {
 
   /** Formats the supplied signature with colorizations and such. */
   def formatSig (sig :Sig, indent :String) :Seq[LineV] = {
-    var start = 0
-    sig.text.split(System.lineSeparator).mkSeq map { l =>
+    val lines = Seq.builder[LineV]()
+    Line.onLines(sig.text) { (l, lstart) =>
       val len = l.length
       val lb = Line.builder(indent + l)
       for (el <- sig.uses) {
-        val off = el.offset - start
+        val off = el.offset - lstart
         if (off >= 0 && off < len) styleFor(el.kind) foreach {
           val start = indent.length+off ; val end = start+el.length
           s => lb.withStyle(s, start, end).withTag(el, start, end)
         }
       }
-      start += len + System.lineSeparator.length
-      lb.build()
+      lines += lb.build()
     }
+    lines.build()
   }
 
   /** Resolves the documentation for `df`. If `df` has no documentation, this will search for
