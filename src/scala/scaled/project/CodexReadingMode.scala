@@ -7,7 +7,7 @@ package scaled.project
 import scaled._
 import scaled.major.ReadingMode
 
-@Major(name="codex-info",
+@Major(name="codex-info", tags=Array("project"),
        desc="""A major mode for displaying Codex information.""")
 class CodexReadingMode (env :Env) extends ReadingMode(env) {
 

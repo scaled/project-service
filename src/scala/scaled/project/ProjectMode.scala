@@ -37,7 +37,7 @@ object ProjectConfig extends Config.Defs {
   *
   * Any major mode that includes the `project` tag will trigger the activation of this minor mode.
   */
-@Minor(name="project", stateTypes=Array(classOf[Project]),
+@Minor(name="project", tags=Array("project"), stateTypes=Array(classOf[Project]),
        desc="""A minor mode that provides project-centric fns.""")
 class ProjectMode (env :Env) extends CodexMinorMode(env) {
   import ProjectConfig._
