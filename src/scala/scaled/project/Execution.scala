@@ -43,6 +43,17 @@ class Execution (val name :String, data :ArrayListMultimap[String,String]) {
     if (vs.isEmpty) defvals else vs.toSeqV
   }
 
+  /** Returns the values for `key`, split into a key/value map on `separator`. This is useful for
+    * passing environment variables like so:
+    * ```
+    * hello.env: FOO=bar
+    * hello.env: BINGLE_PATH=baz/quux
+    * ```
+    * If no entries are specified with `key` an empty map is returned.
+    */
+  def paramMap (key :String, sep :String = "=") :Map[String, String] =
+    data.get(key).map(_.split(sep, 2)).map(p => (p(0).trim, p(1).trim)).toMap
+
   /** Used to describe this execution in the `describe-project` buffer. */
   def describe :(String, String) = (s"$name: ", data.toString)
 

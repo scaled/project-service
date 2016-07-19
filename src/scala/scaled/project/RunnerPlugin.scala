@@ -57,11 +57,12 @@ class ExecRunnerPlugin (pspace :ProjectSpace) extends RunnerPlugin(pspace) {
     "# example.runner:  exec      # the runner to use for this execution",
     "# example.geom:    80x40+0+0 # (optional) output window geometry",
     "# example.command: echo      # the command to be executed",
+    "# example.env:     FOO=bar   # sets the 'FOO' environment variable",
     "# example.arg:     Hello     # the first arg passed to the command",
     "# example.arg:     world.    # the second arg passed to the command"
   )
   override protected def config (exec :Execution) = {
     val args = exec.param("command") +: exec.param("arg", Seq())
-    SubProcess.Config(args.toArray)
+    SubProcess.Config(args.toArray, env=exec.paramMap("env"))
   }
 }
