@@ -64,7 +64,12 @@ class Codex (editor :Editor, msvc :MetaService) {
     if (store != null) store
     else {
       val indexDir = Files.createDirectories(codexDir.resolve(root.hashName))
-      val newStore = new CodexStore(root, indexDir.resolve("index"))
+      val newStore = try new CodexStore(root, indexDir.resolve("index"))
+      catch {
+        case e :Throwable =>
+          msvc.log.log(s"Failed to create store in ${indexDir}", e)
+          throw e
+      }
       storesByRoot.put(root, newStore)
       newStore
     }
