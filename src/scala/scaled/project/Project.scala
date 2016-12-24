@@ -171,9 +171,8 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** All top-level directories which contain source code. */
   def sourceDirs :SeqV[Path] = metaV().sourceDirs
 
-  /** The ids of project's dependencies. These should be in highest to lowest precedence order. Do
-    * not look up project dependencies manually, instead use [[depend]] which will properly
-    * reference the dependent project and release it when this project hibernates. */
+  /** The ids of project's dependencies. These should be in highest to lowest precedence order.
+    * Do not look up project dependencies manually, instead use [[depend]]. */
   def depends :SeqV[Id] = Seq()
 
   /** Returns a seed for this project's test companion project, if any. */
@@ -182,7 +181,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
 
-  /** A bag of closeables to be closed when this project [[hibernate]]s or is [[dispose]]d. */
+  /** A bag of closeables to be closed when this project is [[dispose]]d. */
   val toClose = Close.bag()
 
   /** The history ring for file names in this project. */
@@ -342,20 +341,36 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Closes any open resources maintained by this project and prepares it to be freed. This
     * happens when this project's owning workspace is disposed. */
   def dispose () {
-    hibernate()
+    println(s"$this disposing")
+    try toClose.close()
+    catch {
+      case e :Throwable => log.log("$this dispose failure", e)
+    }
+    _components.values().foreach(_.close())
+    _components.clear()
   }
 
   /** Initializes this project. Called by [[ProjectSpace]] immediately after resolution. */
   def init () {
-    computeMeta(metaV()).onSuccess { meta =>
-      metaV() = meta
-      _ready.succeed(this)
-    }.onFailure { err => pspace.wspace.emitError(err) }
+    computeMeta(metaV()).
+      onSuccess { meta => metaV() = meta ; _ready.succeed(this) }.
+      onFailure { err => pspace.wspace.emitError(err) }
+  }
+
+  /** Reinitializes this project. Can be called by the project when it detects that its metadata
+    * has changed. */
+  def reinit () {
+    computeMeta(metaV()).
+      onSuccess { meta => metaV() = meta }.
+      onFailure { err => pspace.wspace.emitError(err) }
   }
 
   /** Called during project resolution after metadata has been restored from the last time this
     * project was instantiated. The project should recompute its metadata (potentially on a
     * background thread) and then complete its init future with the updated metadata.
+    *
+    * If a project opts to `reinit` itself, this method will be called again during the reinit
+    * process.
     */
   protected def computeMeta (oldMeta :Meta) :Future[Meta]
 
@@ -363,22 +378,15 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def component[C <: Component] (cclass :Class[C]) :Option[C] =
     Option(_components.get(cclass).asInstanceOf[C])
 
-  /** Registers `comp` with this project. If a component of the same type-key is already
-    * registered, a warning will be logged and the call will have no effect (the initial component
-    * will remain configured).
-    *
-    * Projects should register their components in [[init]]. Components will be cleared out and
-    * closed when this project hibernates or is disposed.
-    *
-    * TODO: init/hibernate is a mess right now that needs to be rethunk.
+  /** Registers `comp` with this project. If a component of the same type-key is already registered
+    * it will be closed and replaced with `comp`. Components will also be closed when this project
+    * is disposed.
     */
   def addComponent[C <: Component] (cclass :Class[C], comp :C) {
-    if (_components.containsKey(cclass)) {
-      log.log(s"$this duplicate component for $cclass: $comp (have: ${_components.get(cclass)})")
-    } else {
-      assert(comp != null)
-      _components.put(cclass, comp)
-    }
+    assert(comp != null)
+    val oldComp = _components.get(cclass)
+    if (oldComp != null) oldComp.close()
+    _components.put(cclass, comp)
   }
 
   private val _components = new HashMap[Class[_ <: Component],Component]()
@@ -401,16 +409,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   override def toString = s"$name (${root.path})"
   protected def log = metaSvc.log
-
-  /** Causes this project to free up ephemeral resources, which will be recreated if the project is
-    * once again called into service. */
-  protected def hibernate () {
-    println(s"$this hibernating")
-    try toClose.close()
-    catch {
-      case e :Throwable => log.log("$this hibernate failure", e)
-    }
-  }
 
   /** Returns the directory in which this project will store metadata. */
   private[project] def metaDir = {

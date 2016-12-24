@@ -158,10 +158,8 @@ class Codex (editor :Editor, msvc :MetaService) {
     // map the project's store by its ids
     project.ids.foreach { id => storesById.put(id, pstore) }
 
-    // add the project store to the project as a component if it hasn't been added already
-    if (!project.component(classOf[CodexStore]).isDefined) {
-      project.addComponent(classOf[CodexStore], pstore)
-    }
+    // add the project store to the project as a component
+    project.addComponent(classOf[CodexComponent], new CodexComponent(pstore))
 
     // queue an initial reindex of this project if needed (we check for non-empty project.ids
     // because the very first time a project is resolved it will not have processed its metadata

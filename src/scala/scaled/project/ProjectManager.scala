@@ -107,7 +107,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     editor.state[Codex]() = new Codex(editor, metaSvc)
 
     // create a project space whenever a new workspace is opened (it will register itself in
-    // workspace state and clear itself out when the workspace hibernates)
+    // workspace state and clear itself out when the workspace closes)
     editor.workspaceOpened.onValue { ws => new ProjectSpace(ws, metaSvc) }
   }
 
