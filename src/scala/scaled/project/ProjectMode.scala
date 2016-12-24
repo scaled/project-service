@@ -49,7 +49,6 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = super.keymap.
     bind("describe-project",  "C-h p").
-    bind("describe-projects", "C-h S-p").
 
     // file fns
     bind("find-file-in-project",      "C-x C-p").
@@ -273,14 +272,6 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   //
   // Meta FNs
-
-  // TODO: move this into workspace mode, have ProjectSpace participate in describe calldowns
-  @Fn("Displays summary info for all projects in this workspace.")
-  def describeProjects () {
-    val bb = new BufferBuilder(view.width()-1)
-    pspace.describeSelf(bb)
-    window.focus.visit(bb.applyTo(project.createBuffer(s"*${wspace.name}:projects*", "help")))
-  }
 
   @Fn("Describes the current project.")
   def describeProject () {

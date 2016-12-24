@@ -11,10 +11,11 @@ import java.util.stream.Collectors
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
 import scaled.major.TextConfig
-import scaled.util.{BufferBuilder, Errors}
+import scaled.util.{BufferBuilder, Describable, Errors}
 
 /** Manages the projects in a workspace. */
-class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCloseable {
+class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
+    extends AutoCloseable with Describable {
   import Project._
 
   wspace.state[ProjectSpace]() = this
@@ -93,11 +94,27 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
   /** The history ring for execution invocations. */
   val execHistory = new Ring(32)
 
-  /** Emits a description of this project space to `bb`. */
-  def describeSelf (bb :BufferBuilder) {
-    bb.addHeader(s"'$name' Workspace")
+  /** Adds `proj` to this workspace. */
+  def addProject (proj :Project) {
+    // add the project to our database
+    if (!pdb.add(proj)) throw Errors.feedback(s"${proj.name} already added to this workspace.")
+    // add this project's root to our workspace's hint path
+    wspace.addHintPath(proj.root.path)
+  }
 
-    bb.addSubHeader(s"Workspace Projects")
+  /** Removes `proj` from this workspace. */
+  def removeProject (proj: Project) {
+    // remove this project's root from our workspace's hint path
+    wspace.removeHintPath(proj.root.path)
+    // remove the project from our database
+    if (!pdb.remove(proj)) throw Errors.feedback(s"${proj.name} not added to this workspace.")
+  }
+
+  /** Manages executions for this project space. */
+  lazy val execs :Executions = new Executions(this)
+
+  override def describeSelf (bb :BufferBuilder) {
+    bb.addHeader(s"Projects")
     val allps = allProjects
     if (allps.isEmpty) bb.add("<none>")
     else {
@@ -127,25 +144,6 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService) extends AutoCl
 
     execs.describeSelf(bb)
   }
-
-  /** Adds `proj` to this workspace. */
-  def addProject (proj :Project) {
-    // add the project to our database
-    if (!pdb.add(proj)) throw Errors.feedback(s"${proj.name} already added to this workspace.")
-    // add this project's root to our workspace's hint path
-    wspace.addHintPath(proj.root.path)
-  }
-
-  /** Removes `proj` from this workspace. */
-  def removeProject (proj: Project) {
-    // remove this project's root from our workspace's hint path
-    wspace.removeHintPath(proj.root.path)
-    // remove the project from our database
-    if (!pdb.remove(proj)) throw Errors.feedback(s"${proj.name} not added to this workspace.")
-  }
-
-  /** Manages executions for this project space. */
-  lazy val execs :Executions = new Executions(this)
 
   override def close () {
     projects.values.foreach(_.dispose())
