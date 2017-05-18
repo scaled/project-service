@@ -15,7 +15,7 @@ class CodexComponent (store :CodexStore) extends Project.Component {
   /** Appends a description of this store to `bb`. */
   def describeSelf (bb :BufferBuilder) {
     bb.addSubHeader("Codex:")
-    bb.add(Line.builder(s"Defs: $${store.defCount}").withLineTag(Visit.Tag(new Visit() {
+    bb.add(Line.builder(s"Defs: ${store.defCount}").withLineTag(Visit.Tag(new Visit() {
       protected def go (window :Window) = CodexSummaryMode.visitTopLevel(window, store)
     })).build())
   }
