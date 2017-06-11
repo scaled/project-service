@@ -102,6 +102,12 @@ class Codex (editor :Editor, msvc :MetaService) {
     stores
   }
 
+  /** Removes the database for the Codex store in `root`. */
+  def deleteStore(project :Project) {
+    storesByRoot.remove(project.root)
+    Files.deleteIfExists(codexDir.resolve(project.root.hashName).resolve("index"))
+  }
+
   /** Describes the state of the Codex. */
   def describeSelf (bb :BufferBuilder) {
     bb.addHeader("Codex")
@@ -155,6 +161,15 @@ class Codex (editor :Editor, msvc :MetaService) {
   def checkProject (project :Project) {
     val pstore = store(project)
 
+    val isEmpty = try pstore.isEmpty catch {
+      case ex :Throwable =>
+        log(project, s"Codex store corrupt for ${project.name}. Resetting...")
+        log(project, ex.toString())
+        // project.pspace.wspace.emitError(ex)
+        deleteStore(project)
+        true
+    }
+
     // map the project's store by its ids
     project.ids.foreach { id => storesById.put(id, pstore) }
 
@@ -165,7 +180,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     // because the very first time a project is resolved it will not have processed its metadata
     // and probably won't know where its source code is; so we wait for it to report back that it
     // has figured itself out before we attempt to index it)
-    if (pstore.isEmpty && !project.ids.isEmpty) queueReindexAll(project)
+    if (isEmpty && !project.ids.isEmpty) queueReindexAll(project)
   }
 
   /** Requests that `project`'s code be fully reindexed. */
