@@ -35,7 +35,10 @@ class ProjectDB (exec :Executor, wsroot :Path, log :Logger) {
   /*ctor*/ {
     // load metadata from our config file
     if (Files.exists(configFile)) {
-      ConfigFile.read(configFile).map(readInfo).foreach { info => toInfo.put(info.root, info) }
+      ConfigFile.read(configFile).map(readInfo).foreach(info => {
+        if (Files.exists(info.root.path)) toInfo.put(info.root, info)
+        else log.log(s"Project no longer exists in root '${info.name}': ${info.root.path}")
+      })
     }
     // if we have no config file, potentially migrate from the old per-project info style
     else {
