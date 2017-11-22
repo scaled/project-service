@@ -290,6 +290,21 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     window.popStatus(s"'${project.name}' removed from '${pspace.name}' workspace.")
   }
 
+  @Fn("Removes a project from the current workspace.")
+  def removeProject () {
+    val comp = Completer.from(pspace.allProjects)(_._2)
+    window.mini.read(s"Project:", "", projectHistory, comp) onSuccess(info => {
+      val (root, name) = info
+      pspace.projectIn(root) match {
+        case Some(proj) =>
+          pspace.removeProject(proj)
+          window.popStatus(s"Removed '$name' from '${pspace.name}' workspace.")
+        case None =>
+          window.popStatus(s"Unable to resolve '$name' for removal.")
+      }
+    })
+  }
+
   //
   // Implementation details
 
