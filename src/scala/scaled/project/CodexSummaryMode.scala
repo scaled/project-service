@@ -32,6 +32,8 @@ object CodexSummaryMode {
     val buf = win.workspace.createBuffer(
       Store.scratch(tgt.name, project.root.path),
       project.bufferState("codex-summary", tgt), true)
+    // if window currently displaying a buffer, push current loc to the visit stack
+    if (win.focus.view != null) win.visitStack.push(win.focus.view)
     win.focus.visit(buf)
   }
 }
@@ -176,8 +178,8 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
 
     // tag all inserted lines with our info
     val info = new Info() {
-      override def zoomIn () = codex.summarize(window, view, df)
-      override def visit () = codex.visit(window, view, df)
+      override def zoomIn () = visitDef(window, df)
+      override def visit () = codex.visit(window, df)
       override def visitOrZoom () = df.kind match {
         case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
         case _ => visit()

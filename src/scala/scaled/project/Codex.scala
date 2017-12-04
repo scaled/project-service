@@ -144,17 +144,10 @@ class Codex (editor :Editor, msvc :MetaService) {
   def resolve (window :Window, project :Project, ref :Ref) :Option[Def] =
     Option.from(Ref.resolve(stores(window, project), ref))
 
-  /** Visits the source of `df` in a buffer in `window`. Pushes `curview` onto the visit stack. */
-  def visit (window :Window, curview :BufferView, df :Def) {
-    window.visitStack.push(curview) // push current loc to the visit stack
+  /** Visits the source of `df` in a buffer in `window`. */
+  def visit (window :Window, df :Def) {
     val view = window.focus.visitFile(toStore(df.source))
     view.point() = view.buffer.loc(df.offset)
-  }
-
-  /** Displays a summary of `df` in a new buffer. Pushes `curview` onto the visit stack. */
-  def summarize (window :Window, curview :BufferView, df :Def) {
-    window.visitStack.push(curview) // push current loc to the visit stack
-    CodexSummaryMode.visitDef(window, df)
   }
 
   /** Performs any "project just got loaded/reloaded" stuffs needed by the Codex system. */

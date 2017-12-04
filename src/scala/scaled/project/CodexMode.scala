@@ -10,6 +10,13 @@ import scaled._
 import scaled.major.ReadingMode
 import scaled.util.BufferBuilder
 
+object CodexConfig extends Config.Defs {
+
+  @Var("""If non-empty, the geometry of a window in which to display summaries. Otherwise
+          summaries are shown in the current window. Geometry is of the form 'WxH+X+Y'.""")
+  var summaryWindowGeom = key("")
+}
+
 /** A minor mode which provides fns for interacting with a project's Codex.
   *
   * Any major mode that includes the `project` tag will trigger the activation of this minor mode.
@@ -17,6 +24,7 @@ import scaled.util.BufferBuilder
 @Minor(name="codex", tags=Array("project"), stateTypes=Array(classOf[Project]),
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
+  import CodexConfig._
 
   /** Used when highlighting uses in our buffer. */
   val highlights = Value(Seq[Use]())
@@ -38,6 +46,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     if (store.exists) codex.queueReindex(project, store, false)
   })
 
+  override def configDefs = CodexConfig :: super.configDefs
   override def keymap = super.keymap.
     bind("describe-codex", "C-h c").
 
@@ -99,7 +108,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     val ref = rels.iterator.next
     codex.resolve(window, project, ref) match {
       case None     => abort("Unable to resolve: $ref")
-      case Some(df) => codex.visit(window, view, df)
+      case Some(df) => visit(df)
     }
   }
 
@@ -113,7 +122,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
          member of that type and visits it.""")
   def codexVisitTypeMember () :Unit = codexRead("Type:", Kind.TYPE) { df =>
     val mems = df.members.toSeq
-    if (mems.isEmpty) codex.visit(window, view, df) // if the def has no members, just jump to it
+    if (mems.isEmpty) visit(df) // if the def has no members, just jump to it
     else {
       val comp = new Completer[Def]() {
         def complete (glob :String) = Completion(glob, mems, true)(_.globalRef.id)
@@ -122,7 +131,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
           if (curval == "") Some(df) else super.commit(comp, curval)
       }
       window.mini.read("Member:", "", _memHistory.getOrElseUpdate(df, new Ring(8)), comp).
-        onSuccess(codex.visit(window, view, _))
+        onSuccess(visit)
     }
   }
   private val _memHistory = MMap[Def,Ring]()
@@ -131,7 +140,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   def codexSummarizeEncloser () :Unit = onEncloser(view.point()) { df =>
     def loop (df :Def) :Unit =
       if (df == null) window.popStatus("Could not find enclosing type.")
-      else if (Enclosers(df.kind)) codex.summarize(window, view, df)
+      else if (Enclosers(df.kind)) summarize(df)
       else loop(df.outer)
     loop(df)
   }
@@ -263,7 +272,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
   def codexVisitElement () {
-    onElemAt(view.point())((_, _, df) => codex.visit(window, view, df))
+    onElemAt(view.point())((_, _, df) => visit(df))
   }
 
   @Fn("Initiates a reindexing of the current project.")
@@ -281,6 +290,8 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   def codexDebugReindexBuffer () {
     codex.debugReindex(project, buffer.store)
   }
+
+  override protected def summaryWindowGeom :String = config(CodexConfig.summaryWindowGeom)
 
   // TODO: codexReindexWorkspace?
 }

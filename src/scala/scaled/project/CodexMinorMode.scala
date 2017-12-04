@@ -31,11 +31,31 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     window.mini.read(prompt, wordAt(view.point()), history(kind),
                      codex.completer(window, project, kind)).onSuccess(fn)
 
-  protected def codexVisit (prompt :String, kind :Kind) :Unit =
-    codexRead(prompt, kind)(df => codex.visit(window, view, df))
+  protected def codexVisit (prompt :String, kind :Kind) :Unit = codexRead(prompt, kind)(visit)
 
   protected def codexSummarize (prompt :String, kind :Kind) :Unit =
-    codexRead(prompt, kind)(df => codex.summarize(window, view, df))
+    codexRead(prompt, kind)(summarize)
+
+  protected def visit (df :Def) {
+    window.visitStack.push(view) // push current loc to the visit stack
+    codex.visit(window, df)
+  }
+
+  protected def summarize (df :Def) {
+    val summaryWindow = Geometry.apply(summaryWindowGeom) match {
+      case None => window
+      case Some(geom) => (wspace.windows.find(_.geometry == geom) ||
+                          wspace.openWindow(Some(geom)))
+    }
+    CodexSummaryMode.visitDef(summaryWindow, df)
+  }
+
+  // allows a concrete codex minor mode to indicate that summaries should be presented in a
+  // separate window with the specified geometry
+  protected def summaryWindowGeom :String = ""
+  // (TODO: this notion of 'show aux data in a separate window' should really be a first class
+  // feature so that the user can control where aux info displays go and modes &c don't have to
+  // maintain separate special configs for it)
 
   protected def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) {
     val elloc = buffer.tagsAt(classOf[Element], loc) match {
