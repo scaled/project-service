@@ -25,7 +25,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   // buffer, wait for it to be ready, then stuff it and related bits into buffer state
   wspace.toClose += wspace.bufferOpened.onValue { buf =>
     // defer this resolution until the next UI tick to avoid collision if a failure in project
-    // resoulution tries to create a new buffer while we're still processing the 'buffer opened'
+    // resolution tries to create a new buffer while we're still processing the 'buffer opened'
     // signal
     msvc.exec.runOnUI({
       if (!buf.state[Project].isDefined) psvc.pathsFor(buf.store).
