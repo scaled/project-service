@@ -83,10 +83,10 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
     buffer.regionAt(loc, Chars.Word).map(_.asString).mkString
 
   protected def history (kind :Kind) = kind match {
-    case Kind.MODULE => Workspace.historyRing(wspace, "codex-module")
-    case Kind.TYPE   => Workspace.historyRing(wspace, "codex-type")
-    case Kind.FUNC   => Workspace.historyRing(wspace, "codex-func")
-    case Kind.VALUE  => Workspace.historyRing(wspace, "codex-value")
-    case _           => Workspace.historyRing(wspace, "codex-other")
+    case Kind.MODULE => wspace.historyRing("codex-module")
+    case Kind.TYPE   => wspace.historyRing("codex-type")
+    case Kind.FUNC   => wspace.historyRing("codex-func")
+    case Kind.VALUE  => wspace.historyRing("codex-value")
+    case _           => wspace.historyRing("codex-other")
   }
 }

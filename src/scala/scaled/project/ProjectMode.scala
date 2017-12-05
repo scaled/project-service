@@ -308,7 +308,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   //
   // Implementation details
 
-  private def projectHistory = Workspace.historyRing(wspace, "project-name")
+  private def projectHistory = wspace.historyRing("project-name")
 
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
