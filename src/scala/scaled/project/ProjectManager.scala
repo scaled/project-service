@@ -97,7 +97,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   override def unknownProject (ps :ProjectSpace) =
     new Project(ps, Project.Root(Paths.get(""), "")) {
-      val fileCompleter = Completer.file
+      val fileCompleter = Completer.file(ps.wspace.editor.exec)
       override def isIncidental = true
       override protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta)
     }
