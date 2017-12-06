@@ -125,7 +125,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     if (mems.isEmpty) visit(df) // if the def has no members, just jump to it
     else {
       val comp = new Completer[Def]() {
-        def complete (glob :String) = Completion(glob, mems, true)(_.globalRef.id)
+        def complete (glob :String) = Future.success(Completion(glob, mems, true)(_.globalRef.id))
         // take them to the type if they don't make any attempt to select a member
         override def commit (comp :Completion[Def], curval :String) =
           if (curval == "") Some(df) else super.commit(comp, curval)

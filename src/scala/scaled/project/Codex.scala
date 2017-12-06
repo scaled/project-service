@@ -129,13 +129,13 @@ class Codex (editor :Editor, msvc :MetaService) {
   def completer (window :Window, project :Project, kind :Kind) :Completer[Def] =
     new Completer[Def]() {
       override def minPrefix = 2
-      def complete (glob :String) :Completion[Def] = {
+      def complete (glob :String) = Future.success({
         val elems = glob.split(":", 2) match {
           case Array(name      ) => query(name)
           case Array(name, path) => FuzzyMatch(path).filterBy(query(name))(_.qualifier)
         }
         Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
-      }
+      })
       private def query (name :String) =
         (Query.prefix(name) kind(kind) find(stores(window, project))).toSeqV
     }

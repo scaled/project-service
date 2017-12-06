@@ -44,11 +44,9 @@ abstract class AbstractFileProject (ps :ProjectSpace, r :Project.Root) extends P
         val nfiles = nf.filterNot(ignore).filter(Files.isRegularFile(_)).toSet
         if (files != nfiles) {
           files = nfiles
-          _allFiles = null
         }
         val ndirs = nd.filterNot(ignore).map(_.toRealPath()).toSet
         if (ndirs != dirs) {
-          _allFiles = null
           // remove directories that have gone away
           (dirs -- ndirs) foreach dirMap.remove
           // add new directories
@@ -69,27 +67,23 @@ abstract class AbstractFileProject (ps :ProjectSpace, r :Project.Root) extends P
     dirMap.put(root.path, new Dir(root.path))
   }
 
-  private var _allFiles :Set[Path] = _
-  private def allFiles = {
+  private def allDirs :Seq[Dir] = synchronized {
     dirMap.get(root.path).refresh()
-    if (_allFiles == null) {
-      _allFiles = Set() ++ dirMap.values.toOrdV.flatMap(_.files)
-      // println(s"Rebuilt all files map (size: ${_allFiles.size})")
-    }
-    _allFiles
+    dirMap.values.toSeq
   }
+  private def allFiles :Set[Path] = Set() ++ allDirs.flatMap(_.files)
 
   val fileCompleter = new Completer[Store]() {
     import Completer._
-    def complete (prefix :String) =
+    def complete (prefix :String) = pspace.wspace.exec.runAsync(allFiles.map(Store.apply)).
       // prefix will always be "" here so we don't filter
-      Completion(prefix, allFiles.map(Store.apply), true)(f => defang(f.name))
+      map(files => Completion(prefix, files, true)(f => defang(f.name)))
   }
 
   override def describeMeta (bb :BufferBuilder) {
     super.describeMeta(bb)
     bb.addSubHeader("Files")
-    bb.addKeysValues("files: " -> allFiles.size.toString,
+    bb.addKeysValues("files: " -> allDirs.map(_.files.size).foldLeft(0)(_ + _).toString,
                      "ignores: " -> ignores().mkString(" "))
   }
 

@@ -75,7 +75,7 @@ abstract class AbstractZipFileProject (ps :ProjectSpace, r :Project.Root) extend
 
   val fileCompleter = new Completer[Store]() {
     import Completer._
-    def complete (prefix :String) = {
+    def complete (prefix :String) = Future.success({
       val comps = splitPath(prefix)
       val pathpre = (if (prefix endsWith "/") comps else comps.dropRight(1)).mkString
       val matches = rootNodes.flatMap { root =>
@@ -83,7 +83,7 @@ abstract class AbstractZipFileProject (ps :ProjectSpace, r :Project.Root) extend
           m => ZipEntryStore(root.zipPath, pathpre + m))
       }
       Completion(prefix, matches, true)(_.asInstanceOf[ZipEntryStore].entry)
-    }
+    })
     override def pathSeparator = Some("/")
   }
 }
