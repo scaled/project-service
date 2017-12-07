@@ -124,10 +124,8 @@ abstract class Compiler (project :Project) extends Project.Component {
         }
         unfold(buf.start)
 
-        val warns = wbuf.build() ; val errs  = ebuf.build()
-        _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
-        warnings() = new Visit.List("compile warning", warns)
-        errors()   = new Visit.List("compile error", errs)
+        val ecount = ebuf.size ; val wcount = wbuf.size
+        gotStatus(ebuf.build(), wbuf.build())
 
         val duration = System.currentTimeMillis - start
         val durstr = if (duration < 1000) s"$duration ms" else s"${duration / 1000} s"
@@ -136,7 +134,7 @@ abstract class Compiler (project :Project) extends Project.Component {
         if (config.interactive) {
           val result = if (success) "succeeded" else "failed"
           window.emitStatus(s"${project.name} compile $result: " +
-            s"${errs.size} error(s), ${warns.size} warning(s).")
+            s"${ecount} error(s), ${wcount} warning(s).")
         }
 
         if (success && config.tests) {
@@ -170,6 +168,12 @@ abstract class Compiler (project :Project) extends Project.Component {
     * @return the next note found in the buffer and the position at which to seek further notes,
     * or `NoMoreNotes` if nothing more was found. */
   protected def nextNote (buffer :Buffer, start :Loc) :(Note,Loc)
+
+  protected def gotStatus (errs :SeqV[Note], warns :SeqV[Note]) {
+    _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
+    warnings() = new Visit.List("compile warning", warns)
+    errors()   = new Visit.List("compile error", errs)
+  }
 
   private[this] val _status = Value[Status](Unknown)
   _status onEmit { project.updateStatus() }
