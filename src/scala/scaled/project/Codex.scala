@@ -98,7 +98,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     }
     checkedAdd(store(project))
     project.pspace.allProjects map(_._1) filter(_ != project.root) map(store) foreach(checkedAdd)
-    project.depends flatMap(store) foreach(checkedAdd)
+    project.depends flatMap(id => store(id)) foreach(checkedAdd)
     stores
   }
 
