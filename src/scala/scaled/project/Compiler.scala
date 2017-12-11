@@ -112,7 +112,7 @@ abstract class Compiler (project :Project) extends Project.Component {
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
     _status() = Compiling
-    compile(buf, config.file).via(window.exec.uiExec).
+    compile(buf, config.file).via(window.exec.ui).
       onFailure(window.emitError).
       onSuccess { success =>
         // scan the results buffer for compiler errors
