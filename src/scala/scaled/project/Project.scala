@@ -432,6 +432,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   object NoopCompiler extends Compiler(this) {
     override def describeEngine = "no-op"
     override def describeSelf (bb :BufferBuilder) {} // nada
+    override def recompileOnSave = false
     override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def compile (window :Window, config :Compiler.Config) {
       if (config.interactive) window.emitStatus("Compilation is not supported by this project.")

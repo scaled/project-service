@@ -103,6 +103,9 @@ abstract class Compiler (project :Project) extends Project.Component {
     // nothing by default
   }
 
+  /** Indicates whether this compiler should be invoked when a buffer is saved. */
+  def recompileOnSave :Boolean = true
+
   /** Initiates a compilation of this project's source code, if supported.
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.

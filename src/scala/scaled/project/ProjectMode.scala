@@ -87,7 +87,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
 
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.storeV onEmit {
-    if (config(recompileOnSave)) compile(true, false)
+    if (config(recompileOnSave) && project.compiler.recompileOnSave) compile(true, false)
   })
 
   // when new compiler errors are generated, always stuff them into the visit list
