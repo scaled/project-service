@@ -199,7 +199,7 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
       runTest { view =>
         project.tester.runTest(window, bufferFile, tfunc).onSuccess { _ =>
           // display the test output as a popup over the point
-          view.popup() = Popup(project.logBuffer.lines, Popup.UpRight(view.point()), true, false)
+          view.popup() = Popup.lines(project.logBuffer.lines, Popup.UpRight(view.point()))
         }
       }
     }
