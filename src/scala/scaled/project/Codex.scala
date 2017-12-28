@@ -158,7 +158,7 @@ class Codex (editor :Editor, msvc :MetaService) {
       case ex :Throwable =>
         log(project, s"Codex store corrupt for ${project.name}. Resetting...")
         log(project, ex.toString())
-        // project.pspace.wspace.emitError(ex)
+        // project.pspace.wspace.exec.handleError(ex)
         deleteStore(project)
         true
     }
@@ -226,7 +226,7 @@ class Codex (editor :Editor, msvc :MetaService) {
         } catch {
           case ex :Exception =>
             log(project, s"Reindex of ${project.name} $suff files failed.")
-            project.pspace.wspace.emitError(ex)
+            project.pspace.wspace.exec.handleError(ex)
         }
       }
     }

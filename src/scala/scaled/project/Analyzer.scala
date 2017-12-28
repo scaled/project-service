@@ -47,7 +47,7 @@ abstract class Analyzer extends AutoCloseable {
   /** Initiates analysis of the specified paths.
     * When the analysis is complete, [[notes]] will be updated with the results. */
   def analyze (window :Window, paths :Seq[Path]) {
-    analyze(paths).onFailure(window.emitError).onSuccess(_notes.update)
+    analyze(paths).onFailure(window.exec.handleError).onSuccess(_notes.update)
   }
 
   // TODO: visitNextNote, visitPrevNote? showNotes?

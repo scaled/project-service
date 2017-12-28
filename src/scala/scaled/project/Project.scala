@@ -352,17 +352,15 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Initializes this project. Called by [[ProjectSpace]] immediately after resolution. */
   def init () {
-    computeMeta(metaV()).
-      onSuccess { meta => metaV() = meta ; _ready.succeed(this) }.
-      onFailure { err => pspace.wspace.emitError(err) }
+    computeMeta(metaV()).onFailure(pspace.wspace.exec.handleError).
+      onSuccess { meta => metaV() = meta ; _ready.succeed(this) }
   }
 
   /** Reinitializes this project. Can be called by the project when it detects that its metadata
     * has changed. */
   def reinit () {
-    computeMeta(metaV()).
-      onSuccess { meta => metaV() = meta }.
-      onFailure { err => pspace.wspace.emitError(err) }
+    computeMeta(metaV()).onFailure(pspace.wspace.exec.handleError).
+      onSuccess { meta => metaV() = meta }
   }
 
   /** Called during project resolution after metadata has been restored from the last time this
