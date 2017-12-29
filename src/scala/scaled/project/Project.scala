@@ -393,9 +393,11 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def metaValue[T] (id :String, metameta :MetaMeta[T]) :Value[T] = {
     val confFile = metaFile(id + ".conf")
     val value = Value(metameta.zero)
-    // TODO: robustify
-    if (Files.exists(confFile)) {
+    if (Files.exists(confFile)) try {
       value() = metameta.read(ConfigFile.readMap(confFile))
+    } catch {
+      case t :Throwable => pspace.wspace.exec.handleError(
+        new Exception(s"Failed to read project metafile '$confFile'", t))
     }
     value.onValue { nvalue =>
       val out = new ConfigFile.WriteMap(confFile)
