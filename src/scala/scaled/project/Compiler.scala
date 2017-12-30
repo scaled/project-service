@@ -116,7 +116,7 @@ abstract class Compiler (project :Project) extends Project.Component {
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
     _status() = Compiling
     compile(buf, config.file).via(window.exec.ui).
-      onFailure(window.exec.handleError).
+      onFailure(window.emitError).
       onSuccess { success =>
         // scan the results buffer for compiler errors
         val wbuf = Seq.builder[Note]

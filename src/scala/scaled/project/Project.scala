@@ -190,6 +190,10 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Completes files in this project. */
   val fileCompleter :Completer[Store]
 
+  /** Feedback messages (or errors) emitted on this project. These will be forwarded (by
+    * project-mode) to any windows showing buffers to which this project is attached. */
+  val feedback = Signal[Either[(String, Boolean), Throwable]](pspace.wspace.exec.ui)
+
   /** The meta service, for easy access. */
   def metaSvc :MetaService = pspace.msvc
 
@@ -197,6 +201,15 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def metaFile (name :String) :Path = {
     metaDir.resolve(name)
   }
+
+  /** Briefly displays a status message to the user.
+    * @param ephemeral if false, the status message will also be appended to the `*messages*`
+    * buffer; if true, it disappears forever in a poof of quantum decoherence. */
+  def emitStatus (msg :String, ephemeral :Boolean = false) = feedback.emit(Left(msg, ephemeral))
+
+  /** Reports an unexpected error to the user.
+    * The message will also be appended to the `*messages*` buffer. */
+  def emitError (err :Throwable) :Unit = feedback.emit(Right(err))
 
   /** Adds this project to `buffer`'s state. Called by [[ProjectSpace]] whenever a buffer is
     * created (and only after this project has reported itself as ready).

@@ -46,6 +46,9 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
 
+  // forward project feedback to our window
+  note(project.feedback.onValue(_ fold((window.emitStatus _).tupled, window.emitError)))
+
   override def configDefs = ProjectConfig :: super.configDefs
   override def keymap = super.keymap.
     bind("describe-project",  "C-h p").

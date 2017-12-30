@@ -156,9 +156,8 @@ class Codex (editor :Editor, msvc :MetaService) {
 
     val isEmpty = try pstore.isEmpty catch {
       case ex :Throwable =>
-        log(project, s"Codex store corrupt for ${project.name}. Resetting...")
-        log(project, ex.toString())
-        // project.pspace.wspace.exec.handleError(ex)
+        val msg = s"Codex store corrupt for ${project.name}. Resetting..."
+        project.emitError(new Exception(msg, ex))
         deleteStore(project)
         true
     }
@@ -202,16 +201,6 @@ class Codex (editor :Editor, msvc :MetaService) {
     }
   }
 
-  /** Logs `msg` to the `codex-messages` buffer. */
-  def log (project :Project, msg :String) {
-    val wspace = project.pspace.wspace
-    val buffer = wspace.createBuffer(logStore, Nil, true)
-    wspace.exec.runOnUI {
-      buffer.append(Line.fromTextNL(msg))
-    }
-  }
-  private val logStore = Store.scratch(s"*codex-messages*", codexDir)
-
   /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll (project :Project) {
     val pstore = store(project)
@@ -219,14 +208,14 @@ class Codex (editor :Editor, msvc :MetaService) {
     pstore.clear()
     sums foreach { (suff, srcs) =>
       extractor(project, suff) foreach { extr =>
-        log(project, s"Reindexing ${srcs.size} $suff files in ${project.name}...")
+        project.emitStatus(s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         try {
           extr.process(srcs, pstore.writer)
-          log(project, s"Reindex of ${project.name} $suff files complete.")
+          project.emitStatus(s"Reindex of ${project.name} $suff files complete.")
         } catch {
           case ex :Exception =>
-            log(project, s"Reindex of ${project.name} $suff files failed.")
-            project.pspace.wspace.exec.handleError(ex)
+            project.emitStatus(s"Reindex of ${project.name} $suff files failed.")
+            project.emitError(ex)
         }
       }
     }
@@ -237,7 +226,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     val pstore = store(project)
     if (force || source.lastModified > pstore.lastIndexed(source)) {
       extractor(project, source.fileExt) foreach { ex =>
-        log(project, s"Reindexing: $source")
+        project.emitStatus(s"Reindexing: $source")
         ex.process(SourceSet.create(source), pstore.writer)
       }
     } // else println(s"Source up to date: $source")
