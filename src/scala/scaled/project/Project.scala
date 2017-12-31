@@ -423,6 +423,22 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   override def toString = s"$name (${root.path})"
   protected def log = metaSvc.log
 
+  private lazy val langPlugins = metaSvc.service[PluginService].
+    resolvePlugins[LangPlugin]("langserver")
+  private val langClients = new HashMap[String,Future[LangClient]]()
+  private def langClientFor (suff :String) :Option[Future[LangClient]] = langClients.get(suff) match {
+    case null => langPlugins.plugins.filter(_.canActivate(root.path)).
+      find(_.suffs(root.path).contains(suff)).map(p => {
+        val client = p.createClient(this)
+        p.suffs(root.path).foreach { suff => langClients.put(suff, client) }
+        // TODO: close lang clients if all buffers with their suff are closed
+        client onSuccess { toClose += _ }
+        client onFailure pspace.wspace.exec.handleError
+        client
+      })
+    case client => Some(client)
+  }
+
   /** Returns the directory in which this project will store metadata. */
   private[project] def metaDir = {
     val dir = pspace.metaDir(this)
