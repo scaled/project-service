@@ -221,6 +221,10 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     buffer.state[Project]() = this
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
+    // add a lang client if one is available
+    val name = buffer.store.name
+    val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
+    langClientFor(suff) foreach { _.onSuccess(_.addToBuffer(buffer)) }
   }
 
   /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
