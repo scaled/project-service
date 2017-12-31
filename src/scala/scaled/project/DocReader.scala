@@ -1,6 +1,6 @@
 //
 // Scaled Project Service - a Scaled framework for grokking projects.
-// http://github.com/scaled/project-service/blob/master/LICENSE
+// https://github.com/scaled/project-service/blob/master/LICENSE
 
 package scaled.project
 
