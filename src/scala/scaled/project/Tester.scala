@@ -10,7 +10,7 @@ import scaled._
 import scaled.util.Errors
 
 /** Provides an interface for interacting with test frameworks. */
-abstract class Tester (project :Project) extends Project.Component {
+abstract class Tester extends Project.Component {
 
   /** A value used to capture (and reinvoke) the most recent test invocation. */
   val lastTest = OptValue[RBufferView => Unit]()
@@ -44,10 +44,10 @@ abstract class Tester (project :Project) extends Project.Component {
   def runTests (window :Window, interact :Boolean, file :Path, types :SeqV[Def]) :Boolean
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
-    * invoked interactly.
-    * @return a future which will be completed when the test completes.
+    * invoked interactively.
+    * @return a future which will be completed with `this` the test completes.
     */
-  def runTest (window :Window, file :Path, elem :Def) :Future[Unit]
+  def runTest (window :Window, file :Path, elem :Def) :Future[Tester]
 
   /** Reports the results of a test run. */
   protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :SeqV[Visit]) {

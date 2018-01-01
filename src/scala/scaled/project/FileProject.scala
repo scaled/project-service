@@ -8,6 +8,7 @@ import java.nio.file.LinkOption
 import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path}
 import java.util.HashMap
+import java.util.function.Consumer
 import java.util.regex.Pattern
 import scaled._
 import scaled.util.BufferBuilder
@@ -87,7 +88,7 @@ abstract class AbstractFileProject (ps :ProjectSpace, r :Project.Root) extends P
                      "ignores: " -> ignores().mkString(" "))
   }
 
-  override def onFiles (op :Path => Unit) :Unit = allFiles foreach op
+  override def onFiles (op :Consumer[Path]) :Unit = allFiles foreach op.accept
 
   protected def ignore (dir :Path) :Boolean = ignores().exists(_(dir))
   protected val ignores = Value(FileProject.stockIgnores)

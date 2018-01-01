@@ -63,14 +63,17 @@ object Compiler {
     }
   }
 
+  /** Used by [[Compiler.nextNote]]. */
+  case class NoteLoc (note :Note, next :Loc)
+
   /** A sentinel tuple instance indicating that note parsing is done. */
-  val NoMoreNotes = (null :Note, Loc.Zero)
+  val NoMoreNotes = NoteLoc(null :Note, Loc.Zero)
 }
 
 /** Provides an interface whereby project mode can initiate project compilation and display
   * compiler feedback in the appropriate buffers.
   */
-abstract class Compiler (project :Project) extends Project.Component {
+abstract class Compiler (val project :Project) extends Project.Component {
   import Compiler._
 
   /** The current set of compiler warnings, if any. */
@@ -123,7 +126,7 @@ abstract class Compiler (project :Project) extends Project.Component {
         val ebuf = Seq.builder[Note]
         @inline @tailrec def unfold (loc :Loc) :Unit = nextNote(buf, loc) match {
           case NoMoreNotes  => // done!
-          case (note, next) => (if (note.isError) ebuf else wbuf) += note ; unfold(next)
+          case NoteLoc(note, next) => (if (note.isError) ebuf else wbuf) += note ; unfold(next)
         }
         unfold(buf.start)
 
@@ -170,7 +173,7 @@ abstract class Compiler (project :Project) extends Project.Component {
   /** Scans `buffer` from `start` to find the next compiler note.
     * @return the next note found in the buffer and the position at which to seek further notes,
     * or `NoMoreNotes` if nothing more was found. */
-  protected def nextNote (buffer :Buffer, start :Loc) :(Note,Loc)
+  protected def nextNote (buffer :Buffer, start :Loc) :NoteLoc = NoMoreNotes
 
   protected def gotStatus (errs :SeqV[Note], warns :SeqV[Note]) {
     _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)

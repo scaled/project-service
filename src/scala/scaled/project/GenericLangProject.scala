@@ -5,10 +5,11 @@
 package scaled.project
 
 import java.nio.file.{Files, Path}
+import java.util.function.Consumer
 import org.eclipse.lsp4j._
 import scaled._
 import scaled.pacman.Config
-import scaled.util.Close
+import scaled.util.{Close, MoreFiles}
 
 object GenericLangProject {
 
@@ -70,25 +71,8 @@ class GenericLangProject (ps :ProjectSpace, r :Project.Root) extends AbstractFil
   }
 
   // use our ignores when enumerating sources
-  override def onSources (op :Path => Unit) :Unit = onFiles(sourceDirs, op)
-
-  private def onFiles (dirs :SeqV[Path], op :Path => Unit) :Unit = {
-    import java.nio.file.attribute.BasicFileAttributes
-    import java.nio.file.{SimpleFileVisitor, FileVisitResult}
-    dirs.filter(Files.exists(_)) foreach { dir =>
-      // TODO: should we be following symlinks? likely so...
-      Files.walkFileTree(dir, new SimpleFileVisitor[Path]() {
-        override def visitFile (file :Path, attrs :BasicFileAttributes) = {
-          if (!attrs.isDirectory) op(file)
-          FileVisitResult.CONTINUE
-        }
-        override def preVisitDirectory (dir :Path, attrs :BasicFileAttributes) = {
-          if (ignore(dir)) FileVisitResult.SKIP_SUBTREE
-          else FileVisitResult.CONTINUE
-        }
-      })
-    }
-  }
+  override def onSources (op :Consumer[Path]) :Unit =
+    MoreFiles.onFilteredFiles(sourceDirs, d => !ignore(d), op)
 
   private[this] val config = new Close.Ref[GPConfig](toClose) {
     protected def create = readConfig(rootPath)

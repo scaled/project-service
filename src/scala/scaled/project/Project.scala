@@ -11,9 +11,10 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{Files, FileVisitResult, Path, Paths, SimpleFileVisitor}
 import java.security.MessageDigest
 import java.util.HashMap
+import java.util.function.Consumer
 import scala.collection.mutable.{Map => MMap}
 import scaled._
-import scaled.util.{BufferBuilder, Close}
+import scaled.util.{BufferBuilder, Close, MoreFiles}
 
 /** [[Project]]-related helper types &c. */
 object Project {
@@ -71,18 +72,6 @@ object Project {
   def apply (buffer :RBuffer) :Project = buffer.state[Project].getOrElse {
     throw new IllegalStateException(s"No project configured in buffer: '$buffer'")
   }
-
-  /** Applies `op` to all files in the directory trees rooted at `dirs`. */
-  def onFiles (dirs :SeqV[Path], op :Path => Unit) :Unit =
-    dirs.filter(Files.exists(_)) foreach { dir =>
-      // TODO: should we be following symlinks? likely so...
-      Files.walkFileTree(dir, new SimpleFileVisitor[Path]() {
-        override def visitFile (file :Path, attrs :BasicFileAttributes) = {
-          if (!attrs.isDirectory) op(file)
-          FileVisitResult.CONTINUE
-        }
-      })
-    }
 
   /** Used to read and write project metadata. */
   trait MetaMeta[T] {
@@ -332,11 +321,11 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Applies `op` to all files in this project. The default implementation applies `op` to all
     * files in [[root]] directory and its subdirectories. Subclasses may refine this result. */
-  def onFiles (op :Path => Unit) :Unit = Project.onFiles(Seq(root.path), op)
+  def onFiles (op :Consumer[Path]) :Unit = MoreFiles.onFiles(Seq(root.path), op)
 
   /** Applies `op` to all source files in this project.
     * @param forTest if true `op` is applied to the test sources, if false the main sources. */
-  def onSources (op :Path => Unit) :Unit = Project.onFiles(sourceDirs, op)
+  def onSources (op :Consumer[Path]) :Unit = MoreFiles.onFiles(sourceDirs, op)
 
   /** Returns a map of all source files in this project, grouped by file suffix. */
   def summarizeSources :Map[String,SourceSet] = {
@@ -430,18 +419,19 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   private lazy val langPlugins = metaSvc.service[PluginService].
     resolvePlugins[LangPlugin]("langserver")
   private val langClients = new HashMap[String,Future[LangClient]]()
-  private def langClientFor (suff :String) :Option[Future[LangClient]] = langClients.get(suff) match {
-    case null => langPlugins.plugins.filter(_.canActivate(root.path)).
-      find(_.suffs(root.path).contains(suff)).map(p => {
-        val client = p.createClient(this)
-        p.suffs(root.path).foreach { suff => langClients.put(suff, client) }
-        // TODO: close lang clients if all buffers with their suff are closed
-        client onSuccess { toClose += _ }
-        client onFailure pspace.wspace.exec.handleError
-        client
-      })
-    case client => Some(client)
-  }
+  private def langClientFor (suff :String) :Option[Future[LangClient]] =
+    langClients.get(suff) match {
+      case null => langPlugins.plugins.filter(_.canActivate(root.path)).
+        find(_.suffs(root.path).contains(suff)).map(p => {
+          val client = p.createClient(this)
+          p.suffs(root.path).foreach { suff => langClients.put(suff, client) }
+          // TODO: close lang clients if all buffers with their suff are closed
+          client onSuccess { toClose += _ }
+          client onFailure pspace.wspace.exec.handleError
+          client
+        })
+      case client => Some(client)
+    }
 
   /** Returns the directory in which this project will store metadata. */
   private[project] def metaDir = {
@@ -474,7 +464,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     override protected def nextNote (buffer :Buffer, start :Loc) = Compiler.NoMoreNotes
   }
 
-  object NoopTester extends Tester(this) {
+  object NoopTester extends Tester {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def describeSelf (bb :BufferBuilder) {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
@@ -482,7 +472,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
                            file :Path, typess :SeqV[Def]) = false
     override def runTest (window :Window, file :Path, elem :Def) = {
       window.emitStatus("${project.name} does not provide a tester.")
-      Future.success(())
+      Future.success(this)
     }
   }
 }
