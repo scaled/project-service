@@ -18,19 +18,25 @@ object LSP {
   def textDocItem(uri :String, langId :String, vers :Int, text :String) :TextDocumentItem =
     new TextDocumentItem(uri, langId, vers, text)
 
-  def toStore (uri :String) = Store(Paths.get(new URI(uri)))
+  def toStore (uri :String) :Store = toStore(new URI(uri))
+  def toStore (uri :URI) :Store = Store(Paths.get(uri))
 
   def toPos (loc :Loc) = new Position(loc.row, loc.col)
+
+  def getName (loc :Location) = Paths.get(new URI(loc.getUri).getPath()).getFileName.toString
 
   def fromPos (pos :Position) = Loc.apply(pos.getLine, pos.getCharacter)
 
   def toScala[A,B] (either :Either[A, B]) =
     if (either.isLeft) Left(either.getLeft) else Right(either.getRight)
 
-  def toTDPP (buffer :Buffer, pos :Loc) = buffer.state.get[TextDocumentIdentifier] match {
-    case Some(docId) => new TextDocumentPositionParams(docId, toPos(pos))
-    case None        => throw Errors.feedback("Buffer not saved to a file?")
+  def langId (uri :String) = uri.substring(uri.lastIndexOf(".")+1) // TODO: what's a real mapping?
+
+  def docId (buffer :Buffer) = buffer.state.get[TextDocumentIdentifier] getOrElse {
+    throw Errors.feedback("Buffer not saved to a file?")
   }
+
+  def toTDPP (buffer :Buffer, pos :Loc) = new TextDocumentPositionParams(docId(buffer), toPos(pos))
 
   def adapt[T] (res :CompletableFuture[T], exec :Executor) :Future[T] = {
     val promise = exec.uiPromise[T]

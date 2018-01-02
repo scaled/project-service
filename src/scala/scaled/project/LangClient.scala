@@ -5,16 +5,14 @@
 package scaled.project
 
 import java.io.PrintWriter
+import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.{CompletableFuture, ExecutorService}
 import java.util.{Collections, List => JList}
 import org.eclipse.lsp4j._
-import org.eclipse.lsp4j.jsonrpc.MessageConsumer
-import org.eclipse.lsp4j.jsonrpc.messages.Either
-import org.eclipse.lsp4j.jsonrpc.messages.Message
-import org.eclipse.lsp4j.launch.LSPLauncher
-import org.eclipse.lsp4j.services.LanguageClient
-import org.eclipse.lsp4j.services.LanguageServer
+import org.eclipse.lsp4j.jsonrpc.messages.{Either, Message}
+import org.eclipse.lsp4j.jsonrpc.{Launcher, MessageConsumer}
+import org.eclipse.lsp4j.services.{LanguageClient, LanguageServer}
 import scaled._
 import scaled.code.{CodeCompleter, CodeConfig}
 import scaled.grammar.GrammarService
@@ -27,14 +25,17 @@ abstract class LangClient (
 
   private val debugMode = java.lang.Boolean.getBoolean("scaled.debug")
   private val serverProc = new ProcessBuilder(serverCmd.asJList).start();
-  private val launcher = LSPLauncher.createClientLauncher(
+  private val launcher = Launcher.createLauncher(
     this,
+    langServerClass.asInstanceOf[Class[LanguageServer]],
     serverProc.getInputStream(),
     serverProc.getOutputStream(),
     exec.bgService,
     consumer => {
       ((message :Message) => { trace(message) ; consumer.consume(message) }) :MessageConsumer
     })
+
+  protected def langServerClass :Class[_] = classOf[LanguageServer]
 
   /** A proxy for talking to the server. */
   val server = launcher.getRemoteProxy()
@@ -153,6 +154,45 @@ abstract class LangClient (
     }
   }
 
+  /** Visits symbol `sym` in `window`. */
+  def visitSymbol (sym :SymbolInformation, window :Window) {
+    visitLocation(s"${sym.getName}:${sym.getContainerName}", sym.getLocation, window)
+  }
+
+  /** Visits location `loc` in `window`.
+    * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
+    * location (one for which the source is provided by the language server).
+    */
+  def visitLocation (name :String, loc :Location, window :Window) {
+    val uri = new URI(loc.getUri)
+    val point = LSP.fromPos(loc.getRange.getStart)
+    if (uri.getScheme == "file") {
+      val symView = window.focus.visitFile(LSP.toStore(uri))
+      symView.point() = point
+    } else {
+      fetchContents(loc, window.exec).onSuccess(source => {
+        val initState = State.init(classOf[LangClient], this) ::
+          State.init(classOf[TextDocumentIdentifier], new TextDocumentIdentifier(loc.getUri)) ::
+          project.bufferState(modeFor(loc))
+        val store = Store.text(name, source, project.root.path)
+        val buf = project.pspace.wspace.createBuffer(store, initState, true)
+        val symView = window.focus.visit(buf)
+        symView.point() = point
+      }).onFailure(err => {
+        window.popStatus(err.getMessage)
+      })
+    }
+  }
+
+  /** Provides the major editing mode source code fetched from the language server via
+    * [[fetchContents]]. */
+  def modeFor (loc :Location) :String = "text"
+
+  /** Fetches the contents for a "synthetic" location, one hosted by the language server. */
+  def fetchContents (loc :Location, exec :Executor) :Future[String] = {
+    Future.failure(new Exception("No support for fetching contents.\n" + loc))
+  }
+
   private def debug (item :CompletionItem) :CompletionItem = {
     println("AdditionalTextEdits " + item.getAdditionalTextEdits)
     println("Command " + item.getCommand)
@@ -210,8 +250,7 @@ abstract class LangClient (
     buffer.state[TextDocumentIdentifier]() = docId
 
     textSvc.didOpen({
-      val langId = uri.substring(uri.lastIndexOf(".")+1) // TODO: what's a real mapping?
-      val item = new TextDocumentItem(uri, langId, vers, Line.toText(buffer.lines))
+      val item = new TextDocumentItem(uri, LSP.langId(uri), vers, Line.toText(buffer.lines))
       new DidOpenTextDocumentParams(item)
     })
 

@@ -4,6 +4,7 @@
 
 package scaled.project
 
+import java.net.URI
 import java.util.{List => JList}
 import org.eclipse.lsp4j._
 import scaled._
@@ -48,14 +49,11 @@ class LangMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   @Fn("Navigates to the referent of the element at the point.")
   def visitElement () {
     val pparams = toTDPP(view.point())
-    LSP.adapt(textSvc.definition(pparams), window).onSuccess(locs => {
-      if (locs.isEmpty) window.popStatus(s"Unable to locate definition.")
-      else {
-        val loc = locs.get(0)
+    LSP.adapt(textSvc.definition(pparams), window).onSuccess(_.find(_.getUri != null) match {
+      case None => window.popStatus(s"Unable to locate definition.")
+      case Some(loc) =>
         window.visitStack.push(env.view) // push current loc to the visit stack
-        val view = window.focus.visitFile(LSP.toStore(loc.getUri))
-        view.point() = LSP.fromPos(loc.getRange.getStart)
-      }
+        langClient.visitLocation(LSP.getName(loc), loc, window)
     })
   }
 
@@ -67,18 +65,20 @@ class LangMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   private def visit (sym :SymbolInformation) {
     window.visitStack.push(view) // push current loc to the visit stack
-    val loc = sym.getLocation
-    val symView = window.focus.visitFile(LSP.toStore(loc.getUri))
-    symView.point() = LSP.fromPos(loc.getRange.getStart)
+    langClient.visitSymbol(sym, window)
   }
 
   private def symbolHistory = wspace.historyRing("langserver-symbol")
 
   private def symbolCompleter = new Completer[SymbolInformation]() {
     override def minPrefix = 2
+    def formatSym (sym :SymbolInformation) = sym.getContainerName match {
+      case null => sym.getName
+      case cont => s"${sym.getName}:${cont}"
+    }
     def complete (glob :String) =
       LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), window).
-      map(results => Completion(glob, results, false)(_.getName))
+      map(results => Completion(glob, results, false)(formatSym))
   }
 
   private def toTDPP (pos :Loc) = LSP.toTDPP(buffer, pos)
