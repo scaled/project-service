@@ -5,10 +5,11 @@
 package scaled.project
 
 import codex.model._
+import java.nio.file.Path
 import scala.collection.mutable.{Map => MMap}
 import scaled._
 import scaled.major.ReadingMode
-import scaled.util.BufferBuilder
+import scaled.util.{BufferBuilder, Errors}
 
 object CodexConfig extends Config.Defs {
 
@@ -21,7 +22,7 @@ object CodexConfig extends Config.Defs {
   *
   * Any major mode that includes the `project` tag will trigger the activation of this minor mode.
   */
-@Minor(name="codex", tags=Array("project"), stateTypes=Array(classOf[Project]),
+@Minor(name="codex", tags=Array("project"), stateTypes=Array(classOf[Codex]),
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   import CodexConfig._
@@ -160,7 +161,8 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   def codexSummarizeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
       val info = CodexUtil.summarizeDef(env, codex.stores(window, project), df)
-      val buf = project.createBuffer(s"${df.name}:${df.qualifier}", "codex-info")
+      val name = s"${df.name}:${df.qualifier}"
+      val buf = project.createBuffer(name, project.codexBufferState("codex-info"))
       buf.delete(buf.start, buf.end)
       buf.append(info.lines)
       frame.visit(buf)
@@ -213,7 +215,8 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("Displays all uses of the element at the point in a separate buffer.")
   def codexFindUses () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      window.focus.visit(project.createBuffer(s"*codex: ${df.name}*", "codex-find-uses", df))
+      val initState = project.codexBufferState("codex-find-uses", df)
+      window.focus.visit(project.createBuffer(s"*codex: ${df.name}*", initState))
     }
   }
 
@@ -291,7 +294,32 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     codex.debugReindex(project, buffer.store)
   }
 
+  @Fn("Determines the test method enclosing the point and runs it.")
+  def runTestAtPoint () {
+    onEncloser(view.point()) { df =>
+      def ffunc (df :Def) :Def =
+        if (df == null) abort("Unable to find enclosing test function.")
+        else if (tester.isTestFunc(df)) df
+        else ffunc(df.outer)
+      val tfunc = ffunc(df)
+      runTest { view =>
+        project.tester.runTest(window, bufferFile, tfunc).onSuccess { _ =>
+          // display the test output as a popup over the point
+          view.popup() = Popup.lines(project.logBuffer.lines, Popup.UpRight(view.point()))
+        }
+      }
+    }
+  }
+
   override protected def summaryWindowGeom :String = config(CodexConfig.summaryWindowGeom)
+
+  private def bufferFile :Path = buffer.store.file getOrElse { abort(
+      "This buffer has no associated file. A file is needed to detect tests.") }
+  private def tester = (project.testCompanion || project).tester
+  private def runTest (action :RBufferView => Unit) {
+    tester.lastTest() = action
+    action(view)
+  }
 
   // TODO: codexReindexWorkspace?
 }

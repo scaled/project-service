@@ -12,12 +12,11 @@ import scaled.grammar.GrammarService
 import scaled.major.ReadingMode
 import scaled.util.{Chars, Errors, Filler, Process, FuzzyMatch}
 
-@Minor(name="langserver", tags=Array("project"), stateTypes=Array(classOf[LangClient]),
-       desc="""A minor mode that provides LSP-related fns.""")
+@Minor(name="lang", tags=Array("project"), stateTypes=Array(classOf[LangClient]),
+       desc="""A minor mode that provides generic Language Server fns.""")
 class LangMode (env :Env, major :ReadingMode) extends MinorMode(env) {
-  val langClient = buffer.state[LangClient].get
+  val langClient = LangClient(buffer)
   def textSvc = langClient.server.getTextDocumentService
-  def wspaceSvc = langClient.server.getWorkspaceService
 
   note(langClient.messages.onValue { msg =>
     window.emitStatus(s"${msg.getType}: ${msg.getMessage}")
@@ -59,8 +58,8 @@ class LangMode (env :Env, major :ReadingMode) extends MinorMode(env) {
 
   @Fn("Queries for a project-wide symbol and visits it.")
   def visitSymbol () {
-    window.mini.read("Symbol:", wordAt(view.point()), symbolHistory, symbolCompleter).
-      onSuccess(visit)
+    window.mini.read("Symbol:", wordAt(view.point()), symbolHistory,
+                     langClient.symbolCompleter(window)).onSuccess(visit)
   }
 
   private def visit (sym :SymbolInformation) {
@@ -69,17 +68,6 @@ class LangMode (env :Env, major :ReadingMode) extends MinorMode(env) {
   }
 
   private def symbolHistory = wspace.historyRing("langserver-symbol")
-
-  private def symbolCompleter = new Completer[SymbolInformation]() {
-    override def minPrefix = 2
-    def formatSym (sym :SymbolInformation) = sym.getContainerName match {
-      case null => sym.getName
-      case cont => s"${sym.getName}:${cont}"
-    }
-    def complete (glob :String) =
-      LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), window).
-      map(results => Completion(glob, results, false)(formatSym))
-  }
 
   private def toTDPP (pos :Loc) = LSP.toTDPP(buffer, pos)
 

@@ -18,6 +18,14 @@ import scaled.code.{CodeCompleter, CodeConfig}
 import scaled.grammar.GrammarService
 import scaled.util.Filler
 
+object LangClient {
+
+  /** Extracts the `LangClient` from `buffer` state. */
+  def apply (buffer :Buffer) :LangClient = buffer.state.get[LangClient].getOrElse {
+    throw new IllegalStateException(s"No LSP client configured in buffer: '$buffer'")
+  }
+}
+
 abstract class LangClient (
   val project :Project, serverCmd :Seq[String]
 ) extends LanguageClient with AutoCloseable {
@@ -54,6 +62,7 @@ abstract class LangClient (
   private def exec = project.pspace.wspace.exec
   private val grammarSvc = project.pspace.msvc.service[GrammarService]
   private val textSvc = server.getTextDocumentService
+  private val wspaceSvc = server.getWorkspaceService
 
   private def init[T] (t :T)(f :T => Unit) = { f(t) ; t }
   private def createClientCaps = init(new ClientCapabilities()) { caps =>
@@ -152,6 +161,18 @@ abstract class LangClient (
         map(item => Option(item.getDocumentation).
           map(formatDocs(Buffer.scratch("*details*"), viewWidth-4, _)))
     }
+  }
+
+  /** Creates a completer on workspace symbol names. */
+  def symbolCompleter (window :Window) = new Completer[SymbolInformation]() {
+    override def minPrefix = 2
+    def formatSym (sym :SymbolInformation) = sym.getContainerName match {
+      case null => sym.getName
+      case cont => s"${sym.getName}:${cont}"
+    }
+    def complete (glob :String) =
+      LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), window).
+      map(results => Completion(glob, results, false)(formatSym))
   }
 
   /** Visits symbol `sym` in `window`. */

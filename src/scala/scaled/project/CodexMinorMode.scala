@@ -15,7 +15,7 @@ import scaled.util.{Chars}
   */
 abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
 
-  val codex = Codex(editor)
+  val codex = Codex(buffer)
   // TODO: it's possible that our buffer's file could change and become part of a new project;
   // do we really want to handle that crazy case?
   val project = Project(buffer)

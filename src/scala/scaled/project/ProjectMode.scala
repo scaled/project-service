@@ -39,8 +39,11 @@ object ProjectConfig extends Config.Defs {
   */
 @Minor(name="project", tags=Array("project"), stateTypes=Array(classOf[Project]),
        desc="""A minor mode that provides project-centric fns.""")
-class ProjectMode (env :Env) extends CodexMinorMode(env) {
+class ProjectMode (env :Env) extends MinorMode(env) {
   import ProjectConfig._
+  // TODO: it's possible that our buffer's file could change and become part of a new project;
+  // do we really want to handle that crazy case?
+  val project = Project(buffer)
   import project.pspace
 
   // display the project status in the modeline
@@ -188,39 +191,6 @@ class ProjectMode (env :Env) extends CodexMinorMode(env) {
     case Some(tfile) => runTest { _ =>
       if (!tester.runTests(window, true, tfile, Seq())) abort(s"No tests found in $tfile.")
       maybeShowTestOutput(window)
-    }
-  }
-
-  @Fn("Determines the test method enclosing the point and runs it.")
-  def runTestAtPoint () {
-    onEncloser(view.point()) { df =>
-      def ffunc (df :Def) :Def =
-        if (df == null) abort("Unable to find enclosing test function.")
-        else if (tester.isTestFunc(df)) df
-        else ffunc(df.outer)
-      val tfunc = ffunc(df)
-      runTest { view =>
-        project.tester.runTest(window, bufferFile, tfunc).onSuccess { _ =>
-          // display the test output as a popup over the point
-          view.popup() = Popup.lines(project.logBuffer.lines, Popup.UpRight(view.point()))
-        }
-      }
-    }
-  }
-
-  @Fn("""Attempts to run-test-at-point but falls back to run-file-tests if no tests can be
-         found at the point and run-all-tests if run-file-tests fails.""")
-  def runClosestTest () {
-    try runTestAtPoint()
-    catch {
-      case fe :Errors.FeedbackException =>
-        window.emitStatus(fe.getMessage)
-        try runFileTests()
-        catch {
-          case fe :Errors.FeedbackException =>
-            window.emitStatus(fe.getMessage)
-            runAllTests()
-        }
     }
   }
 

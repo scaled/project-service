@@ -15,6 +15,11 @@ import scaled.util.{BufferBuilder, Errors, FuzzyMatch}
 /** Static [[Codex]] stuff. */
 object Codex {
 
+  /** Returns the `Codex` associated with `buffer`. */
+  def apply (buffer :Buffer) :Codex = buffer.state.get[Codex].getOrElse {
+    throw new IllegalStateException(s"No codex configured in buffer: '$buffer'")
+  }
+
   /** Returns the `Codex` associated with `editor`. */
   def apply (editor :Editor) :Codex = editor.state[Codex].getOrElse {
     throw new IllegalStateException(s"No Codex configured in editor!")

@@ -69,7 +69,7 @@ object Project {
                    clazz :Class[_ <: Project], args :List[Any])
 
   /** Returns the project configured for the supplied buffer. */
-  def apply (buffer :RBuffer) :Project = buffer.state[Project].getOrElse {
+  def apply (buffer :Buffer) :Project = buffer.state.get[Project].getOrElse {
     throw new IllegalStateException(s"No project configured in buffer: '$buffer'")
   }
 
@@ -210,10 +210,15 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     buffer.state[Project]() = this
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
+
     // add a lang client if one is available
     val name = buffer.store.name
     val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
-    langClientFor(suff) foreach { _.onSuccess(_.addToBuffer(buffer)) }
+    langClientFor(suff) match {
+      case Some(clientF) => clientF.onSuccess(_.addToBuffer(buffer))
+      // if no language client is available, add a Codex for old skool intelligence
+      case None => buffer.state[Codex]() = Codex(pspace.wspace.editor)
+    }
   }
 
   /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
@@ -222,11 +227,22 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     State.init(Mode.Hint(mode, args :_*)),
     State.init(classOf[Project], this))
 
+  /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
+    * configured to be a part of this project. */
+  def codexBufferState (mode :String, args :Any*) :List[State.Init[_]] =
+    State.init(classOf[Codex], Codex(pspace.wspace.editor)) :: bufferState(mode, args :_*)
+
   /** Creates a simple buffer configured to be part of this project. A buffer with the same name
     * will be reused. This is useful for incidental buffers related to the project like compiler
     * output, test output, etc. */
   def createBuffer (name :String, mode :String, args :Any*) :Buffer =
     pspace.wspace.createBuffer(Store.scratch(name, root.path), bufferState(mode, args :_*), true)
+
+  /** Creates a simple buffer configured to be part of this project. A buffer with the same name
+    * will be reused. This is useful for incidental buffers related to the project like compiler
+    * output, test output, etc. */
+  def createBuffer (name :String, initState :List[State.Init[_]]) :Buffer =
+    pspace.wspace.createBuffer(Store.scratch(name, root.path), initState, true)
 
   /** Returns a buffer to which incidental log output relating to this project can be sent
     * (compiler output, test output, etc.). */
@@ -414,6 +430,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   }
 
   override def toString = s"$name (${root.path})"
+
   protected def log = metaSvc.log
 
   private lazy val langPlugins = metaSvc.service[PluginService].

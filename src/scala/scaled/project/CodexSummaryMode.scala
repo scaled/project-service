@@ -31,7 +31,7 @@ object CodexSummaryMode {
     val project = ProjectSpace(win.workspace).reqProjectIn(tgt.store.root)
     val buf = win.workspace.createBuffer(
       Store.scratch(tgt.name, project.root.path),
-      project.bufferState("codex-summary", tgt), true)
+      project.codexBufferState("codex-summary", tgt), true)
     // if window currently displaying a buffer, push current loc to the visit stack
     if (win.focus.view != null) win.visitStack.push(win.focus.view)
     win.focus.visit(buf)
@@ -44,7 +44,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   import CodexSummaryMode._
 
   val psvc = env.msvc.service[ProjectService]
-  val codex = Codex(editor)
+  val codex = Codex(buffer)
   val project = Project(buffer)
   lazy val stores = codex.stores(window, project)
 
