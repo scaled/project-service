@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import java.io.PrintWriter
+import java.io.{InputStream, PrintWriter}
 import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.{CompletableFuture, ExecutorService}
@@ -16,7 +16,7 @@ import org.eclipse.lsp4j.services.{LanguageClient, LanguageServer}
 import scaled._
 import scaled.code.{CodeCompleter, CodeConfig}
 import scaled.grammar.GrammarService
-import scaled.util.Filler
+import scaled.util.{Filler, SubProcess}
 
 object LangClient {
 
@@ -29,14 +29,36 @@ object LangClient {
 abstract class LangClient (
   val project :Project, serverCmd :Seq[String]
 ) extends LanguageClient with AutoCloseable {
-  trace(s"Starting ${serverCmd}...")
 
   private val debugMode = java.lang.Boolean.getBoolean("scaled.debug")
+  trace(s"Starting ${serverCmd}...")
   private val serverProc = new ProcessBuilder(serverCmd.asJList).start();
+
+  // read and pass along stderr
+  SubProcess.reader(serverProc.getErrorStream,
+                    line => System.err.println(s"STDERR: $line"),
+                    _.printStackTrace(System.err)).start()
+
+  // for debugging, it can sometimes be useful to record a transcript of the raw data we got from
+  // the language server (particularly when the server sends invalid JSON RPC, whee!)
+  private val transOut = new java.io.ByteArrayOutputStream()
+  private def record (in :InputStream) = new java.io.FilterInputStream(in) {
+    override def read (target :Array[Byte], off :Int, len :Int) = {
+      val got = super.read(target, off, len)
+      transOut.write(target, off, got)
+      got
+    }
+    override def read() = {
+      val got = super.read()
+      transOut.write(got)
+      got
+    }
+  }
+
   private val launcher = Launcher.createLauncher(
     this,
     langServerClass.asInstanceOf[Class[LanguageServer]],
-    serverProc.getInputStream(),
+    serverProc.getInputStream, // record(serverProc.getInputStream),
     serverProc.getOutputStream(),
     exec.bgService,
     consumer => {
@@ -102,6 +124,10 @@ abstract class LangClient (
     initParams.setTrace("verbose")
     initParams.setCapabilities(createClientCaps)
     initParams.setRootUri(root.toUri.toString)
+    // TEMP: for Ensime which doesn't yet support rootUri, sigh
+    // initParams.setRootPath(root.toString)
+    // TODO: can we get our real PID via a Java API? Ensime fails if we don't send something, sigh
+    initParams.setProcessId(0)
     trace(s"Initializing at root: $root")
     project.emitStatus(s"$name langserver initializing...")
     server.initialize(initParams).thenAccept(rsp => {
@@ -327,6 +353,13 @@ abstract class LangClient (
   }
 
   override def close () {
+    val transcript = transOut.toByteArray()
+    if (transcript.length > 0) {
+      trace("-- Session transcript: --")
+      trace(new String(transcript))
+      trace("-- End transcript --")
+    }
+
     trace("Shutting down...")
     server.shutdown().thenAccept(res => {
       trace("Shutdown complete.")
