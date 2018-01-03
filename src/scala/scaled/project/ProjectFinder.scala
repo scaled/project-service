@@ -86,3 +86,21 @@ abstract class ProjectFinderPlugin (
   /** Returns true if `dir/file` exists. Helpy helper! */
   protected def exists (dir :Path, file :String) :Boolean = Files.exists(dir.resolve(file))
 }
+
+/** Creates file projects rooted at .git directories. */
+@Plugin(tag="project-finder")
+class GitFinderPlugin extends ProjectFinderPlugin("git", false, classOf[Project]) {
+  def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".git"))) 1 else -1
+}
+
+/** Creates file projects rooted at .hg directories. */
+@Plugin(tag="project-finder")
+class MercurialFinderPlugin extends ProjectFinderPlugin("mercurial", false, classOf[Project]) {
+  def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".hg"))) 1 else -1
+}
+
+/** Creates file projects rooted at the highest .svn directory. */
+@Plugin(tag="project-finder")
+class SubversionFinderPlugin extends ProjectFinderPlugin("subversion", false, classOf[Project]) {
+  def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".svn"))) 0 else -1
+}

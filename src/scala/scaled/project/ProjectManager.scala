@@ -30,7 +30,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   private lazy val finders = pluginSvc.resolvePlugins[ProjectFinderPlugin]("project-finder")
   // a special resolver for our config file directory
-  private val configFinder = new FileProject.FinderPlugin("scaled-config") {
+  private val configFinder = new ProjectFinderPlugin("scaled-config", false, classOf[Project]) {
     val configRoot = metaSvc.metaFile("Config")
     def checkRoot (root :Path) = if (root == configRoot) 1 else -1
   }
@@ -70,9 +70,8 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     else if (!dseeds.isEmpty) dseeds.maxBy(_.root.path.getNameCount)
     // if all else fails, create a FileProject for the root
     else {
-      val root = paths.head ; val file = root.getFileName.toString
-      val clazz = if ((file endsWith ".zip") || (file endsWith ".jar")) classOf[ZipFileProject]
-                  else classOf[FileProject]
+      val root = paths.head
+      val clazz = classOf[Project]
       val proot = Project.Root(root, "")
       Project.Seed(proot, "file", false, clazz, List(proot))
     }

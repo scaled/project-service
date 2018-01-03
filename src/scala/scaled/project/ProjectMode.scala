@@ -84,7 +84,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   /** Finds a file in `proj` and visits it. */
   def findFileIn (proj :Project) {
     window.mini.read(
-      s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.fileCompleter
+      s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.files.completer
     ) map(wspace.openBuffer) onSuccess frame.visit
   }
 

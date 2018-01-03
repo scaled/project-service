@@ -10,66 +10,6 @@ import scala.annotation.tailrec
 import scaled._
 import scaled.util.BufferBuilder
 
-/** Static [[Compiler]] stuffs. */
-object Compiler {
-
-  /** Defines various project status states. */
-  sealed abstract class Status (val glyph :String) {
-    def indicator :String = s" $glyph"
-    def tip :String = s"$glyph = $toString"
-  }
-  object Unknown extends Status("?") {
-    override def indicator = ""
-    override def toString = "project has not yet been compiled"
-  }
-  object Compiling extends Status("\u231B") { // hourglass
-    override def toString = "project is currently compiling"
-  }
-  object NoProblems extends Status("\u263A") { // smiley
-    override def toString = "project has no compile errors or warnings"
-  }
-  case class Problems (errors :Int, warnings :Int) extends Status("\u2639") { // frownz!
-    override def indicator = s" e$errors w$warnings"
-    override def toString = s"project has $errors error(s) and $warnings warning(s)"
-  }
-
-  /** Configures a compile. See [[Compiler.compile]].
-    * @param tests if true, the tests companion project will be compiled if this compilation
-    * succeeds.
-    * @param interactive whether the compile was initiated interactively; controls feedback
-    * reporting.
-    * @param file the source file that triggered this compile by being saved, if any, which will
-    * result in an incremental recompile, or `None` for a full recompile.
-    */
-  case class Config (tests :Boolean, interactive :Boolean, file :Option[Path])
-
-  /** Encapsulates a compiler warning or error. */
-  case class Note (file :Store, loc :Loc, descrip :SeqV[String], isError :Boolean) extends Visit {
-    override protected def go (window :Window) = {
-      val view = window.focus.visitFile(file)
-      view.point() = loc
-      val maxWidth = view.width()-2
-      val wrapped = if (!descrip.exists(_.length > maxWidth)) descrip
-      else {
-        val wbuf = Seq.builder[String]
-        for (line <- descrip) {
-          if (line.length <= maxWidth) wbuf += line
-          else for (seg <- line.grouped(maxWidth)) wbuf += seg
-        }
-        wbuf.build
-      }
-      val pop = Popup.text(wrapped, Popup.UpRight(loc))
-      view.showPopup(if (isError) pop.toError else pop)
-    }
-  }
-
-  /** Used by [[Compiler.nextNote]]. */
-  case class NoteLoc (note :Note, next :Loc)
-
-  /** A sentinel tuple instance indicating that note parsing is done. */
-  val NoMoreNotes = NoteLoc(null :Note, Loc.Zero)
-}
-
 /** Provides an interface whereby project mode can initiate project compilation and display
   * compiler feedback in the appropriate buffers.
   */
@@ -96,6 +36,8 @@ abstract class Compiler (val project :Project) extends Project.Component {
     bb.addSubHeader("Compiler")
     bb.addKeysValues("Engine:" -> describeEngine,
                      "Status: " -> _status().toString)
+    bb.addSection("Options:")
+    describeOptions(bb)
   }
 
   /** Describes the underlying compiler used by this compiler. */
@@ -183,4 +125,64 @@ abstract class Compiler (val project :Project) extends Project.Component {
 
   private[this] val _status = Value[Status](Unknown)
   _status onEmit { project.updateStatus() }
+}
+
+/** Static [[Compiler]] stuffs. */
+object Compiler {
+
+  /** Defines various project status states. */
+  sealed abstract class Status (val glyph :String) {
+    def indicator :String = s" $glyph"
+    def tip :String = s"$glyph = $toString"
+  }
+  object Unknown extends Status("?") {
+    override def indicator = ""
+    override def toString = "project has not yet been compiled"
+  }
+  object Compiling extends Status("\u231B") { // hourglass
+    override def toString = "project is currently compiling"
+  }
+  object NoProblems extends Status("\u263A") { // smiley
+    override def toString = "project has no compile errors or warnings"
+  }
+  case class Problems (errors :Int, warnings :Int) extends Status("\u2639") { // frownz!
+    override def indicator = s" e$errors w$warnings"
+    override def toString = s"project has $errors error(s) and $warnings warning(s)"
+  }
+
+  /** Configures a compile. See [[Compiler.compile]].
+    * @param tests if true, the tests companion project will be compiled if this compilation
+    * succeeds.
+    * @param interactive whether the compile was initiated interactively; controls feedback
+    * reporting.
+    * @param file the source file that triggered this compile by being saved, if any, which will
+    * result in an incremental recompile, or `None` for a full recompile.
+    */
+  case class Config (tests :Boolean, interactive :Boolean, file :Option[Path])
+
+  /** Encapsulates a compiler warning or error. */
+  case class Note (file :Store, loc :Loc, descrip :SeqV[String], isError :Boolean) extends Visit {
+    override protected def go (window :Window) = {
+      val view = window.focus.visitFile(file)
+      view.point() = loc
+      val maxWidth = view.width()-2
+      val wrapped = if (!descrip.exists(_.length > maxWidth)) descrip
+      else {
+        val wbuf = Seq.builder[String]
+        for (line <- descrip) {
+          if (line.length <= maxWidth) wbuf += line
+          else for (seg <- line.grouped(maxWidth)) wbuf += seg
+        }
+        wbuf.build
+      }
+      val pop = Popup.text(wrapped, Popup.UpRight(loc))
+      view.showPopup(if (isError) pop.toError else pop)
+    }
+  }
+
+  /** Used by [[Compiler.nextNote]]. */
+  case class NoteLoc (note :Note, next :Loc)
+
+  /** A sentinel tuple instance indicating that note parsing is done. */
+  val NoMoreNotes = NoteLoc(null :Note, Loc.Zero)
 }

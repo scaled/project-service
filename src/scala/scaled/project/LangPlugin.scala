@@ -4,8 +4,11 @@
 
 package scaled.project
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
+import java.util.function.Consumer
 import scaled._
+import scaled.pacman.Config
+import scaled.util.{Close, MoreFiles}
 
 /** Creates clients for language servers. Should be tagged as `langserver`. */
 abstract class LangPlugin extends AbstractPlugin {

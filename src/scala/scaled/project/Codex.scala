@@ -209,7 +209,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll (project :Project) {
     val pstore = store(project)
-    val sums = project.summarizeSources
+    val sums = project.sources.summarize
     pstore.clear()
     sums foreach { (suff, srcs) =>
       extractor(project, suff) foreach { extr =>

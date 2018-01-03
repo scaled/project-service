@@ -88,21 +88,19 @@ object Project {
     * metadata from canonical project files (which could take a long time due to things like Gradle
     * or SBT initialization). Any time the project metadata changes, it's saved so that it can be
     * rapdily read in again next time we have a cold start. */
-  case class Meta (val name :String, val ids :SeqV[Id], val sourceDirs :SeqV[Path])
+  case class Meta (val name :String, val ids :SeqV[Id])
 
   /** Handles reading and writing [[Meta]]s. */
   object Meta extends MetaMeta[Meta] {
-    val zero = Meta("<unknown>", Seq(), Seq())
+    val zero = Meta("<unknown>", Seq())
     def read (in :Map[String,SeqV[String]]) :Meta = {
       val Seq(name) = in("name")
       val ids = in("ids").flatMap(Codec.readId)
-      val sourceDirs = in("sourceDirs").map(p => Paths.get(p))
-      Meta(name, ids, sourceDirs)
+      Meta(name, ids)
     }
     def write (out :ConfigFile.WriteMap, meta :Meta) {
       out.write("name", Seq(meta.name))
       out.write("ids", meta.ids.map(Codec.showId))
-      out.write("sourceDirs", meta.sourceDirs.map(_.toString))
     }
   }
 
@@ -135,7 +133,7 @@ object Project {
 /** Provides services for a particular project.
   * @param pspace the project space of which this project is a part.
   * @param root the directory in which this project is rooted. */
-abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
+class Project (val pspace :ProjectSpace, val root :Project.Root) {
   import Project._
 
   /** Tracks the basic project metadata. This should only be updated by the project, but outside
@@ -157,9 +155,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
   def ids :SeqV[Id] = metaV().ids
 
-  /** All top-level directories which contain source code. */
-  def sourceDirs :SeqV[Path] = metaV().sourceDirs
-
   /** The ids of project's dependencies. These should be in highest to lowest precedence order.
     * Do not look up project dependencies manually, instead use [[depend]]. */
   def depends :SeqV[Id] = Seq()
@@ -176,12 +171,9 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** The history ring for file names in this project. */
   val fileHistory = new Ring(32) // TODO: how might we configure this?
 
-  /** Completes files in this project. */
-  val fileCompleter :Completer[Store]
-
   /** Feedback messages (or errors) emitted on this project. These will be forwarded (by
     * project-mode) to any windows showing buffers to which this project is attached. */
-  val feedback = Signal[Either[(String, Boolean), Throwable]](pspace.wspace.exec.ui)
+  val feedback = Signal[Either[(String, Boolean), Throwable]](exec.ui)
 
   /** The meta service, for easy access. */
   def metaSvc :MetaService = pspace.msvc
@@ -251,7 +243,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Appends `msg` to this project's [[logBuffer]]. This method can be called from any thread, but
     * is a bit expensive. Append to [[logBuffer]] yourself if you have a lot of logging to do and
     * know you're on the UI thread. */
-  def log (msg :String) :Unit = pspace.wspace.exec.runOnUI {
+  def log (msg :String) :Unit = exec.runOnUI {
     logBuffer.append(Line.fromTextNL(msg))
   }
 
@@ -282,11 +274,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     }
     if (deps.isEmpty) bb.add("<none>")
 
-    if (!sourceDirs.isEmpty) {
-      bb.addSubHeader("Build Info")
-      describeBuild(bb, summarizeSources)
-    }
-
     // add info on our helpers
     _components.values.foreach { _.describeSelf(bb) }
   }
@@ -307,26 +294,21 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     }
   }
 
-  protected def describeBuild (bb :BufferBuilder, srcsum :Map[String,SourceSet]) {
-    bb.addSection("Source dirs:")
-    bb.addKeysValues("compile: " -> sourceDirs.mkString(" "))
-    if (!srcsum.isEmpty) {
-      bb.addSection("Source files:")
-      bb.addKeysValues(srcsum.map((suff, srcs) => (s".$suff: ", srcs.size.toString)))
-      bb.addSection("Compiler options:")
-      compiler.describeOptions(bb)
-    }
-  }
-
   /** Instructs the project to update its status info. This is generally called by project helpers
     * that participate in the modeline info. */
   def updateStatus () :Unit = status() = makeStatus
 
+  /** Returns the file information provider for this project. */
+  def files :Filer = component(classOf[Filer]) || DefaultFiler
+
+  /** Returns the source code information provider for this project. */
+  def sources :Sources = component(classOf[Sources]) || DefaultSources
+
   /** Returns the compiler that handles compilation for this project. Created on demand. */
-  def compiler :Compiler = component(classOf[Compiler]) || NoopCompiler
+  def compiler :Compiler = component(classOf[Compiler]) || DefaultCompiler
 
   /** Returns the tester that handles test running for this project. Created on demand. */
-  def tester :Tester = component(classOf[Tester]) || NoopTester
+  def tester :Tester = component(classOf[Tester]) || DefaultTester
 
   /** Resolves and returns this project's test companion project, if it has one. */
   def testCompanion :Option[Project] = testSeed.map(pspace.projectFromSeed)
@@ -334,31 +316,6 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Returns any warnings that should be displayed when describing this project. This includes
     * things like failure to resolve project dependencies, or other configuration issues. */
   def warnings :SeqV[String] = Seq.empty
-
-  /** Applies `op` to all files in this project. The default implementation applies `op` to all
-    * files in [[root]] directory and its subdirectories. Subclasses may refine this result. */
-  def onFiles (op :Consumer[Path]) :Unit = MoreFiles.onFiles(Seq(root.path), op)
-
-  /** Applies `op` to all source files in this project.
-    * @param forTest if true `op` is applied to the test sources, if false the main sources. */
-  def onSources (op :Consumer[Path]) :Unit = MoreFiles.onFiles(sourceDirs, op)
-
-  /** Returns a map of all source files in this project, grouped by file suffix. */
-  def summarizeSources :Map[String,SourceSet] = {
-    val bySuff = HashMultimap.create[String,Path]()
-    onSources { file =>
-      val fname = file.getFileName.toString
-      fname.lastIndexOf(".") match {
-        case -1 => // skip it!
-        case ii => bySuff.put(fname.substring(ii+1), file)
-      }
-    }
-    val mb = Map.builder[String,SourceSet]()
-    bySuff.asMap.entrySet.toSetV foreach { ent =>
-      mb += (ent.getKey, SourceSet.create(ent.getValue, ent.getValue.size))
-    }
-    mb.build()
-  }
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
     * happens when this project's owning workspace is disposed. */
@@ -374,15 +331,14 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Initializes this project. Called by [[ProjectSpace]] immediately after resolution. */
   def init () {
-    computeMeta(metaV()).onFailure(pspace.wspace.exec.handleError).
+    computeMeta(metaV()).onFailure(exec.handleError).
       onSuccess { meta => metaV() = meta ; _ready.succeed(this) }
   }
 
   /** Reinitializes this project. Can be called by the project when it detects that its metadata
     * has changed. */
   def reinit () {
-    computeMeta(metaV()).onFailure(pspace.wspace.exec.handleError).
-      onSuccess { meta => metaV() = meta }
+    computeMeta(metaV()).onFailure(exec.handleError).onSuccess { meta => metaV() = meta }
   }
 
   /** Called during project resolution after metadata has been restored from the last time this
@@ -392,7 +348,9 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     * If a project opts to `reinit` itself, this method will be called again during the reinit
     * process.
     */
-  protected def computeMeta (oldMeta :Meta) :Future[Meta]
+  protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta.copy(
+    name = root.path.getFileName.toString
+  ))
 
   /** Returns the component for the specified type-key, or `None` if no component is registered. */
   def component[C <: Component] (cclass :Class[C]) :Option[C] =
@@ -418,7 +376,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     if (Files.exists(confFile)) try {
       value() = metameta.read(ConfigFile.readMap(confFile))
     } catch {
-      case t :Throwable => pspace.wspace.exec.handleError(
+      case t :Throwable => exec.handleError(
         new Exception(s"Failed to read project metafile '$confFile'", t))
     }
     value.onValue { nvalue =>
@@ -432,6 +390,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
   override def toString = s"$name (${root.path})"
 
   protected def log = metaSvc.log
+  protected def exec = pspace.wspace.exec
 
   private lazy val langPlugins = metaSvc.service[PluginService].
     resolvePlugins[LangPlugin]("langserver")
@@ -444,7 +403,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
           p.suffs(root.path).foreach { suff => langClients.put(suff, client) }
           // TODO: close lang clients if all buffers with their suff are closed
           client onSuccess { toClose += _ }
-          client onFailure pspace.wspace.exec.handleError
+          client onFailure exec.handleError
           client
         })
       case client => Some(client)
@@ -469,7 +428,15 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     (sb.append(")").toString, tb.toString)
   }
 
-  object NoopCompiler extends Compiler(this) {
+  lazy val DefaultFiler = {
+    def isZip (name :String) = (name endsWith ".zip") || (name endsWith ".jar")
+    if (isZip(root.path.getFileName.toString)) new ZipFiler(Seq(root.path))
+    else new DirectoryFiler(root.path, exec, Ignorer.stockIgnores)
+  }
+
+  lazy val DefaultSources = new Sources(Seq())
+
+  lazy val DefaultCompiler = new Compiler(this) {
     override def describeEngine = "no-op"
     override def describeSelf (bb :BufferBuilder) {} // nada
     override def recompileOnSave = false
@@ -481,7 +448,7 @@ abstract class Project (val pspace :ProjectSpace, val root :Project.Root) {
     override protected def nextNote (buffer :Buffer, start :Loc) = Compiler.NoMoreNotes
   }
 
-  object NoopTester extends Tester {
+  lazy val DefaultTester = new Tester {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def describeSelf (bb :BufferBuilder) {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
