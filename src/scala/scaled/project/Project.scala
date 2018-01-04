@@ -13,6 +13,7 @@ import java.security.MessageDigest
 import java.util.HashMap
 import java.util.function.Consumer
 import scala.collection.mutable.{Map => MMap}
+import scala.reflect.ClassTag
 import scaled._
 import scaled.util.{BufferBuilder, Close, MoreFiles}
 
@@ -290,19 +291,19 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def updateStatus () :Unit = status() = makeStatus
 
   /** Returns the file information provider for this project. */
-  def files :Filer = component(classOf[Filer]) || DefaultFiler
+  def files :Filer = component[Filer] || DefaultFiler
 
   /** Returns the source code information provider for this project. */
-  def sources :Sources = component(classOf[Sources]) || DefaultSources
+  def sources :Sources = component[Sources] || DefaultSources
 
   /** Returns the project dependency information. */
-  def depends :Depends = component(classOf[Depends]) || DefaultDepends
+  def depends :Depends = component[Depends] || DefaultDepends
 
   /** Returns the compiler that handles compilation for this project. Created on demand. */
-  def compiler :Compiler = component(classOf[Compiler]) || DefaultCompiler
+  def compiler :Compiler = component[Compiler] || DefaultCompiler
 
   /** Returns the tester that handles test running for this project. Created on demand. */
-  def tester :Tester = component(classOf[Tester]) || DefaultTester
+  def tester :Tester = component[Tester] || DefaultTester
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
     * happens when this project's owning workspace is disposed. */
@@ -319,6 +320,10 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Returns the component for the specified type-key, or `None` if no component is registered. */
   def component[C <: Component] (cclass :Class[C]) :Option[C] =
     Option(_components.get(cclass).asInstanceOf[C])
+
+  /** A `component` variant that uses class tags to allow usage like: `component[Foo]`. */
+  def component[C <: Component] (implicit tag :ClassTag[C]) :Option[C] =
+    component(tag.runtimeClass.asInstanceOf[Class[C]])
 
   /** Registers `comp` with this project. If a component of the same type-key is already registered
     * it will be closed and replaced with `comp`. Components will also be closed when this project
