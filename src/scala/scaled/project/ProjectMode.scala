@@ -72,8 +72,6 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     // test fns
     bind("run-all-tests",     "C-c C-t C-a").
     bind("run-file-tests",    "C-c C-t C-f").
-    bind("run-test-at-point", "C-c C-t C-p").
-    bind("run-closest-test",  "C-c C-t C-t").
     bind("repeat-last-test",  "C-c C-t C-r", "F6").
     bind("visit-tests",       "C-x C-t").
 

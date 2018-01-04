@@ -71,7 +71,9 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-find-uses",         "C-c C-f").
     bind("codex-highlight-element", "C-c C-h").
     bind("codex-rename-element",    "C-c C-r").
-    bind("codex-visit-element",     "M-.");
+    bind("codex-visit-element",     "M-.").
+
+    bind("run-test-at-point", "C-c C-t C-p");
 
   override def deactivate () {
     super.deactivate()
