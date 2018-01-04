@@ -36,10 +36,9 @@ object Generic {
     private def configSL (name :String) = config.resolve(name, Config.StringListP)
   }
 
-  def readConfig (root :Path, name :String) :Config =
-    new Config(Files.readAllLines(root.resolve(name)))
+  def readConfig (path :Path) = new Config(Files.readAllLines(path))
+  def readConfig (root :Path, name :String) :Config = readConfig(root.resolve(name))
   def readLangConfig (root :Path) :LangConfig = new LangConfig(readConfig(root, LangFile))
-  def readMetaConfig (root :Path) :MetaConfig = new MetaConfig(readConfig(root, MetaFile))
 }
 
 @Plugin(tag="langserver")
@@ -55,32 +54,32 @@ class GenericLangPlugin extends LangPlugin {
   }
 }
 
-@Plugin(tag="project-finder")
-class GenericFinderPlugin extends ProjectFinderPlugin("generic", true, classOf[Project]) {
-  def checkRoot (root :Path) :Int = if (exists(root, Generic.MetaFile)) 1 else -1
-}
+@Plugin(tag="project-root")
+class GenericRootPlugin extends RootPlugin.Directory(Generic.MetaFile)
 
-class GenericProject (ps :ProjectSpace, r :Project.Root) extends Project(ps, r) {
+@Plugin(tag="project-resolver")
+class GenericResolverPlugin extends ResolverPlugin {
   import Generic._
 
-  private def rootPath = root.path
-  private val config = new Close.Ref[MetaConfig](toClose) {
-    protected def create = readMetaConfig(rootPath)
-  }
+  // // reinit if the config file changes
+  // toClose += metaSvc.service[WatchService].watchFile(rootPath.resolve(MetaFile), file => reinit())
 
-  // reinit if the config file changes
-  toClose += metaSvc.service[WatchService].watchFile(rootPath.resolve(MetaFile), file => reinit())
+  def addComponents (project :Project) {
+    val rootPath = project.root.path
+    val metaFile = rootPath.resolve(MetaFile)
+    if (Files.exists(metaFile)) {
+      val config = new MetaConfig(readConfig(metaFile))
 
-  override protected def computeMeta (oldMeta :Project.Meta) = {
-    val config = this.config.get
+      val sb = Ignorer.stockIgnores
+      config.ignoreNames.foreach { sb += Ignorer.ignoreName(_) }
+      config.ignoreRegexes.foreach { sb += Ignorer.ignoreRegex(_) }
+      project.addComponent(classOf[Filer], new DirectoryFiler(project, sb))
 
-    val sb = Ignorer.stockIgnores
-    config.ignoreNames.foreach { sb += Ignorer.ignoreName(_) }
-    config.ignoreRegexes.foreach { sb += Ignorer.ignoreRegex(_) }
-    addComponent(classOf[Filer], new DirectoryFiler(root.path, exec, sb))
+      val sourceDirs = config.sourceDirs.map(rootPath.resolve(_)).toSeq
+      project.addComponent(classOf[Sources], new Sources(sourceDirs))
 
-    addComponent(classOf[Sources], new Sources(config.sourceDirs.map(rootPath.resolve(_)).toSeq))
-
-    Future.success(oldMeta.copy(name = config.name))
+      val oldMeta = project.metaV()
+      project.metaV() = oldMeta.copy(name = config.name)
+    }
   }
 }

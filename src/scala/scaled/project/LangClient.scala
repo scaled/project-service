@@ -65,6 +65,9 @@ abstract class LangClient (
       ((message :Message) => { trace(message) ; consumer.consume(message) }) :MessageConsumer
     })
 
+  // add a LangCompiler to this project (TODO: this should be an Analyzer)
+  project.addComponent(classOf[Compiler], new LangCompiler(project))
+
   protected def langServerClass :Class[_] = classOf[LanguageServer]
 
   /** A proxy for talking to the server. */

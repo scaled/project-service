@@ -25,16 +25,16 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   private def pluginSvc = metaSvc.service[PluginService]
   private def log = metaSvc.log
-  private val config = metaSvc.service[ConfigService].resolveServiceConfig(
-    "project", ProjectServiceConfig :: Nil)
+  private val config = metaSvc.service[ConfigService].
+    resolveServiceConfig("project", ProjectServiceConfig :: Nil)
 
-  private lazy val finders = pluginSvc.resolvePlugins[ProjectFinderPlugin]("project-finder")
-  // a special resolver for our config file directory
-  private val configFinder = new ProjectFinderPlugin("scaled-config", false, classOf[Project]) {
+  private lazy val rootPluginSet = pluginSvc.resolvePlugins[RootPlugin]("project-root")
+  // a special root plugin for our config file directory
+  private val configRoot = new RootPlugin {
     val configRoot = metaSvc.metaFile("Config")
     def checkRoot (root :Path) = if (root == configRoot) 1 else -1
   }
-  private def finderPlugins = finders.plugins :+ configFinder
+  private def rootPlugins = rootPluginSet.plugins :+ configRoot
 
   private lazy val docfMap = {
     val map = MMap[String,DocFormatterPlugin]()
@@ -45,43 +45,24 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     map
   }
 
-  override def resolveByPaths (paths :List[Path]) :Project.Seed = {
-    val (iseeds, rdseeds) = finderPlugins.flatMap(_.apply(paths)).partition(_.intelligent)
-    val dseeds = filterDegenerate(rdseeds)
-    // if there's exactly one intelligent project match, great!
-    if (iseeds.size == 1) iseeds.head
-    // if more than one intelligent matches: choose the deepest
-    else if (iseeds.size > 1) {
-      val deepestDepth = iseeds.map(_.root.path.getNameCount).max
-      val diseeds = iseeds.filter(_.root.path.getNameCount == deepestDepth)
-      if (diseeds.size == 1) diseeds.head
-      else {
-        // if there are >1 at the deepest depth, choose the project with highest prio, per prefTypes
-        val prio = diseeds.minBy(s => config(prefTypes).indexOf(s.name) match {
-          case -1 => Short.MaxValue
-          case ii => ii
-        })
-        log.log(s"Multiple project matches in '${prio.root}'. " +
-          s"Choosing ${prio.name} from ${diseeds.map(_.name)}).")
-        prio
-      }
-    }
-    // if there are any non-intelligent project matches, use the deepest match
-    else if (!dseeds.isEmpty) dseeds.maxBy(_.root.path.getNameCount)
-    // if all else fails, create a FileProject for the root
-    else {
-      val root = paths.head
-      val clazz = classOf[Project]
-      val proot = Project.Root(root, "")
-      Project.Seed(proot, "file", false, clazz, List(proot))
+  override def resolveByPaths (paths :List[Path]) :Project.Root = {
+    val viablePaths = filterDegenerate(paths)
+    rootPlugins.flatMap(_(viablePaths)) match {
+      case Seq() =>
+        log.log(s"Unable to find project root, falling back to ${paths.head}")
+        Project.Root(paths.head)
+      case Seq(root) => root
+      case roots =>
+        log.log(s"Using first of multiple project roots: $roots")
+        roots.head
     }
   }
 
-  override def resolveById (id :Project.Id) :Option[Project.Seed] = {
-    val iter = finderPlugins.iterator
+  override def resolveById (id :Project.Id) :Option[Project.Root] = {
+    val iter = rootPlugins.iterator
     while (iter.hasNext) {
-      val seed = iter.next.apply(id)
-      if (seed.isDefined) return seed
+      val root = iter.next.apply(id)
+      if (root.isDefined) return root
     }
     None
   }
@@ -96,9 +77,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   override def unknownProject (ps :ProjectSpace) =
     new Project(ps, Project.Root(Paths.get(""), "")) {
-      val fileCompleter = Completer.file(ps.wspace.editor.exec)
       override def isIncidental = true
-      override protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta)
     }
 
   override def didStartup () {
@@ -117,8 +96,8 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   // filters out "degenerate" project seeds resolved by paths (i.e. the user's home directory, the
   // root of the file system)
-  private def filterDegenerate (seeds :Seq[Project.Seed]) :Seq[Project.Seed] =
-    seeds.filterNot { s => userHome.startsWith(s.root.path) || s.root.path.getParent == null}
+  private def filterDegenerate (paths :List[Path]) :List[Path] =
+    paths.filterNot { p => userHome.startsWith(p) || p.getParent == null}
 
   @tailrec private def parents (file :Path, accum :List[Path] = Nil) :List[Path] =
     file.getParent match {

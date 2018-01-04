@@ -29,6 +29,9 @@ abstract class Filer extends Project.Component {
 /** A filer that obtains files from a directory on the file system. */
 class DirectoryFiler (root :Path, exec :Executor, ignores :SeqV[Ignorer]) extends Filer {
 
+  def this (project :Project, ignores :SeqV[Ignorer]) =
+    this(project.root.path, project.pspace.wspace.exec, ignores)
+
   override val completer = new Completer[Store]() {
     import Completer._
     def complete (prefix :String) = exec.runAsync(allFiles.map(Store.apply)).

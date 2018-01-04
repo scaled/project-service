@@ -60,7 +60,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     storesByRoot.values.foreach { _.close() }
   }
 
-  /** Returns the Codex store for `project. */
+  /** Returns the Codex store for `project`. */
   def store (project :Project) :CodexStore = store(project.root)
 
   /** Returns the Codex store for the project in `root`. */
@@ -82,8 +82,8 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Returns the Codex store for project `id` if such a project can be resolved. */
   def store (id :Project.Id) :Option[CodexStore] =
-    Option(storesById.get(id)) orElse psvc.resolveById(id).map(seed => {
-      val storeByRoot = store(seed.root)
+    Option(storesById.get(id)) orElse psvc.resolveById(id).map(root => {
+      val storeByRoot = store(root)
       storesById.put(id, storeByRoot)
       storeByRoot
     })
@@ -103,7 +103,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     }
     checkedAdd(store(project))
     project.pspace.allProjects map(_._1) filter(_ != project.root) map(store) foreach(checkedAdd)
-    project.depends flatMap(id => store(id)) foreach(checkedAdd)
+    project.depends.ids flatMap(id => store(id)) foreach(checkedAdd)
     stores
   }
 

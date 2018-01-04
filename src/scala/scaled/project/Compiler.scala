@@ -32,7 +32,7 @@ abstract class Compiler (val project :Project) extends Project.Component {
   }
 
   /** Adds compiler info to the project info buffer. */
-  def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) {
     bb.addSubHeader("Compiler")
     bb.addKeysValues("Engine:" -> describeEngine,
                      "Status: " -> _status().toString)
@@ -102,10 +102,6 @@ abstract class Compiler (val project :Project) extends Project.Component {
     * to be started.
     */
   def reset () {} // nada by default
-
-  /** Called when this compiler is no longer needed. This should terminate any external processes
-    * and release any resources retained by this instance. */
-  def close () {} // nada by default
 
   /** Initiates a compilation, sends output to `buffer`.
     * @param file the file that triggered this compile on save, or `None` for full recompile.

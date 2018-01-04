@@ -63,7 +63,7 @@ object ConfigFile {
     private val out = Files.newBufferedWriter(path)
     private var first = true
 
-    def write (key :String, data :SeqV[String]) {
+    def write (key :String, data :Iterable[String]) {
       if (first) first = false
       else out.newLine() // blank separator
       out.write(key)

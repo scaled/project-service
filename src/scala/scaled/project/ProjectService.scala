@@ -13,9 +13,9 @@ import scaled._
          desc="Provides miscellaneous project services.")
 trait ProjectService {
 
-  def resolveByPaths (paths :List[Path]) :Project.Seed
+  def resolveByPaths (paths :List[Path]) :Project.Root
 
-  def resolveById (id :Project.Id) :Option[Project.Seed]
+  def resolveById (id :Project.Id) :Option[Project.Root]
 
   def pathsFor (store :Store) :Option[List[Path]]
 

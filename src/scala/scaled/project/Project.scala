@@ -60,14 +60,6 @@ object Project {
     override def toString = toString(if (module.length == 0) "" else ":")
   }
 
-  // needed because the wildcard in Seed's ctor (Class) results in existential in unapply
-  import scala.language.existentials
-
-  /** A seed which can be used to instantiate a project. These are returned by
-    * [[ProjectFinderPlugin]]s when resolving a project. */
-  case class Seed (root :Root, name :String, intelligent :Boolean,
-                   clazz :Class[_ <: Project], args :List[Any])
-
   /** Returns the project configured for the supplied buffer. */
   def apply (buffer :Buffer) :Project = buffer.state.get[Project].getOrElse {
     throw new IllegalStateException(s"No project configured in buffer: '$buffer'")
@@ -76,7 +68,7 @@ object Project {
   /** Used to read and write project metadata. */
   trait MetaMeta[T] {
     /** The default meta for a freshly opened and totally unknown project. */
-    def zero :T
+    def zero (project :Project) :T
     /** Reads a `T` from [[ConfigFile]] data. */
     def read (in :Map[String,SeqV[String]]) :T
     /** Writes `meta` to `out`. */
@@ -84,23 +76,30 @@ object Project {
   }
 
   /** Defines the basic persistent metadata for a project. When a project is first resolved, the
-    * metadata is quickly restored from a file. The project is then given a chance to refresh that
-    * metadata from canonical project files (which could take a long time due to things like Gradle
-    * or SBT initialization). Any time the project metadata changes, it's saved so that it can be
-    * rapdily read in again next time we have a cold start. */
-  case class Meta (val name :String, val ids :SeqV[Id])
+    * metadata is quickly restored from a file. Project components may subsequently update that
+    * metadata based on external project files (which could take a long time due to things like
+    * Gradle or SBT initialization).
+    *
+    * Any time the project metadata changes, it's saved so that it can be rapdily read in again
+    * next time we have a cold start. */
+  case class Meta (val name :String, val ids :Set[Id], val testRoot :Option[Root])
 
   /** Handles reading and writing [[Meta]]s. */
   object Meta extends MetaMeta[Meta] {
-    val zero = Meta("<unknown>", Seq())
+    def zero (project :Project) = Meta(project.root.path.getFileName.toString, Set(), None)
     def read (in :Map[String,SeqV[String]]) :Meta = {
       val Seq(name) = in("name")
-      val ids = in("ids").flatMap(Codec.readId)
-      Meta(name, ids)
+      val ids = in("ids").flatMap(Codec.readId).toSet
+      val testRoot = in("testRoot").map(Codec.readRoot) match {
+        case Seq(root) => Some(root)
+        case _         => None
+      }
+      Meta(name, ids, testRoot)
     }
     def write (out :ConfigFile.WriteMap, meta :Meta) {
       out.write("name", Seq(meta.name))
-      out.write("ids", meta.ids.map(Codec.showId))
+      out.write("ids", meta.ids.map(Codec.showId).toSeq)
+      out.write("testRoot", meta.testRoot.map(Codec.showRoot).toSeq)
     }
   }
 
@@ -108,10 +107,16 @@ object Project {
     * [[Project]] implementations (like `MavenProject` or `GradleProject`) might add standard
     * components like `ScalaCompiler` or `JUnitTester`, which can be shared by project
     * implementations as long as they have some standard project metadata. */
-  trait Component extends AutoCloseable {
+  abstract class Component extends AutoCloseable {
 
     /** Adds info on this project component to the project description buffer. */
-    def describeSelf (bb :BufferBuilder) :Unit
+    def describeSelf (bb :BufferBuilder) {}
+
+    /** Called when the project of which this component is a part is added to `buffer`. */
+    def addToBuffer (buffer :RBuffer) {}
+
+    /** Releases any resources held by this component. */
+    def close () {}
   }
 
   private def md5hex (text :String) = toHex(digest.digest(text.getBytes))
@@ -142,10 +147,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   // when metaV changes, update our status
   metaV.onEmit { updateStatus() }
 
-  /** Returns a future which is complete when this project is ready. */
-  def ready :Future[Project] = _ready
-  private val _ready = Promise[Project]()
-
   /** Indicates that this project should be omitted from lookup by name. */
   def isIncidental = false
 
@@ -153,14 +154,13 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def name :String = metaV().name
 
   /** Returns all identifiers known for this project. This may include `RepoId`, `SrcURL`, etc. */
-  def ids :SeqV[Id] = metaV().ids
+  def ids :Set[Id] = metaV().ids
 
-  /** The ids of project's dependencies. These should be in highest to lowest precedence order.
-    * Do not look up project dependencies manually, instead use [[depend]]. */
-  def depends :SeqV[Id] = Seq()
+  /** Returns the id of this project's test companion project, if any. */
+  def testRoot :Option[Root] = metaV().testRoot
 
-  /** Returns a seed for this project's test companion project, if any. */
-  def testSeed :Option[Seed] = None
+  /** Resolves and returns this project's test companion project, if it has one. */
+  def testCompanion :Option[Project] = testRoot.flatMap(pspace.projectIn)
 
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
@@ -203,6 +203,9 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
 
+    // tell our components that we've been added
+    _components.values.foreach { _.addToBuffer(buffer) }
+
     // add a lang client if one is available
     val name = buffer.store.name
     val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
@@ -211,7 +214,14 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
       // if no language client is available, add a Codex for old skool intelligence
       case None => buffer.state[Codex]() = Codex(pspace.wspace.editor)
     }
+
+    // note that we've been added to this buffer
+    activeBuffers += buffer
+    buffer.killed.onEmit { activeBuffers -= buffer }
   }
+
+  // tracks the buffers to which this project has been added
+  private val activeBuffers = SeqBuffer[RBuffer]()
 
   /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
     * configured to be a part of this project. */
@@ -262,18 +272,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     bb.addBlank()
     describeMeta(bb)
 
-    bb.addSubHeader("Depends:")
-    val deps = depends
-    deps foreach { d =>
-      bb.add(Line.builder(d.toString).withLineTag(Visit.Tag(new Visit() {
-        protected def go (window :Window) = pspace.projectFor(d) match {
-          case None => window.popStatus(s"Unable to resolve project for $d")
-          case Some(p) => p.visitDescription(window)
-        }
-      })).build())
-    }
-    if (deps.isEmpty) bb.add("<none>")
-
     // add info on our helpers
     _components.values.foreach { _.describeSelf(bb) }
   }
@@ -283,15 +281,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     info += ("Impl: " -> getClass.getName)
     info += ("Root: " -> root.path.toString)
     ids.foreach { id => info += ("ID: " -> id.toString) }
-    testSeed.foreach { seed => info += ("Tests: " -> seed.root.path.toString) }
+    testRoot.foreach { root => info += ("Tests: " -> root.toString) }
     bb.addKeysValues(info.build())
-
-    // if we have warnings, display them
-    val ws = warnings
-    if (!ws.isEmpty) {
-      bb.addSubHeader("Warnings:")
-      ws foreach { bb.add(_) }
-    }
   }
 
   /** Instructs the project to update its status info. This is generally called by project helpers
@@ -304,18 +295,14 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Returns the source code information provider for this project. */
   def sources :Sources = component(classOf[Sources]) || DefaultSources
 
+  /** Returns the project dependency information. */
+  def depends :Depends = component(classOf[Depends]) || DefaultDepends
+
   /** Returns the compiler that handles compilation for this project. Created on demand. */
   def compiler :Compiler = component(classOf[Compiler]) || DefaultCompiler
 
   /** Returns the tester that handles test running for this project. Created on demand. */
   def tester :Tester = component(classOf[Tester]) || DefaultTester
-
-  /** Resolves and returns this project's test companion project, if it has one. */
-  def testCompanion :Option[Project] = testSeed.map(pspace.projectFromSeed)
-
-  /** Returns any warnings that should be displayed when describing this project. This includes
-    * things like failure to resolve project dependencies, or other configuration issues. */
-  def warnings :SeqV[String] = Seq.empty
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
     * happens when this project's owning workspace is disposed. */
@@ -328,29 +315,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     _components.values().foreach(_.close())
     _components.clear()
   }
-
-  /** Initializes this project. Called by [[ProjectSpace]] immediately after resolution. */
-  def init () {
-    computeMeta(metaV()).onFailure(exec.handleError).
-      onSuccess { meta => metaV() = meta ; _ready.succeed(this) }
-  }
-
-  /** Reinitializes this project. Can be called by the project when it detects that its metadata
-    * has changed. */
-  def reinit () {
-    computeMeta(metaV()).onFailure(exec.handleError).onSuccess { meta => metaV() = meta }
-  }
-
-  /** Called during project resolution after metadata has been restored from the last time this
-    * project was instantiated. The project should recompute its metadata (potentially on a
-    * background thread) and then complete its init future with the updated metadata.
-    *
-    * If a project opts to `reinit` itself, this method will be called again during the reinit
-    * process.
-    */
-  protected def computeMeta (oldMeta :Project.Meta) = Future.success(oldMeta.copy(
-    name = root.path.getFileName.toString
-  ))
 
   /** Returns the component for the specified type-key, or `None` if no component is registered. */
   def component[C <: Component] (cclass :Class[C]) :Option[C] =
@@ -365,6 +329,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     val oldComp = _components.get(cclass)
     if (oldComp != null) oldComp.close()
     _components.put(cclass, comp)
+    // tell this component about buffers to which we're already added
+    activeBuffers foreach comp.addToBuffer
   }
 
   private val _components = new HashMap[Class[_ <: Component],Component]()
@@ -372,12 +338,12 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Creates a meta-value with storage in this project's meta directory. */
   def metaValue[T] (id :String, metameta :MetaMeta[T]) :Value[T] = {
     val confFile = metaFile(id + ".conf")
-    val value = Value(metameta.zero)
+    val value = Value(metameta.zero(this))
     if (Files.exists(confFile)) try {
       value() = metameta.read(ConfigFile.readMap(confFile))
     } catch {
       case t :Throwable => exec.handleError(
-        new Exception(s"Failed to read project metafile '$confFile'", t))
+        new Exception(s"Failed to read '${root.path}' metafile '$confFile'", t))
     }
     value.onValue { nvalue =>
       val out = new ConfigFile.WriteMap(confFile)
@@ -431,14 +397,17 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   lazy val DefaultFiler = {
     def isZip (name :String) = (name endsWith ".zip") || (name endsWith ".jar")
     if (isZip(root.path.getFileName.toString)) new ZipFiler(Seq(root.path))
-    else new DirectoryFiler(root.path, exec, Ignorer.stockIgnores)
+    else new DirectoryFiler(this, Ignorer.stockIgnores)
   }
 
   lazy val DefaultSources = new Sources(Seq())
 
+  lazy val DefaultDepends = new Depends(this) {
+    override def ids = Seq()
+  }
+
   lazy val DefaultCompiler = new Compiler(this) {
     override def describeEngine = "no-op"
-    override def describeSelf (bb :BufferBuilder) {} // nada
     override def recompileOnSave = false
     override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def compile (window :Window, config :Compiler.Config) {
@@ -450,7 +419,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   lazy val DefaultTester = new Tester {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def describeSelf (bb :BufferBuilder) {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
     override def runTests (window :Window, iact :Boolean,
                            file :Path, typess :SeqV[Def]) = false

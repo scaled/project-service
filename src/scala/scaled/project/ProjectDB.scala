@@ -23,7 +23,7 @@ class ProjectDB (exec :Executor, wsroot :Path, log :Logger) {
   val byId = new ConcurrentHashMap[Id,Root]()
 
   /** Metadata for a named project. */
-  case class Info (root :Root, name :String, ids :SeqV[Id]) {
+  case class Info (root :Root, name :String, ids :Set[Id]) {
     val rootName = (root, name)
     def map () :Unit = ids foreach { id => byId.put(id, root) }
     def unmap () :Unit = ids foreach { id => byId.remove(id) }
@@ -49,7 +49,7 @@ class ProjectDB (exec :Executor, wsroot :Path, log :Logger) {
         if (Files.isDirectory(pdir)) try {
           val lines = List() ++ Files.readAllLines(pdir.resolve("info.txt"))
           val root = codec.readRoot(lines.head)
-          val info = Info(root, pdir.getFileName.toString, lines.tail.flatMap(codec.readId).toSeq)
+          val info = Info(root, pdir.getFileName.toString, lines.tail.flatMap(codec.readId).toSet)
           toInfo.put(root, info)
         } catch {
           case e :Throwable => log.log(s"Failed to resolve info for $pdir: $e")
@@ -111,7 +111,7 @@ class ProjectDB (exec :Executor, wsroot :Path, log :Logger) {
   }
 
   private def readInfo (lines :SeqV[String]) :Info =
-    Info(Codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(Codec.readId).toSeq)
+    Info(Codec.readRoot(lines(0)), lines(1), lines.drop(2).flatMap(Codec.readId).toSet)
   private def showInfo (info :Info) :Seq[String] =
     Seq(Codec.showRoot(info.root), info.name) ++ info.ids.map(Codec.showId)
 

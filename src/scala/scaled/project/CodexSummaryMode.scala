@@ -95,65 +95,63 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
 
   private def act (p :Loc, fn :Info => Unit) = fn(buffer.line(p).lineTag(NoInfo))
 
-  project.ready.onSuccess { project =>
-    if (buffer.start == buffer.end) {
-      val docr = new DocReader()
+  if (buffer.start == buffer.end) {
+    val docr = new DocReader()
 
-      def add (defs :Iterable[Def]) {
-        // group defs by access, then within access sort them by flavor, then name
-        val byAcc = defs.groupBy(_.access)
-        var wroteAcc :Access = null
-        for (acc <- Access.values) {
-          byAcc.get(acc) foreach { defs =>
-            for (mem <- defs.toSeq.sortBy(d => (d.flavor, d.name))) {
-              if (mem.kind != Kind.SYNTHETIC) {
-                // defer the writing of the access separator until we *actually* write a def with
-                // this access level; otherwise we could write the level and then discover that all
-                // the defs in it are invisible (synthetic)
-                if (acc != Access.PUBLIC && acc != wroteAcc) {
-                  buffer.append(Seq(Line(s" ${acc.toString.toLowerCase}:")))
-                  buffer.split(buffer.end)
-                  wroteAcc = acc
-                }
-                addDefInfo(mem, docr, "  ")
+    def add (defs :Iterable[Def]) {
+      // group defs by access, then within access sort them by flavor, then name
+      val byAcc = defs.groupBy(_.access)
+      var wroteAcc :Access = null
+      for (acc <- Access.values) {
+        byAcc.get(acc) foreach { defs =>
+          for (mem <- defs.toSeq.sortBy(d => (d.flavor, d.name))) {
+            if (mem.kind != Kind.SYNTHETIC) {
+              // defer the writing of the access separator until we *actually* write a def with
+              // this access level; otherwise we could write the level and then discover that all
+              // the defs in it are invisible (synthetic)
+              if (acc != Access.PUBLIC && acc != wroteAcc) {
+                buffer.append(Seq(Line(s" ${acc.toString.toLowerCase}:")))
+                buffer.split(buffer.end)
+                wroteAcc = acc
               }
+              addDefInfo(mem, docr, "  ")
             }
           }
         }
       }
-
-      tgt match {
-        case TopLevelMembers(store) => // otherwise show the top-level members
-          addProjectInfo(store)
-          add(store.topLevelDefs)
-
-        case DefMembers(df) => // if we have a def, show it and its members
-          def addParent (df :Def) :Unit = if (df != null) {
-            addParent(df.outer)
-            addDefInfo(df, docr, "")
-            // tack an extra blank line after the module parent
-            if (df.kind == Kind.MODULE) buffer.split(buffer.end)
-          }
-          addProjectInfo(df.project)
-
-          if (df.kind == Kind.TYPE) {
-            // enumerate all members of this def and its supertypes, and group the members by the
-            // supertype that defines them
-            val supers = OO.linearizeSupers(stores, df)
-            val trueJ = new Predicate[Def] { def test (df :Def) = true } // TODO: SAM
-            val byOwner = OO.resolveMethods(supers, trueJ).groupBy(_.outer)
-            for (sdf <- supers ; mems <- byOwner.get(sdf)) {
-              if (sdf == df) addParent(df)
-              else { buffer.split(buffer.end) ; addDefInfo(sdf, docr, "") }
-              add(df.members.filter(m => m.kind == Kind.TYPE || m.kind == Kind.VALUE) ++ mems)
-            }
-          } else {
-            addParent(df)
-            add(df.members)
-          }
-      }
-      view.point() = Loc.Zero
     }
+
+    tgt match {
+      case TopLevelMembers(store) => // otherwise show the top-level members
+        addProjectInfo(store)
+        add(store.topLevelDefs)
+
+      case DefMembers(df) => // if we have a def, show it and its members
+        def addParent (df :Def) :Unit = if (df != null) {
+          addParent(df.outer)
+          addDefInfo(df, docr, "")
+          // tack an extra blank line after the module parent
+          if (df.kind == Kind.MODULE) buffer.split(buffer.end)
+        }
+        addProjectInfo(df.project)
+
+        if (df.kind == Kind.TYPE) {
+          // enumerate all members of this def and its supertypes, and group the members by the
+          // supertype that defines them
+          val supers = OO.linearizeSupers(stores, df)
+          val trueJ = new Predicate[Def] { def test (df :Def) = true } // TODO: SAM
+          val byOwner = OO.resolveMethods(supers, trueJ).groupBy(_.outer)
+          for (sdf <- supers ; mems <- byOwner.get(sdf)) {
+            if (sdf == df) addParent(df)
+            else { buffer.split(buffer.end) ; addDefInfo(sdf, docr, "") }
+            add(df.members.filter(m => m.kind == Kind.TYPE || m.kind == Kind.VALUE) ++ mems)
+          }
+        } else {
+          addParent(df)
+          add(df.members)
+        }
+    }
+    view.point() = Loc.Zero
   }
 
   private def addProjectInfo (store :ProjectStore) {

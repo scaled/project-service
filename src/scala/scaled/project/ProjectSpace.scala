@@ -21,21 +21,23 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   wspace.state[ProjectSpace]() = this
   wspace.toClose += this // our lifecycle matches that of our workspace
 
-  // when a buffer is opened, resolve the project associated with the path being edited by the
-  // buffer, wait for it to be ready, then stuff it and related bits into buffer state
+  // when a buffer is opened, resolve the project for the path edited by the buffer and add it
   wspace.toClose += wspace.bufferOpened.onValue { buf =>
     // defer this resolution until the next UI tick to avoid collision if a failure in project
     // resolution tries to create a new buffer while we're still processing the 'buffer opened'
     // signal
     msvc.exec.runOnUI({
-      if (!buf.state[Project].isDefined) psvc.pathsFor(buf.store).
-        map(resolveByPaths) foreach { _.ready.onSuccess { _.addToBuffer(buf) }}
+      if (!buf.state[Project].isDefined)
+        psvc.pathsFor(buf.store).map(resolveByPaths).ifDefined(_.addToBuffer(buf))
     })
   }
 
   private val codex = Codex(wspace.editor)
   private val psvc = msvc.service[ProjectService]
   private def root = wspace.root
+
+  private lazy val resolvers = msvc.service[PluginService].
+    resolvePlugins[ResolverPlugin]("project-resolver")
 
   // metadata for all named projects
   lazy private val pdb = new ProjectDB(msvc.exec, root, log)
@@ -71,12 +73,12 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
 
   /** Resolves the project for `id`. */
   def projectFor (id :Id) :Option[Project] =
-    knownProjectFor(id) orElse psvc.resolveById(id).map(projectFromSeed)
+    knownProjectFor(id) orElse psvc.resolveById(id).map(projectFromRoot)
 
-  /** Hatches the project defined by `seed`. */
-  def projectFromSeed (seed :Project.Seed) = Option(projects.get(seed.root)) || {
-    val proj = msvc.injectInstance(seed.clazz, this :: seed.args)
-    projects.put(proj.root, proj)
+  /** Resolves a project in the supplied `root`. */
+  def projectFromRoot (root :Project.Root) = Option(projects.get(root)) || {
+    val proj = new Project(this, root)
+    projects.put(root, proj)
     // when the project's metadata changes...
     proj.metaV.onValueNotify { _ =>
       // make sure the project is properly mapped in the project DB
@@ -84,8 +86,8 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
       // let the codex know that it might want to index the project
       codex.checkProject(proj)
     }
-    // trigger initialization of the project
-    proj.init()
+    // let the resolvers add components to the project
+    resolvers.plugins.foreach { _.addComponents(proj) }
     proj
   }
 
@@ -143,7 +145,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
       bb.addKeysValues("Kind: " -> p.getClass.getName,
                        "Root: " -> p.root.toString(),
                        "Ids: "  -> p.ids.mkString(" "),
-                       "Deps: " -> p.depends.size.toString)
+                       "Deps: " -> p.depends.ids.size.toString)
     }
 
     execs.describeSelf(bb)
@@ -155,7 +157,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   }
 
   private def resolveByPaths (paths :List[Path]) :Project =
-    projectFromSeed(psvc.resolveByPaths(paths))
+    projectFromRoot(psvc.resolveByPaths(paths))
 }
 
 /** Static helpers. */

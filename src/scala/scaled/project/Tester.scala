@@ -15,9 +15,6 @@ abstract class Tester extends Project.Component {
   /** A value used to capture (and reinvoke) the most recent test invocation. */
   val lastTest = OptValue[RBufferView => Unit]()
 
-  /** Frees any resources maintained by this instance. */
-  def close () {} // nada by default
-
   /** Aborts any currently active test session. */
   def abort () :Unit = throw Errors.feedback("This tester does not support aborting tests.")
 
