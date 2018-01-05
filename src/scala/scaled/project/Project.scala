@@ -210,6 +210,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     buffer.state[Project]() = this
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
+    buffer.state[Codex]() = codex
 
     // tell our components that we've been added
     _components.values.foreach { _.addToBuffer(buffer) }
@@ -217,11 +218,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     // add a lang client if one is available
     val name = buffer.store.name
     val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
-    langClientFor(suff) match {
-      case Some(clientF) => clientF.onSuccess(_.addToBuffer(buffer))
-      // if no language client is available, add a Codex for old skool intelligence
-      case None => buffer.state[Codex]() = codex
-    }
+    langClientFor(suff).map(_.onSuccess(_.addToBuffer(buffer)))
 
     // note that we've been added to this buffer
     activeBuffers += buffer
