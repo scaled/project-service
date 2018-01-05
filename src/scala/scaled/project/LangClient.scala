@@ -127,8 +127,8 @@ abstract class LangClient (
     initParams.setTrace("verbose")
     initParams.setCapabilities(createClientCaps)
     initParams.setRootUri(root.toUri.toString)
-    // TEMP: for Ensime which doesn't yet support rootUri, sigh
-    // initParams.setRootPath(root.toString)
+    // TEMP: for Ensime/Scala which doesn't yet support rootUri, sigh
+    initParams.setRootPath(root.toString)
     // TODO: can we get our real PID via a Java API? Ensime fails if we don't send something, sigh
     initParams.setProcessId(0)
     trace(s"Initializing at root: $root")
