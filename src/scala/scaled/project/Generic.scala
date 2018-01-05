@@ -38,7 +38,11 @@ object Generic {
 
   def readConfig (path :Path) = new Config(Files.readAllLines(path))
   def readConfig (root :Path, name :String) :Config = readConfig(root.resolve(name))
-  def readLangConfig (root :Path) :LangConfig = new LangConfig(readConfig(root, LangFile))
+  def readLangConfig (root :Path) :LangConfig = {
+    val config = new LangConfig(readConfig(root, LangFile))
+    if (config.suffs.isEmpty) println(s"No suffs in $LangFile at $root!")
+    config
+  }
 }
 
 @Plugin(tag="langserver")
