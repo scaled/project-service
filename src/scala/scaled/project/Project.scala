@@ -347,8 +347,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     if (Files.exists(confFile)) try {
       value() = metameta.read(ConfigFile.readMap(confFile))
     } catch {
-      case t :Throwable => exec.handleError(
-        new Exception(s"Failed to read '${root.path}' metafile '$confFile'", t))
+      case t :Throwable => pspace.wspace.exec.handleError(
+        new Exception(s"Failed to read meta: '$confFile' (project: ${root.path})", t))
     }
     value.onValue { nvalue =>
       val out = new ConfigFile.WriteMap(confFile)
