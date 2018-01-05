@@ -62,15 +62,16 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-summarize-encloser", "C-c C-z").
 
     bind("codex-summarize-type",    "C-c C-j").
-    bind("codex-visit-type-member", "C-c C-k").
+    // bind("codex-visit-type-member", "C-c C-k").
 
+    // bind("codex-describe-element",  "C-c C-d").
     bind("codex-summarize-element", "S-C-c S-C-d").
     bind("codex-debug-element",     "C-c S-C-d").
 
     bind("codex-find-uses",         "C-c C-f").
     bind("codex-highlight-element", "C-c C-h").
     bind("codex-rename-element",    "C-c C-r").
-    bind("codex-visit-element",     "M-.").
+    // bind("codex-visit-element",     "M-.").
 
     bind("run-test-at-point", "C-c C-t C-p");
 
@@ -147,6 +148,14 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     loop(df)
   }
   private val Enclosers = Set(Kind.TYPE, Kind.MODULE)
+
+  @Fn("""Displays the documentation and signature for the element at the point, if it is known to
+         the project's Codex.""")
+  def codexDescribeElement () {
+    onElemAt(view.point()) { (elem, loc, df) =>
+      view.popup() = codex.mkDefPopup(view, codex.stores(project), df, loc)
+    }
+  }
 
   @Fn("""Displays the documentation and signature for the element at the point in a separate buffer
          (rather than in a popup). This can be useful when the docs are very long, or you wish
