@@ -15,21 +15,14 @@ import scaled.util.{Chars}
   */
 abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
 
-  val codex = Codex(buffer)
-  // TODO: it's possible that our buffer's file could change and become part of a new project;
-  // do we really want to handle that crazy case?
-  val project = Project(buffer)
-
-  /** The most recent index for the buffer's source file, if any. */
-  val index = OptValue[SourceIndex]()
-  // if our store gets indexed, store it in `index`
-  note(codex.indexed.onValue { idx => if (idx.store == buffer.store) index() = idx })
-
+  protected def codex = Codex(buffer)
+  protected def project = Project(buffer)
+  protected def index = buffer.state[SourceIndex]
   protected def reqIndex = index getOrElse abort("No Codex index available for this file.")
 
   protected def codexRead (prompt :String, kind :Kind)(fn :JConsumer[Def]) :Unit =
     window.mini.read(prompt, wordAt(view.point()), history(kind),
-                     codex.completer(window, project, kind)).onSuccess(fn)
+                     codex.completer(project, kind)).onSuccess(fn)
 
   protected def codexVisit (prompt :String, kind :Kind) :Unit = codexRead(prompt, kind)(visit)
 
@@ -57,20 +50,8 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   // feature so that the user can control where aux info displays go and modes &c don't have to
   // maintain separate special configs for it)
 
-  protected def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) {
-    val elloc = buffer.tagsAt(classOf[Element], loc) match {
-      case el :: _ => Some(el.tag -> loc.atCol(el.start))
-      case Nil     => index.getOption.flatMap(_.elementAt(loc) map(
-        el => (el, buffer.loc(el.offset))))
-    }
-    elloc match {
-      case None => abort("No element could be found at the point.")
-      case Some((elem, loc)) => codex.resolve(window, project, elem.ref) match {
-        case None => abort(s"Unable to resolve referent for $elem")
-        case Some(df) => fn(elem, loc, df)
-      }
-    }
-  }
+  protected def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) :Unit =
+    codex.onElemAt(buffer, loc)(fn)
 
   protected def onEncloser (loc :Loc)(fn :JConsumer[Def]) :Unit =
     reqIndex.encloser(buffer.offset(loc)) match {

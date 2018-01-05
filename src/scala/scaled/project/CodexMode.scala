@@ -64,7 +64,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-summarize-type",    "C-c C-j").
     bind("codex-visit-type-member", "C-c C-k").
 
-    bind("codex-describe-element",  "C-c C-d").
     bind("codex-summarize-element", "S-C-c S-C-d").
     bind("codex-debug-element",     "C-c S-C-d").
 
@@ -109,7 +108,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     val rels = df.relations(rel)
     if (rels.isEmpty) abort(s"No $rel found for '${df.name}'.")
     val ref = rels.iterator.next
-    codex.resolve(window, project, ref) match {
+    codex.resolve(project, ref) match {
       case None     => abort("Unable to resolve: $ref")
       case Some(df) => visit(df)
     }
@@ -149,20 +148,12 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
   private val Enclosers = Set(Kind.TYPE, Kind.MODULE)
 
-  @Fn("""Displays the documentation and signature for the element at the point, if it is known to
-         the project's Codex.""")
-  def codexDescribeElement () {
-    onElemAt(view.point()) { (elem, loc, df) =>
-      view.popup() = CodexUtil.mkDefPopup(env, codex.stores(window, project), df, loc)
-    }
-  }
-
   @Fn("""Displays the documentation and signature for the element at the point in a separate buffer
          (rather than in a popup). This can be useful when the docs are very long, or you wish
          to search them, etc.""")
   def codexSummarizeElement () {
     onElemAt(view.point()) { (elem, loc, df) =>
-      val info = CodexUtil.summarizeDef(env, codex.stores(window, project), df)
+      val info = codex.summarizeDef(view, codex.stores(project), df)
       val name = s"${df.name}:${df.qualifier}"
       val buf = project.createBuffer(name, project.codexBufferState("codex-info"))
       buf.delete(buf.start, buf.end)
@@ -186,12 +177,12 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   @Fn("Displays debugging info for the Codex element at the point.")
   def codexDebugElement () :Unit = onElemAt(view.point()) {
-    (elem, loc, df) => view.popup() = CodexUtil.mkDebugPopup(df, loc)
+    (elem, loc, df) => view.popup() = codex.mkDebugPopup(df, loc)
   }
 
   @Fn("Displays debugging info for the Codex element enclosing the point.")
   def codexDebugEncloser () :Unit = onEncloser(view.point()) {
-    df => view.popup() = CodexUtil.mkDebugPopup(df, buffer.loc(df.offset))
+    df => view.popup() = codex.mkDebugPopup(df, buffer.loc(df.offset))
   }
 
   @Fn("Highlights all occurrences of an element in the current buffer.")

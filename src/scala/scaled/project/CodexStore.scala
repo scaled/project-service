@@ -10,7 +10,15 @@ import scaled._
 import scaled.util.BufferBuilder
 
 /** Used to report info about this store with its project. */
-class CodexComponent (store :CodexStore) extends Project.Component {
+class CodexComponent (codex :Codex, store :CodexStore) extends Project.Component {
+
+  override def addToBuffer (buffer :RBuffer) {
+    // while this buffer is open, keep an up to date SourceIndex in its state
+    val conn = codex.indexed.onValue { idx =>
+      if (idx.store == buffer.store) buffer.state[SourceIndex]() = idx
+    }
+    buffer.killed.onEmit { conn.close() }
+  }
 
   /** Appends a description of this store to `bb`. */
   override def describeSelf (bb :BufferBuilder) {

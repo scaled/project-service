@@ -1,0 +1,23 @@
+/**
+ * Styles for project-mode.
+ */
+
+.hintNoteFace {
+  -fx-bg-fill: DarkSlateBlue;
+  -fx-underline: true;
+}
+
+.infoNoteFace {
+  -fx-bg-fill: DarkSlateBlue;
+  -fx-underline: true;
+}
+
+.warningNoteFace {
+  -fx-bg-fill: Yellow;
+  -fx-underline: true;
+}
+
+.errorNoteFace {
+  -fx-bg-fill: Red;
+  -fx-underline: true;
+}

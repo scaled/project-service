@@ -65,8 +65,8 @@ abstract class LangClient (
       ((message :Message) => { trace(message) ; consumer.consume(message) }) :MessageConsumer
     })
 
-  // add a LangCompiler to this project (TODO: this should be an Analyzer)
-  project.addComponent(classOf[Compiler], new LangCompiler(project))
+  // add a LangAnalyzer to this project
+  project.addComponent(classOf[Analyzer], new LangAnalyzer(project, this))
 
   protected def langServerClass :Class[_] = classOf[LanguageServer]
 
@@ -186,22 +186,22 @@ abstract class LangClient (
       override def label = firstNonNull(item.getLabel, item.getInsertText)
       override def sig = Option(item.getDetail).map(formatSig).map(Line.apply)
       override def details (viewWidth :Int) =
-        LSP.adapt(textSvc.resolveCompletionItem(item), exec).
+        LSP.adapt(textSvc.resolveCompletionItem(item), project.exec).
         map(item => Option(item.getDocumentation).
           map(formatDocs(Buffer.scratch("*details*"), viewWidth-4, _)))
     }
   }
 
-  /** Creates a completer on workspace symbol names. */
-  def symbolCompleter (window :Window) = new Completer[SymbolInformation]() {
-    override def minPrefix = 2
-    def formatSym (sym :SymbolInformation) = sym.getContainerName match {
-      case null => sym.getName
-      case cont => s"${sym.getName}:${cont}"
-    }
-    def complete (glob :String) =
-      LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), window).
-      map(results => Completion(glob, results, false)(formatSym))
+  /** Returns the fully qualified name for `sym`. Defaults to C style: `qualifier.name`. */
+  def fqName (sym :SymbolInformation) = sym.getContainerName match {
+    case null => sym.getName
+    case cont => s"${cont}.${sym.getName}"
+  }
+
+  /** Formats a symbol name for use during completion. Scaled convention is `name:qualifier`. */
+  def formatSym (sym :SymbolInformation) = sym.getContainerName match {
+    case null => sym.getName
+    case cont => s"${sym.getName}:${cont}"
   }
 
   /** Visits symbol `sym` in `window`. */
@@ -268,7 +268,7 @@ abstract class LangClient (
       def completeAt (window :Window, buffer :Buffer, pos :Loc, point :Loc) = {
         buffer.state.get[Syncer].foreach { _.flushEdits() }
         val pparams = LSP.toTDPP(buffer, pos)
-        LSP.adapt(textSvc.completion(pparams), window).map(result => {
+        LSP.adapt(textSvc.completion(pparams), window.exec).map(result => {
           val (items, incomplete) = LSP.toScala(result).fold(
             items => (items, false),
             list => (list.getItems, list.isIncomplete))
@@ -347,10 +347,9 @@ abstract class LangClient (
         mkChange(start, start, 0, Line.toText(buffer.region(start, end)))
       case Delete(start, end, deleted) =>
         mkChange(start, end, Line.toText(deleted).length, "")
-      case Transform(start, end, orig) => {
-          val newText = Line.toText(buffer.region(start, end))
-          mkChange(start, end, newText.length, newText)
-        }
+      case Transform(start, end, orig) =>
+        val newText = Line.toText(buffer.region(start, end))
+        mkChange(start, end, newText.length, newText)
       case edit => throw new AssertionError(s"LSP: unexpected buffer edit: $edit")
     }
   }
@@ -408,10 +407,9 @@ abstract class LangClient (
    * validation runs.
    */
   def publishDiagnostics (pdp :PublishDiagnosticsParams) {
-    exec.ui.execute(() => {
-      val store = LSP.toStore(pdp.getUri)
-      val diags = pdp.getDiagnostics
-      project.compiler.asInstanceOf[LangCompiler].gotDiagnostics(store, diags)
+    exec.ui.execute(() => project.analyzer match {
+      case lang :LangAnalyzer => lang.gotDiagnostics(pdp)
+      case _ => // oh well!
     })
   }
 

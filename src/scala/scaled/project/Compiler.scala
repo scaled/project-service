@@ -17,10 +17,13 @@ abstract class Compiler (val project :Project) extends Project.Component {
   import Compiler._
 
   /** The current set of compiler warnings, if any. */
-  val warnings = OptValue[Visit.List]()
+  val warnings = Value[Visit.List](null)
 
   /** The current set of compiler errors, if any. */
-  val errors = OptValue[Visit.List]()
+  val errors = Value[Visit.List](null)
+
+  // initialize warnings & errors to empty lists
+  setNotes(Seq(), Seq())
 
   /** Appends compiler status to our modeline status string and tooltip.
     * @param sb the builder for the status line
@@ -115,6 +118,10 @@ abstract class Compiler (val project :Project) extends Project.Component {
 
   protected def gotStatus (errs :SeqV[Note], warns :SeqV[Note]) {
     _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
+    setNotes(errs, warns)
+  }
+
+  private def setNotes (errs :SeqV[Note], warns :SeqV[Note]) {
     warnings() = new Visit.List("compile warning", warns)
     errors()   = new Visit.List("compile error", errs)
   }

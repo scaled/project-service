@@ -46,7 +46,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   val psvc = env.msvc.service[ProjectService]
   val codex = Codex(buffer)
   val project = Project(buffer)
-  lazy val stores = codex.stores(window, project)
+  lazy val stores = codex.stores(project)
 
   override def keymap = super.keymap.
     bind("zoom-out",      "o", "<").
@@ -162,11 +162,11 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   }
 
   private def addDefInfo (df :Def, docr :DocReader, indent :String) {
-    val fmt = CodexUtil.resolveDoc(psvc, stores, docr, df)
+    val fmt = codex.resolveDoc(stores, docr, df)
     val summary :SeqV[LineV] = fmt.summary(indent, view.width()-1)
     val sig :Seq[LineV] = df.sig match {
       case sigO if (!sigO.isPresent) => Seq(Line(s"$indent<no sig: $df>"))
-      case sigO => CodexUtil.formatSig(sigO.get, indent)
+      case sigO => codex.formatSig(sigO.get, indent)
     }
 
     // start by appending our summary and signature to the buffer
@@ -182,7 +182,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
         case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
         case _ => visit()
       }
-      override def showDocs () = view.popup() = CodexUtil.mkDefPopup(env, stores, df, end)
+      override def showDocs () = view.popup() = codex.mkDefPopup(view, stores, df, end)
       override def toString = "Def($df)"
     }
     while (loc < end) { buffer.setLineTag(loc, info) ; loc = loc.nextL }

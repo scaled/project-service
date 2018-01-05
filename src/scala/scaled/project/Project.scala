@@ -15,7 +15,7 @@ import java.util.function.Consumer
 import scala.collection.mutable.{Map => MMap}
 import scala.reflect.ClassTag
 import scaled._
-import scaled.util.{BufferBuilder, Close, MoreFiles}
+import scaled.util.{BufferBuilder, Close, MoreFiles, Errors}
 
 /** [[Project]]-related helper types &c. */
 object Project {
@@ -61,9 +61,10 @@ object Project {
     override def toString = toString(if (module.length == 0) "" else ":")
   }
 
-  /** Returns the project configured for the supplied buffer. */
+  /** Returns the project configured for the supplied buffer.
+    * If no project is configured in the buffer a feedback error is thrown. */
   def apply (buffer :Buffer) :Project = buffer.state.get[Project].getOrElse {
-    throw new IllegalStateException(s"No project configured in buffer: '$buffer'")
+    throw Errors.feedback(s"No project configured in buffer")
   }
 
   /** Used to read and write project metadata. */
@@ -174,7 +175,13 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Feedback messages (or errors) emitted on this project. These will be forwarded (by
     * project-mode) to any windows showing buffers to which this project is attached. */
-  val feedback = Signal[Either[(String, Boolean), Throwable]](exec.ui)
+  val feedback = Signal[Either[(String, Boolean), Throwable]](pspace.wspace.exec.ui)
+
+  /** The current analysis notes, if any. */
+  val notes = Value[SeqV[Analyzer.Note]](Seq())
+
+  /** An executor that reports errors via this project's `feedback` signal. */
+  val exec = pspace.wspace.exec.handleErrors(err => feedback.emit(Right(err)))
 
   /** The meta service, for easy access. */
   def metaSvc :MetaService = pspace.msvc
@@ -213,7 +220,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     langClientFor(suff) match {
       case Some(clientF) => clientF.onSuccess(_.addToBuffer(buffer))
       // if no language client is available, add a Codex for old skool intelligence
-      case None => buffer.state[Codex]() = Codex(pspace.wspace.editor)
+      case None => buffer.state[Codex]() = codex
     }
 
     // note that we've been added to this buffer
@@ -233,7 +240,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
     * configured to be a part of this project. */
   def codexBufferState (mode :String, args :Any*) :List[State.Init[_]] =
-    State.init(classOf[Codex], Codex(pspace.wspace.editor)) :: bufferState(mode, args :_*)
+    State.init(classOf[Codex], codex) :: bufferState(mode, args :_*)
 
   /** Creates a simple buffer configured to be part of this project. A buffer with the same name
     * will be reused. This is useful for incidental buffers related to the project like compiler
@@ -290,19 +297,12 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     * that participate in the modeline info. */
   def updateStatus () :Unit = status() = makeStatus
 
-  /** Returns the file information provider for this project. */
+  // getters for various well-known project components
   def files :Filer = component[Filer] || DefaultFiler
-
-  /** Returns the source code information provider for this project. */
   def sources :Sources = component[Sources] || DefaultSources
-
-  /** Returns the project dependency information. */
   def depends :Depends = component[Depends] || DefaultDepends
-
-  /** Returns the compiler that handles compilation for this project. Created on demand. */
   def compiler :Compiler = component[Compiler] || DefaultCompiler
-
-  /** Returns the tester that handles test running for this project. Created on demand. */
+  def analyzer :Analyzer = component[Analyzer] || DefaultAnalyzer
   def tester :Tester = component[Tester] || DefaultTester
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
@@ -361,24 +361,27 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   override def toString = s"$name (${root.path})"
 
   protected def log = metaSvc.log
-  protected def exec = pspace.wspace.exec
+  protected def codex = Codex(pspace.wspace.editor)
 
   private lazy val langPlugins = metaSvc.service[PluginService].
     resolvePlugins[LangPlugin]("langserver")
+  private def pluginForSuff (suff :String) :Option[LangPlugin] =
+    langPlugins.plugins.filter(_.canActivate(root.path)).find(_.suffs(root.path).contains(suff))
+
   private val langClients = new HashMap[String,Future[LangClient]]()
   private def langClientFor (suff :String) :Option[Future[LangClient]] =
-    langClients.get(suff) match {
-      case null => langPlugins.plugins.filter(_.canActivate(root.path)).
-        find(_.suffs(root.path).contains(suff)).map(p => {
-          val client = p.createClient(this)
-          p.suffs(root.path).foreach { suff => langClients.put(suff, client) }
-          // TODO: close lang clients if all buffers with their suff are closed
-          client onSuccess { toClose += _ }
-          client onFailure exec.handleError
-          client
-        })
-      case client => Some(client)
-    }
+    Option(langClients.get(suff)) orElse pluginForSuff(suff).map(plugin => {
+      val client = plugin.createClient(this)
+      plugin.suffs(root.path).foreach { suff => langClients.put(suff, client) }
+      client onSuccess { client =>
+        // pass lang client messages along to project
+        client.messages.onValue { msg => emitStatus(s"${msg.getType}: ${msg.getMessage}") }
+        toClose += client
+        // TODO: close lang clients if all buffers with their suff are closed
+      }
+      client onFailure exec.handleError
+      client
+    })
 
   /** Returns the directory in which this project will store metadata. */
   private[project] def metaDir = {
@@ -421,6 +424,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     override protected def compile (buffer :Buffer, file :Option[Path]) = Future.success(true)
     override protected def nextNote (buffer :Buffer, start :Loc) = Compiler.NoMoreNotes
   }
+
+  lazy val DefaultAnalyzer = new CodexAnalyzer(codex, this)
 
   lazy val DefaultTester = new Tester {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada

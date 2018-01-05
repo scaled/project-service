@@ -9,7 +9,7 @@ import java.nio.file.Path
 import javafx.scene.control.Tooltip
 import scala.collection.mutable.ArrayBuffer
 import scaled._
-import scaled.util.{BufferBuilder, Errors}
+import scaled.util.{BufferBuilder, Chars, Errors}
 
 /** Provides configuration for [[ProjectMode]]. */
 object ProjectConfig extends Config.Defs {
@@ -27,6 +27,14 @@ object ProjectConfig extends Config.Defs {
   @Var("""If non-empty, the geometry of a window to open the first time an execution is performed.
           Output will be shown in this window. Geometry is of the form 'WxH+X+Y'.""")
   var execWindowGeom = key("")
+
+  /** Provides the CSS style for `note`. */
+  def noteStyle (note :Analyzer.Note) = note.sev match {
+    case Analyzer.Hint    => "hintNoteFace"
+    case Analyzer.Info    => "infoNoteFace"
+    case Analyzer.Warning => "warningNoteFace"
+    case Analyzer.Error   => "errorNoteFace"
+  }
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -40,19 +48,12 @@ object ProjectConfig extends Config.Defs {
 @Minor(name="project", tags=Array("project"), stateTypes=Array(classOf[Project]),
        desc="""A minor mode that provides project-centric fns.""")
 class ProjectMode (env :Env) extends MinorMode(env) {
-  import ProjectConfig._
-  // TODO: it's possible that our buffer's file could change and become part of a new project;
-  // do we really want to handle that crazy case?
   val project = Project(buffer)
   import project.pspace
-
-  // display the project status in the modeline
-  note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
-
-  // forward project feedback to our window
-  note(project.feedback.onValue(_ fold((window.emitStatus _).tupled, window.emitError)))
+  import ProjectConfig._
 
   override def configDefs = ProjectConfig :: super.configDefs
+  override def stylesheets = stylesheetURL("/project.css") :: super.stylesheets
   override def keymap = super.keymap.
     bind("describe-project",  "C-h p").
 
@@ -60,6 +61,11 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     bind("find-file-in-project",      "C-x C-p").
     bind("find-file-in-test-project", "C-x S-C-p").
     bind("find-file-other-project",   "C-x C-o").
+
+    // analyzer fns
+    bind("describe-element", "C-c C-d").
+    bind("visit-symbol",     "C-c C-k").
+    bind("visit-element",    "M-.").
 
     // compilation fns
     bind("compile-incremental", "F5").
@@ -89,27 +95,54 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   //
   // Behaviors
 
+  private def updateVisits (onCreate :Boolean)(list :Visit.List) {
+    val curlist = window.visits()
+    // we only want to update the visit list on buffer creation if we're not currently visiting
+    // something else or if we're currently visiting the same kind of thing, in which case we'll
+    // update it which will preserve our position in the list
+    if (!onCreate || curlist.isEmpty || curlist.thing == list.thing)
+      window.visits() = curlist.update(list.thing, list.visits)
+  }
+
+  // this tracks analyzer notes that are applicable to this buffer and styles them
+  class BufferNotes {
+    import Analyzer._
+    var current = Seq[Note]()
+    var currentSet = Set[Note]()
+    def gotNotes (onCreate :Boolean)(notes :SeqV[Note]) = {
+      val newCurrent = notes.filter(_.store == buffer.store)
+      val newCurrentSet = newCurrent.toSet
+      val oldSet = newCurrentSet & currentSet // old set remains styled
+      clear(currentSet &~ oldSet) // clear stale notes
+      style(newCurrentSet &~ currentSet) // style new set
+      current = newCurrent
+      currentSet = newCurrentSet
+      updateVisits(onCreate)(notesList);
+    }
+    def notesList = new Visit.List("analyzer note", project.notes())
+    def style (notes :Iterable[Note]) = for (n <- notes) buffer.addStyle(noteStyle(n), n.region)
+    def clear (notes :Iterable[Note]) = for (n <- notes) buffer.removeStyle(noteStyle(n), n.region)
+  }
+  val bufferNotes = new BufferNotes
+
+  // display the project status in the modeline
+  note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
+
+  // forward project feedback to our window
+  note(project.feedback.onValue(_ fold((window.emitStatus _).tupled, window.emitError)))
+
   // trigger a recompile on buffer save, if thusly configured
   note(buffer.storeV onEmit {
     if (config(recompileOnSave) && project.compiler.recompileOnSave) compile(true, false)
   })
 
-  // when new compiler errors are generated, always stuff them into the visit list
-  note(project.compiler.errors onValue updateErrors(true))
-  // but when we first visit this buffer, only stuff them into the visit list if we're not already
-  // visiting some other list (or already this project's errors)
-  updateErrors(false)(project.compiler.errors.getOption)
+  // when new analysis notes or compiler errors are generated, stuff them into the visit list
+  note(project.compiler.errors onValue updateVisits(false))
+  note(project.notes.onValue(bufferNotes.gotNotes(false)))
 
-  private def updateErrors (force :Boolean)(errsOpt :Option[Visit.List]) = errsOpt match {
-    case None => // nada
-    case Some(errs) =>
-      // only switch to our project's errors if we're not currently visiting something else
-      val (thing, visits) = window.visits match {
-        case OptValue(list) => (list.thing, list.visits)
-        case _              => (errs.thing, Seq())
-      }
-      if (force || (thing == errs.thing && (visits ne errs.visits))) window.visits() = errs
-  }
+  // when first visiting this buffer, maybe visit analysis notes or compiler errors
+  if (!project.notes().isEmpty) updateVisits(true)(bufferNotes.notesList)
+  else if (!project.compiler.errors().isEmpty) updateVisits(true)(project.compiler.errors())
 
   //
   // General FNs
@@ -128,6 +161,30 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     window.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
       findFileIn(pspace.reqProjectIn(pt._1))
     }
+  }
+
+  //
+  // Analyzer FNs
+
+  @Fn("Describes the element at the point.")
+  def describeElement () :Unit = project.analyzer.describeElement(view)
+
+  @Fn("Navigates to the referent of the element at the point.")
+  def visitElement () {
+    val loc = view.point()
+    project.analyzer.visitElement(view, window).onSuccess { visited =>
+      if (visited) window.visitStack.push(buffer, loc)
+    }
+  }
+
+  @Fn("Queries for a project-wide symbol and visits it.")
+  def visitSymbol () {
+    val analyzer = project.analyzer
+    window.mini.read("Symbol:", wordAt(view.point()), symbolHistory,
+                     analyzer.symbolCompleter(None)).onSuccess(sym => {
+      window.visitStack.push(view) // push current loc to the visit stack
+      analyzer.visitSymbol(sym, window)
+    })
   }
 
   //
@@ -155,20 +212,10 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Navigates to the next warning in the current compiler warning list, if any.")
-  def visitNextWarning () {
-    project.compiler.warnings.getOption match {
-      case None     => window.popStatus("No current compiler warnings.")
-      case Some(vs) => vs.next(window)
-    }
-  }
+  def visitNextWarning () :Unit = project.compiler.warnings().next(window)
 
   @Fn("Navigates to the previous warning in the current compiler warning list, if any.")
-  def visitPrevWarning () {
-    project.compiler.warnings.getOption match {
-      case None     => window.popStatus("No current compiler warnings.")
-      case Some(vs) => vs.prev(window)
-    }
-  }
+  def visitPrevWarning () :Unit = project.compiler.warnings().prev(window)
 
   //
   // Test FNs
@@ -281,6 +328,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   private def projectHistory = wspace.historyRing("project-name")
 
+  private def symbolHistory = wspace.historyRing("project-symbol")
+
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
@@ -312,4 +361,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     // track our last execution in the workspace state
     wspace.state[Execution]() = exec
   }
+
+  private def wordAt (loc :Loc) :String =
+    buffer.regionAt(loc, Chars.Word).map(_.asString).mkString
 }

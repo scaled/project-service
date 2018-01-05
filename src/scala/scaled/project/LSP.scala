@@ -46,6 +46,4 @@ object LSP {
     })
     promise
   }
-
-  def adapt[T] (res :CompletableFuture[T], window :Window) :Future[T] = adapt(res, window.exec)
 }

@@ -5,11 +5,12 @@
 package scaled.project
 
 import codex.extract.{Extractor, SourceSet, TextWriter, Writer}
-import codex.model.{Def, Kind, Ref, Source}
+import codex.model.{Def, Element, Kind, Ref, Relation, Sig, Source}
 import codex.store.{ProjectStore, Query}
 import java.nio.file.{Path, Files}
 import java.util.{ArrayList, Optional, LinkedHashSet, HashMap}
 import scaled._
+import scaled.code.CodeConfig
 import scaled.util.{BufferBuilder, Errors, FuzzyMatch}
 
 /** Static [[Codex]] stuff. */
@@ -90,13 +91,13 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Returns the store for `project`, stores for all top-level in `project`'s workspace, and all
     * the stores for the dependencies of `project`. */
-  def stores (window :Window, project :Project) :LinkedHashSet[ProjectStore] = {
+  def stores (project :Project) :LinkedHashSet[ProjectStore] = {
     val stores = new LinkedHashSet[ProjectStore]()
     def checkedAdd (store :CodexStore) {
       // if this store is empty; trigger a resolution of its project to cause it to be indexed for
       // the first time
       if (store.isEmpty) {
-        window.emitStatus(s"Triggered index of ${store.root}")
+        project.emitStatus(s"Triggered index of ${store.root}")
         project.pspace.projectIn(store.root)
       }
       stores.add(store)
@@ -131,7 +132,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Returns a completer on elements of `kind` in `project`'s Codex. */
-  def completer (window :Window, project :Project, kind :Kind) :Completer[Def] =
+  def completer (project :Project, kind :Kind) :Completer[Def] =
     new Completer[Def]() {
       override def minPrefix = 2
       def complete (glob :String) = Future.success({
@@ -142,17 +143,121 @@ class Codex (editor :Editor, msvc :MetaService) {
         Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
       })
       private def query (name :String) =
-        (Query.prefix(name) kind(kind) find(stores(window, project))).toSeqV
+        (Query.prefix(name) kind(kind) find(stores(project))).toSeqV
     }
 
   /** Resolves `ref`, which originated from a file in `project`. */
-  def resolve (window :Window, project :Project, ref :Ref) :Option[Def] =
-    Option.from(Ref.resolve(stores(window, project), ref))
+  def resolve (project :Project, ref :Ref) :Option[Def] =
+    Option.from(Ref.resolve(stores(project), ref))
 
   /** Visits the source of `df` in a buffer in `window`. */
   def visit (window :Window, df :Def) {
     val view = window.focus.visitFile(toStore(df.source))
     view.point() = view.buffer.loc(df.offset)
+  }
+
+  /** Applies `fn` to the the `Element` at `loc` in `buffer`, if known. Otherwise throws a feedback
+    * exception indicating that no element could be found at `loc`. */
+  def onElemAt (buffer :Buffer, loc :Loc)(fn :(Element, Loc, Def) => Unit) {
+    val elloc = buffer.tagsAt(classOf[Element], loc) match {
+      case el :: _ => Some(el.tag -> loc.atCol(el.start))
+      case Nil     => buffer.state.get[SourceIndex].flatMap(_.elementAt(loc) map(
+        el => (el, buffer.loc(el.offset))))
+    }
+    elloc match {
+      case None => throw Errors.feedback("No element could be found at the point.")
+      case Some((elem, loc)) => resolve(buffer.state.req[Project], elem.ref) match {
+        case None => throw Errors.feedback(s"Unable to resolve referent for $elem")
+        case Some(df) => fn(elem, loc, df)
+      }
+    }
+  }
+
+  /** Returns the CSS style to use for `kind`. */
+  def styleFor (kind :Kind) = kind match {
+    case Kind.MODULE => Some(CodeConfig.moduleStyle)
+    case Kind.TYPE   => Some(CodeConfig.typeStyle)
+    case Kind.FUNC   => Some(CodeConfig.functionStyle)
+    case Kind.VALUE  => Some(CodeConfig.variableStyle)
+    case _           => None
+  }
+
+  /** Formats the supplied signature with colorizations and such. */
+  def formatSig (sig :Sig, indent :String) :Seq[LineV] = {
+    val lines = Seq.builder[LineV]()
+    Line.onLines(sig.text) { (l, lstart) =>
+      val len = l.length
+      val lb = Line.builder(indent + l)
+      for (el <- sig.uses) {
+        val off = el.offset - lstart
+        if (off >= 0 && off < len) styleFor(el.kind) foreach {
+          val start = indent.length+off ; val end = start+el.length
+          s => lb.withStyle(s, start, end).withTag(el, start, end)
+        }
+      }
+      lines += lb.build()
+    }
+    lines.build()
+  }
+
+  import DocFormatterPlugin.Format
+
+  /** Resolves the documentation for `df`. If `df` has no documentation, this will search for
+    * inherited documentation for any def which `df` `Relation.OVERRIDES`.
+    */
+  def resolveDoc (stores :Iterable[ProjectStore], docr :DocReader, df :Def) :Format = {
+    def refDoc (ref :Ref) = Option.from(Ref.resolve(stores, ref)) flatMap(findDoc)
+    def relDoc (refs :Iterable[Ref]) :Option[Format] = {
+      val iter = refs.iterator() ; while (iter.hasNext) {
+        val doc = refDoc(iter.next)
+        if (doc.isDefined) return doc
+      }
+      None
+    }
+    def findDoc (df :Def) :Option[Format] = Option.from(df.doc) match {
+      case Some(doc) =>
+        val docf = psvc.docFormatter(df.source.fileExt)
+        Some(docf.format(df, doc, docr.resolve(df.source, doc)))
+      case None => relDoc(df.relations(Relation.OVERRIDES))
+    }
+    findDoc(df) getOrElse DocFormatterPlugin.NoDoc
+  }
+
+  /** Formats doc and signature information into a buffer builder and returns it. */
+  def summarizeDef (view :BufferView, stores :Iterable[ProjectStore], df :Def) :BufferBuilder = {
+    val bb = new BufferBuilder(view.width()-2)
+    val fmt = resolveDoc(stores, new DocReader(), df)
+    try fmt.full("", bb)
+    catch {
+      case e :Exception => bb.add(Line.fromText(e.toString))
+    }
+    df.sig.ifPresent(new java.util.function.Consumer[Sig]() {
+      def accept (sig :Sig) = bb.add(formatSig(sig, ""))
+    })
+    bb
+  }
+
+  /** Creates a popup for `df` including sig and docs at `loc`. */
+  def mkDefPopup (view :BufferView, stores :Iterable[ProjectStore], df :Def, loc :Loc) :Popup = {
+    val bb = summarizeDef(view, stores, df)
+    if (bb.lines.isEmpty) bb.add(s"No docs or sig for '${df.name}'")
+    Popup.lines(bb.lines, Popup.UpRight(loc))
+  }
+
+  /** Creates a debug popup for `df` at `loc`. */
+  def mkDebugPopup (df :Def, loc :Loc) :Popup = {
+    def safeGet (thunk : => Any) = try thunk.toString catch { case t :Throwable => t.toString }
+    val text = SeqBuffer[String]()
+    text += s"ID:    ${df.idToString}"
+    text += s"Outer: ${df.outerIdToString}"
+    text += s"Kind:  ${df.kind}"
+    text += s"Exp:   ${df.exported}"
+    text += s"Name:  ${df.name}"
+    text += s"Off:   ${df.offset}"
+    text += s"Body:  ${df.bodyStart}:${df.bodyEnd}"
+    text += s"Src:   ${safeGet(df.source)}"
+    text += s"GID:   ${safeGet(df.globalRef)}"
+    Popup.text(text, Popup.UpRight(loc))
   }
 
   /** Performs any "project just got loaded/reloaded" stuffs needed by the Codex system. */
@@ -171,7 +276,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     project.ids.foreach { id => storesById.put(id, pstore) }
 
     // add the project store to the project as a component
-    project.addComponent(classOf[CodexComponent], new CodexComponent(pstore))
+    project.addComponent(classOf[CodexComponent], new CodexComponent(this, pstore))
 
     // queue an initial reindex of this project if needed (we check for non-empty project.ids
     // because the very first time a project is resolved it will not have processed its metadata
