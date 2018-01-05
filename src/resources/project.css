@@ -3,21 +3,17 @@
  */
 
 .hintNoteFace {
-  -fx-bg-fill: DarkSlateBlue;
-  -fx-underline: true;
+  -fx-bg-stroke: DarkSlateBlue !important;
 }
 
 .infoNoteFace {
-  -fx-bg-fill: DarkSlateBlue;
-  -fx-underline: true;
+  -fx-bg-stroke: DarkSlateBlue !important;
 }
 
 .warningNoteFace {
-  -fx-bg-fill: Yellow;
-  -fx-underline: true;
+  -fx-bg-stroke: #FFCC00 !important;
 }
 
 .errorNoteFace {
-  -fx-bg-fill: Red;
-  -fx-underline: true;
+  -fx-bg-stroke: #ED4600 !important;
 }
