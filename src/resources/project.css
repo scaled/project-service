@@ -2,18 +2,18 @@
  * Styles for project-mode.
  */
 
-.hintNoteFace {
+.noteHintFace {
   -fx-bg-stroke: DarkSlateBlue !important;
 }
 
-.infoNoteFace {
+.noteInfoFace {
   -fx-bg-stroke: DarkSlateBlue !important;
 }
 
-.warningNoteFace {
+.noteWarningFace {
   -fx-bg-stroke: #FFCC00 !important;
 }
 
-.errorNoteFace {
+.noteErrorFace {
   -fx-bg-stroke: #ED4600 !important;
 }

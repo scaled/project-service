@@ -30,11 +30,13 @@ object ProjectConfig extends Config.Defs {
 
   /** Provides the CSS style for `note`. */
   def noteStyle (note :Analyzer.Note) = note.sev match {
-    case Analyzer.Hint    => "hintNoteFace"
-    case Analyzer.Info    => "infoNoteFace"
-    case Analyzer.Warning => "warningNoteFace"
-    case Analyzer.Error   => "errorNoteFace"
+    case Analyzer.Hint    => "noteHintFace"
+    case Analyzer.Info    => "noteInfoFace"
+    case Analyzer.Warning => "noteWarningFace"
+    case Analyzer.Error   => "noteErrorFace"
   }
+
+  def isNoteStyle (style :String) = style startsWith "note"
 }
 
 /** A minor mode which provides fns for interacting with project files and services.
@@ -111,17 +113,14 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     var currentSet = Set[Note]()
     def gotNotes (onCreate :Boolean)(notes :SeqV[Note]) = {
       val newCurrent = notes.filter(_.store == buffer.store)
-      val newCurrentSet = newCurrent.toSet
-      val oldSet = newCurrentSet & currentSet // old set remains styled
-      clear(currentSet &~ oldSet) // clear stale notes
-      style(newCurrentSet &~ currentSet) // style new set
+      // clear all note styles from the buffer and readd to the current set; this is not very
+      // efficient but tracking the old notes through all possible buffer edits is rather a PITA
+      buffer.removeTags(classOf[String], isNoteStyle, buffer.start, buffer.end)
+      for (n <- newCurrent) buffer.addStyle(noteStyle(n), n.region)
       current = newCurrent
-      currentSet = newCurrentSet
       updateVisits(onCreate)(notesList);
     }
     def notesList = new Visit.List("analyzer note", project.notes())
-    def style (notes :Iterable[Note]) = for (n <- notes) buffer.addStyle(noteStyle(n), n.region)
-    def clear (notes :Iterable[Note]) = for (n <- notes) buffer.removeStyle(noteStyle(n), n.region)
   }
   val bufferNotes = new BufferNotes
 
