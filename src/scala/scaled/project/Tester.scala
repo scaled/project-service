@@ -10,10 +10,13 @@ import scaled._
 import scaled.util.Errors
 
 /** Provides an interface for interacting with test frameworks. */
-abstract class Tester extends Project.Component {
+abstract class Tester (project :Project) extends Project.Component {
 
   /** A value used to capture (and reinvoke) the most recent test invocation. */
   val lastTest = OptValue[RBufferView => Unit]()
+
+  /** The buffer into which to append test results. */
+  def resultsBuffer :Buffer = project.logBuffer
 
   /** Aborts any currently active test session. */
   def abort () :Unit = throw Errors.feedback("This tester does not support aborting tests.")
@@ -26,6 +29,7 @@ abstract class Tester extends Project.Component {
   def isTestFunc (df :Def) :Boolean = df.kind == Kind.FUNC
 
   /** Runs all tests in the project.
+    * @param window a window to pass to `noteResults`. *.
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-all-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
@@ -34,6 +38,7 @@ abstract class Tester extends Project.Component {
 
   /** Runs all tests in `file`. If available, model information for all types (classes) in that
     * compilation unit will also be provided, to make life easier for the test framework.
+    * @param window a window to pass to `noteResults`. *.
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
@@ -42,6 +47,7 @@ abstract class Tester extends Project.Component {
 
   /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
     * invoked interactively.
+    * @param window a window to pass to `noteResults`. *.
     * @return a future which will be completed with `this` the test completes.
     */
   def runTest (window :Window, file :Path, elem :Def) :Future[Tester]

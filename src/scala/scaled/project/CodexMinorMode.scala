@@ -35,20 +35,8 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   }
 
   protected def summarize (df :Def) {
-    val summaryWindow = Geometry.apply(summaryWindowGeom) match {
-      case None => window
-      case Some(geom) => (wspace.windows.find(_.geometry == geom) ||
-                          wspace.openWindow(Some(geom)))
-    }
-    CodexSummaryMode.visitDef(summaryWindow, df)
+    CodexSummaryMode.visitDef(wspace.getInfoWindow("codex"), df)
   }
-
-  // allows a concrete codex minor mode to indicate that summaries should be presented in a
-  // separate window with the specified geometry
-  protected def summaryWindowGeom :String = ""
-  // (TODO: this notion of 'show aux data in a separate window' should really be a first class
-  // feature so that the user can control where aux info displays go and modes &c don't have to
-  // maintain separate special configs for it)
 
   protected def onElemAt (loc :Loc)(fn :(Element, Loc, Def) => Unit) :Unit =
     codex.onElemAt(buffer, loc)(fn)

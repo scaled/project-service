@@ -126,7 +126,7 @@ class Codex (editor :Editor, msvc :MetaService) {
       // the first time
       if (store.isEmpty) {
         project.emitStatus(s"Triggered index of ${store.root}")
-        project.pspace.projectIn(store.root)
+        project.pspace.projectFor(store.root)
       }
       stores.add(store)
     }

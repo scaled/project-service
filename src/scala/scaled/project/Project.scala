@@ -162,7 +162,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def testRoot :Option[Root] = metaV().testRoot
 
   /** Resolves and returns this project's test companion project, if it has one. */
-  def testCompanion :Option[Project] = testRoot.flatMap(pspace.projectIn)
+  def testCompanion :Option[Project] = testRoot.map(pspace.projectFor)
 
   /** Summarizes the status of this project. This is displayed in the modeline. */
   lazy val status :Value[(String,String)] = Value(makeStatus)
@@ -322,6 +322,9 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def component[C <: Component] (implicit tag :ClassTag[C]) :Option[C] =
     component(tag.runtimeClass.asInstanceOf[Class[C]])
 
+  /** Returns whether a `cclass` component has been added to this project. */
+  def hasComponent[C <: Component] (cclass :Class[C]) :Boolean = _components.containsKey(cclass)
+
   /** Registers `comp` with this project. If a component of the same type-key is already registered
     * it will be closed and replaced with `comp`. Components will also be closed when this project
     * is disposed.
@@ -426,7 +429,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   lazy val DefaultAnalyzer = new CodexAnalyzer(codex, this)
 
-  lazy val DefaultTester = new Tester {
+  lazy val DefaultTester = new Tester(this) {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
     override def runTests (window :Window, iact :Boolean,

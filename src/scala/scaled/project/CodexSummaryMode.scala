@@ -28,7 +28,7 @@ object CodexSummaryMode {
   def visitTopLevel (win :Window, store :CodexStore) = visit(win, TopLevelMembers(store))
 
   private def visit (win :Window, tgt :Target) {
-    val project = ProjectSpace(win.workspace).reqProjectIn(tgt.store.root)
+    val project = ProjectSpace(win.workspace).projectFor(tgt.store.root)
     val buf = win.workspace.createBuffer(
       Store.scratch(tgt.name, project.root.path),
       project.codexBufferState("codex-summary", tgt), true)

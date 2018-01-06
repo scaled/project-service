@@ -54,29 +54,8 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   /** Returns `(root, name)` for all projects in this workspace. */
   def allProjects :Seq[(Root,String)] = pdb.toInfo.values.map(_.rootName).toSeq
 
-  /** Resolves (if necessary) and returns the project which is rooted at `root`.
-    * @throws FeedbackException if the project in `root` has disappeared. */
-  def reqProjectIn (root :Root) :Project = projectIn(root) getOrElse {
-    throw Errors.feedback(s"No project in $root")
-  }
-
-  /** Resolves (if necessary) and returns the project which is rooted at `root`.
-    * Returns `None` if the project in `root` has disappeared. */
-  def projectIn (root :Root) :Option[Project] =
-    // the root passed here may have disappeared in the fullness of time, so validate it
-    if (root == null || !Files.exists(root.path)) None
-    else Option(projects.get(root)) orElse Some(resolveByPaths(List(root.path)))
-
-  /** Resolves the project for `id` if that project is registered our project database. Unlike
-    * [[projectFor]] this will not resolve unregistered projects (usually depends). */
-  def knownProjectFor (id :Id) :Option[Project] = Option(pdb.byId.get(id)).flatMap(projectIn)
-
-  /** Resolves the project for `id`. */
-  def projectFor (id :Id) :Option[Project] =
-    knownProjectFor(id) orElse psvc.resolveById(id).map(projectFromRoot)
-
   /** Resolves a project in the supplied `root`. */
-  def projectFromRoot (root :Project.Root) = Option(projects.get(root)) || {
+  def projectFor (root :Root) = Option(projects.get(root)) || {
     val proj = new Project(this, root)
     projects.put(root, proj)
     // when the project's metadata changes...
@@ -90,6 +69,14 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
     resolvers.plugins.foreach { _.addComponents(proj) }
     proj
   }
+
+  /** Resolves the project for `id`. */
+  def projectFor (id :Id) :Option[Project] =
+    knownProjectFor(id) orElse psvc.resolveById(id).map(projectFor)
+
+  /** Resolves the project for `id` if that project is registered our project database. Unlike
+    * [[projectFor]] this will not resolve unregistered projects (usually depends). */
+  def knownProjectFor (id :Id) :Option[Project] = Option(pdb.byId.get(id)).map(projectFor)
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project] = projects.values.toSeq
@@ -130,7 +117,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
         val key = pad(name)
         val lb = Line.builder(s"$key ${root.toString}").
           withLineTag(Visit.Tag(new Visit() {
-            protected def go (window :Window) = reqProjectIn(root).visitDescription(window)
+            protected def go (window :Window) = projectFor(root).visitDescription(window)
           })).
           withStyle(TextConfig.prefixStyle, 0, key.length)
         bb.add(lb.build())
@@ -156,8 +143,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
     wspace.state[ProjectSpace].clear()
   }
 
-  private def resolveByPaths (paths :List[Path]) :Project =
-    projectFromRoot(psvc.resolveByPaths(paths))
+  private def resolveByPaths (paths :List[Path]) :Project = projectFor(psvc.resolveByPaths(paths))
 }
 
 /** Static helpers. */

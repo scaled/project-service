@@ -118,12 +118,11 @@ class Executions (pspace :ProjectSpace) {
   /** Returns all configured executions. */
   def executions :SeqV[Execution] = _execs
 
-  /** Invokes `exec` as a part of `project`. Output will be shown in a window matching `defgeom`
-    * (which will be created if necessary). */
-  def execute (exec :Execution, project :Project, defgeom :Geometry) {
+  /** Invokes `exec` as a part of `project`. */
+  def execute (exec :Execution, project :Project) {
     val id = exec.param("runner")
     _runners.plugins.find(_.id == id) match {
-      case Some(r) => r.execute(exec, project, defgeom)
+      case Some(r) => r.execute(exec, project)
       case None => throw Errors.feedback(
         s"Unable to find runner with id '$id' for execution '${exec.name}'.")
     }

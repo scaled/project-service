@@ -22,11 +22,7 @@ object ProjectConfig extends Config.Defs {
   val recompileTests = key(true)
 
   @Var("If true, the test output buffer will be shown when tests are run interactively.")
-  val showOutputOnTest = key(false)
-
-  @Var("""If non-empty, the geometry of a window to open the first time an execution is performed.
-          Output will be shown in this window. Geometry is of the form 'WxH+X+Y'.""")
-  var execWindowGeom = key("")
+  val showOutputOnTest = key(true)
 
   /** Provides the CSS style for `note`. */
   def noteStyle (note :Analyzer.Note) = note.sev match {
@@ -158,7 +154,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   def findFileOtherProject () {
     val pcomp = Completer.from(pspace.allProjects)(_._2)
     window.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
-      findFileIn(pspace.reqProjectIn(pt._1))
+      findFileIn(pspace.projectFor(pt._1))
     }
   }
 
@@ -224,7 +220,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
          using `visit-next` and `visit-prev`.""")
   def runAllTests () :Unit = runTest { _ =>
     if (!tester.runAllTests(window, true)) abort(s"No tests found in ${project.name}.")
-    maybeShowTestOutput(window)
+    maybeShowTestOutput()
   }
 
   @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
@@ -234,7 +230,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     case None        => abort(s"Cannot find test file for $bufferFile")
     case Some(tfile) => runTest { _ =>
       if (!tester.runTests(window, true, tfile, Seq())) abort(s"No tests found in $tfile.")
-      maybeShowTestOutput(window)
+      maybeShowTestOutput()
     }
   }
 
@@ -312,13 +308,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     val comp = Completer.from(pspace.allProjects)(_._2)
     window.mini.read(s"Project:", "", projectHistory, comp) onSuccess(info => {
       val (root, name) = info
-      pspace.projectIn(root) match {
-        case Some(proj) =>
-          pspace.removeProject(proj)
-          window.popStatus(s"Removed '$name' from '${pspace.name}' workspace.")
-        case None =>
-          window.popStatus(s"Unable to resolve '$name' for removal.")
-      }
+      pspace.removeProject(pspace.projectFor(root))
+      window.popStatus(s"Removed '$name' from '${pspace.name}' workspace.")
     })
   }
 
@@ -332,14 +323,11 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
   private def tester = (project.testCompanion || project).tester
-  private def maybeShowTestOutput (win :Window) = if (config(showOutputOnTest)) {
-    val tbuf = project.testCompanion.getOrElse(project).logBuffer
-    // if our buffer is already in a frame, just to-front its window, otherwise display it in the
-    // current window's focus
-    win.workspace.windowForBuffer(tbuf) match {
-      case Some(twin) => twin.toFront()
-      case None       => win.focus.visit(tbuf) ; win.toFront()
-    }
+
+  private def maybeShowTestOutput () = if (config(showOutputOnTest)) {
+    val win = wspace.getInfoWindow("tests")
+    win.focus.visit(tester.resultsBuffer)
+    win.toFront()
   }
 
   private def compile (incremental :Boolean, interactive :Boolean) {
@@ -354,9 +342,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   private def execute (exec :Execution) {
-    // figure out the geometry of the window in which to display exec output
-    val geom = Geometry.apply(config(execWindowGeom)) || window.geometry
-    pspace.execs.execute(exec, project, geom)
+    pspace.execs.execute(exec, project)
     // track our last execution in the workspace state
     wspace.state[Execution]() = exec
   }

@@ -11,13 +11,6 @@ import scaled._
 import scaled.major.ReadingMode
 import scaled.util.{BufferBuilder, Errors}
 
-object CodexConfig extends Config.Defs {
-
-  @Var("""If non-empty, the geometry of a window in which to display summaries. Otherwise
-          summaries are shown in the current window. Geometry is of the form 'WxH+X+Y'.""")
-  var summaryWindowGeom = key("")
-}
-
 /** A minor mode which provides fns for interacting with a project's Codex.
   *
   * Any major mode that includes the `project` tag will trigger the activation of this minor mode.
@@ -25,7 +18,6 @@ object CodexConfig extends Config.Defs {
 @Minor(name="codex", tags=Array("project"), stateTypes=Array(classOf[Codex]),
        desc="""A minor mode that provides project-codex fns.""")
 class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
-  import CodexConfig._
 
   /** Used when highlighting uses in our buffer. */
   val highlights = Value(Seq[Use]())
@@ -47,7 +39,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     if (store.exists) codex.queueReindex(project, store, false)
   })
 
-  override def configDefs = CodexConfig :: super.configDefs
   override def keymap = super.keymap.
     bind("describe-codex", "C-h c").
 
@@ -312,8 +303,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
       }
     }
   }
-
-  override protected def summaryWindowGeom :String = config(CodexConfig.summaryWindowGeom)
 
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
