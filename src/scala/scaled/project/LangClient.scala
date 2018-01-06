@@ -8,7 +8,7 @@ import java.io.{InputStream, PrintWriter}
 import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.{CompletableFuture, ExecutorService}
-import java.util.{Collections, List => JList}
+import java.util.{Collections, List => JList, HashMap}
 import org.eclipse.lsp4j._
 import org.eclipse.lsp4j.jsonrpc.messages.{Either, Message}
 import org.eclipse.lsp4j.jsonrpc.{Launcher, MessageConsumer}
@@ -16,13 +16,64 @@ import org.eclipse.lsp4j.services.{LanguageClient, LanguageServer}
 import scaled._
 import scaled.code.{CodeCompleter, CodeConfig}
 import scaled.grammar.GrammarService
-import scaled.util.{Filler, SubProcess}
+import scaled.util.{BufferBuilder, Close, Filler, SubProcess}
 
 object LangClient {
 
   /** Extracts the `LangClient` from `buffer` state. */
   def apply (buffer :Buffer) :LangClient = buffer.state.get[LangClient].getOrElse {
     throw new IllegalStateException(s"No LSP client configured in buffer: '$buffer'")
+  }
+
+  class Component (project :Project) extends Project.Component {
+    private val toClose = Close.bag()
+    private val clients = new HashMap[String,Future[LangClient]]()
+    private lazy val plugins = project.metaSvc.service[PluginService].
+      resolvePlugins[LangPlugin]("langserver")
+
+    private def rootPath = project.root.path
+    private def pluginForSuff (suff :String) :Option[LangPlugin] =
+      plugins.plugins.filter(_.canActivate(rootPath)).find(_.suffs(rootPath).contains(suff))
+
+    /** Resolves the lang client for `suff` code (i.e. `java`, `scala`, etc.). This lazily creates
+      * and caches the language server.
+      */
+    def clientFor (suff :String) :Option[Future[LangClient]] =
+      Option(clients.get(suff)) orElse pluginForSuff(suff).map(plugin => {
+        val client = plugin.createClient(project)
+        plugin.suffs(rootPath).foreach { suff => clients.put(suff, client) }
+        client onSuccess { client =>
+          // pass lang client messages along to project
+          client.messages.onValue { m => project.emitStatus(s"${m.getType}: ${m.getMessage}") }
+          toClose += client
+          // TODO: close lang clients if all buffers with their suff are closed
+        }
+        client onFailure project.exec.handleError
+        client
+      })
+
+    override def addToBuffer (buffer :RBuffer) {
+      // add a lang client if one is available
+      val name = buffer.store.name
+      val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
+      clientFor(suff).map(_.onSuccess(_.addToBuffer(buffer)))
+    }
+
+
+    override def describeSelf (bb :BufferBuilder) {
+      if (!clients.isEmpty) {
+        bb.addSubHeader("Lang Clients")
+        // ugly hack to provide info for already resolved clients
+        def info (client :Future[LangClient]) :String = {
+          var info = "<resolving>"
+          client.onSuccess(client => info = client.name)
+          info
+        }
+        bb.addKeysValues(clients.entrySet.map(ent => (s"${ent.getKey}: ", info(ent.getValue))))
+      }
+    }
+
+    override def close () :Unit = toClose.close()
   }
 }
 
@@ -64,9 +115,6 @@ abstract class LangClient (
     consumer => {
       ((message :Message) => { trace(message) ; consumer.consume(message) }) :MessageConsumer
     })
-
-  // add a LangAnalyzer to this project
-  project.addComponent(classOf[Analyzer], new LangAnalyzer(project, this))
 
   protected def langServerClass :Class[_] = classOf[LanguageServer]
 
@@ -204,11 +252,6 @@ abstract class LangClient (
     case cont => s"${sym.getName}:${cont}"
   }
 
-  /** Visits symbol `sym` in `window`. */
-  def visitSymbol (sym :SymbolInformation, window :Window) {
-    visitLocation(s"${sym.getName}:${sym.getContainerName}", sym.getLocation, window)
-  }
-
   /** Visits location `loc` in `window`.
     * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
     * location (one for which the source is provided by the language server).
@@ -259,9 +302,10 @@ abstract class LangClient (
     item
   }
 
-  /** Adds this lang client to `buffer`, setting up the necessary bits to trigger lang-mode. */
+  /** Adds this lang client to `buffer`, stuffing various things into the buffer state that enable
+    * code smarts. */
   def addToBuffer (buffer :RBuffer) {
-    buffer.state[LangClient]() = this
+    buffer.state[Analyzer]() = new LangAnalyzer(this, project)
 
     buffer.state[CodeCompleter]() = new CodeCompleter() {
       import CodeCompleter._
@@ -408,9 +452,20 @@ abstract class LangClient (
    * validation runs.
    */
   def publishDiagnostics (pdp :PublishDiagnosticsParams) {
-    exec.ui.execute(() => project.analyzer match {
-      case lang :LangAnalyzer => lang.gotDiagnostics(pdp)
-      case _ => // oh well!
+    import Analyzer._
+    exec.ui.execute(() => {
+      val store = LSP.toStore(pdp.getUri)
+      val diags = pdp.getDiagnostics
+      project.notes(store)() = Seq() ++ diags.map(diag => Note(
+        store,
+        Region(LSP.fromPos(diag.getRange.getStart), LSP.fromPos(diag.getRange.getEnd)),
+        diag.getMessage,
+        diag.getSeverity match {
+          case DiagnosticSeverity.Hint => Hint
+          case DiagnosticSeverity.Information => Info
+          case DiagnosticSeverity.Warning => Warning
+          case DiagnosticSeverity.Error => Error
+        }))
     })
   }
 

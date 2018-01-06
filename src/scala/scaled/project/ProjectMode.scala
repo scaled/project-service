@@ -83,42 +83,43 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     bind("workspace-execute",       "C-c C-e").
     bind("workspace-execute-again", "C-c C-a");
 
+  //
+  // Behaviors
+
   /** Finds a file in `proj` and visits it. */
-  def findFileIn (proj :Project) {
+  private def findFileIn (proj :Project) {
     window.mini.read(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.files.completer
     ) map(wspace.openBuffer) onSuccess frame.visit
   }
 
-  //
-  // Behaviors
+  private def bufferNotes = project.notes(buffer.store)
+
+  // provides a custom Visit.List that cycles through the notes in the current buffer and only
+  // advances to the next buffer if we have no notes in this buffer
+  private def notesVisitList (notes :SeqV[Analyzer.Note]) :Visit.List =
+    new Visit.List("buffer note", notes) {
+      override def next (win :Window) :Unit = if (isEmpty) skip(win,  1) else super.next(win)
+      override def prev (win :Window) :Unit = if (isEmpty) skip(win, -1) else super.prev(win)
+      private def skip (win :Window, delta :Int) = {
+        val noteStores = project.noteStores
+        if (noteStores.isEmpty) if (delta > 0) super.next(win) else super.prev(win)
+        else {
+          val storeIdx = noteStores.indexOf(buffer.store)
+          val skipIdx = (storeIdx + delta + noteStores.length) % noteStores.length
+          val skipList = notesVisitList(project.notes(noteStores(skipIdx))())
+          if (delta > 0) skipList.next(win) else skipList.prev(win)
+        }
+      }
+    }
 
   private def updateVisits (onCreate :Boolean)(list :Visit.List) {
     val curlist = window.visits()
     // we only want to update the visit list on buffer creation if we're not currently visiting
-    // something else or if we're currently visiting the same kind of thing, in which case we'll
-    // update it which will preserve our position in the list
+    // something else or if we're currently visiting the same kind of thing
     if (!onCreate || curlist.isEmpty || curlist.thing == list.thing)
-      window.visits() = curlist.update(list.thing, list.visits)
+      window.visits() = list
   }
-
-  // this tracks analyzer notes that are applicable to this buffer and styles them
-  class BufferNotes {
-    import Analyzer._
-    var current = Seq[Note]()
-    var currentSet = Set[Note]()
-    def gotNotes (onCreate :Boolean)(notes :SeqV[Note]) = {
-      val newCurrent = notes.filter(_.store == buffer.store)
-      // clear all note styles from the buffer and readd to the current set; this is not very
-      // efficient but tracking the old notes through all possible buffer edits is rather a PITA
-      buffer.removeTags(classOf[String], isNoteStyle, buffer.start, buffer.end)
-      for (n <- newCurrent) buffer.addStyle(noteStyle(n), n.region)
-      current = newCurrent
-      updateVisits(onCreate)(notesList);
-    }
-    def notesList = new Visit.List("analyzer note", project.notes())
-  }
-  val bufferNotes = new BufferNotes
 
   // display the project status in the modeline
   note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
@@ -133,10 +134,16 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   // when new analysis notes or compiler errors are generated, stuff them into the visit list
   note(project.compiler.errors onValue updateVisits(false))
-  note(project.notes.onValue(bufferNotes.gotNotes(false)))
+  note(bufferNotes.onValue(notes => {
+    // clear all note styles from the buffer and readd to the current set; this is not very
+    // efficient but tracking the old notes through all possible buffer edits is rather a PITA
+    buffer.removeTags(classOf[String], isNoteStyle, buffer.start, buffer.end)
+    for (n <- notes) buffer.addStyle(noteStyle(n), n.region)
+    updateVisits(false)(notesVisitList(notes));
+  }))
 
   // when first visiting this buffer, maybe visit analysis notes or compiler errors
-  if (!project.notes().isEmpty) updateVisits(true)(bufferNotes.notesList)
+  if (!bufferNotes().isEmpty) updateVisits(true)(notesVisitList(bufferNotes()))
   else if (!project.compiler.errors().isEmpty) updateVisits(true)(project.compiler.errors())
 
   //
@@ -162,19 +169,19 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // Analyzer FNs
 
   @Fn("Describes the element at the point.")
-  def describeElement () :Unit = project.analyzer.describeElement(view)
+  def describeElement () :Unit = Analyzer(buffer).describeElement(view)
 
   @Fn("Navigates to the referent of the element at the point.")
   def visitElement () {
     val loc = view.point()
-    project.analyzer.visitElement(view, window).onSuccess { visited =>
+    Analyzer(buffer).visitElement(view, window).onSuccess { visited =>
       if (visited) window.visitStack.push(buffer, loc)
     }
   }
 
   @Fn("Queries for a project-wide symbol and visits it.")
   def visitSymbol () {
-    val analyzer = project.analyzer
+    val analyzer = Analyzer(buffer)
     window.mini.read("Symbol:", wordAt(view.point()), symbolHistory,
                      analyzer.symbolCompleter(None)).onSuccess(sym => {
       window.visitStack.push(view) // push current loc to the visit stack

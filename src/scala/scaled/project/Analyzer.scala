@@ -13,6 +13,11 @@ import scaled.util.Errors
 /** Static [[Analyzer]] bits. */
 object Analyzer {
 
+  /** Returns the `Analyzer` associated with `buffer`. */
+  def apply (buffer :Buffer) :Analyzer = buffer.state.get[Analyzer].getOrElse {
+    throw Errors.feedback(s"No analyzer configured in buffer: '$buffer'")
+  }
+
   /** Enumerates different kinds of [[Note]]s. */
   sealed trait Severity
   /** A [[Node]] kind for hint messages. */
@@ -50,25 +55,23 @@ object Analyzer {
 
 /** Integrates with a language's compiler to provide more sophisticated feedback and analysis. This
   * includes compilation notes (warnings, errors, etc.) as well as providing metadata based on the
-  * (simple) model used by [[Codex]].
+  * (simple) model used by [[Codex]]. This should be added to buffer state by a project component
+  * if analysis is available for the buffer's file.
   */
-abstract class Analyzer extends Project.Component {
+abstract class Analyzer {
   import Analyzer._
 
   type Symbol
 
   /** A completer on all symbols known to this analyzer (project or workspace wide).
     * @param kind an optional kind to which to restrict the results. */
-  def symbolCompleter (kind :Option[Kind]) :Completer[Symbol] =
-    throw Errors.feedback("No analyzer configured for this project.")
+  def symbolCompleter (kind :Option[Kind]) :Completer[Symbol]
 
   /** Returns the fully qualified name of this symbol. */
   def fqName (sym :Symbol) :String
 
   /** Describes the element at `view`'s point. The results should be displayed in a popup. */
-  def describeElement (view :RBufferView) {
-    throw Errors.feedback("No analyzer configured for this project.")
-  }
+  def describeElement (view :RBufferView) :Unit
 
   // /** Summarizes the element at the point. The results should be displayed in a buffer. */
   // def summarizeElement (window :Window, view :BufferView) :Unit
@@ -76,12 +79,8 @@ abstract class Analyzer extends Project.Component {
   /** Visits the element at `view`'s point, in `target`.
     * @return true if an element was visited, false if no element could be discerned at the current
     * point. */
-  def visitElement (view :RBufferView, target :Window) :Future[Boolean] = {
-    throw Errors.feedback("No analyzer configured for this project.")
-  }
+  def visitElement (view :RBufferView, target :Window) :Future[Boolean]
 
   /** Visits the supplied symbol (obtained from the symbol completer), in `target`. */
-  def visitSymbol (sym :Symbol, target :Window) {
-    throw Errors.feedback("No analyzer configured for this project.")
-  }
+  def visitSymbol (sym :Symbol, target :Window) :Unit
 }

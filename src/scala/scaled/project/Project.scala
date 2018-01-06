@@ -10,7 +10,7 @@ import com.google.common.collect.{HashMultimap, Multimap}
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{Files, FileVisitResult, Path, Paths, SimpleFileVisitor}
 import java.security.MessageDigest
-import java.util.HashMap
+import java.util.{HashMap, TreeMap}
 import java.util.function.Consumer
 import scala.collection.mutable.{Map => MMap}
 import scala.reflect.ClassTag
@@ -143,6 +143,10 @@ object Project {
 class Project (val pspace :ProjectSpace, val root :Project.Root) {
   import Project._
 
+  private val components = new HashMap[Class[_ <: Component],Component]()
+  private val activeBuffers = SeqBuffer[RBuffer]()
+  private val bufferNotes = new TreeMap[Store, Value[Seq[Analyzer.Note]]]()
+
   /** Tracks the basic project metadata. This should only be updated by the project, but outside
     * parties may want to react to changes to it. */
   val metaV = metaValue("meta", Meta)
@@ -177,9 +181,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     * project-mode) to any windows showing buffers to which this project is attached. */
   val feedback = Signal[Either[(String, Boolean), Throwable]](pspace.wspace.exec.ui)
 
-  /** The current analysis notes, if any. */
-  val notes = Value[SeqV[Analyzer.Note]](Seq())
-
   /** An executor that reports errors via this project's `feedback` signal. */
   val exec = pspace.wspace.exec.handleErrors(err => feedback.emit(Right(err)))
 
@@ -200,6 +201,14 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     * The message will also be appended to the `*messages*` buffer. */
   def emitError (err :Throwable) :Unit = feedback.emit(Right(err))
 
+  /** Returns of the stores for which notes have been provided, naturally ordered. */
+  def noteStores :SeqV[Store] = Seq() ++ bufferNotes.entrySet.filterNot(_.getValue.get.isEmpty).
+    map(_.getKey)
+
+  /** Returns the analyzer notes for the buffer identified by `store`. */
+  def notes (store :Store) :Value[Seq[Analyzer.Note]] =
+    Mutable.getOrPut(bufferNotes, store, Value(Seq[Analyzer.Note]()))
+
   /** Adds this project to `buffer`'s state. Called by [[ProjectSpace]] whenever a buffer is
     * created (and only after this project has reported itself as ready).
     *
@@ -211,22 +220,15 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
     buffer.state[Codex]() = codex
+    buffer.state[Analyzer]() = new CodexAnalyzer(codex, this)
 
     // tell our components that we've been added
-    _components.values.foreach { _.addToBuffer(buffer) }
-
-    // add a lang client if one is available
-    val name = buffer.store.name
-    val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
-    langClientFor(suff).map(_.onSuccess(_.addToBuffer(buffer)))
+    components.values.foreach { _.addToBuffer(buffer) }
 
     // note that we've been added to this buffer
     activeBuffers += buffer
     buffer.killed.onEmit { activeBuffers -= buffer }
   }
-
-  // tracks the buffers to which this project has been added
-  private val activeBuffers = SeqBuffer[RBuffer]()
 
   /** Creates the buffer state for a buffer with mode `mode` and mode arguments `args`, which is
     * configured to be a part of this project. */
@@ -277,8 +279,15 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     bb.addBlank()
     describeMeta(bb)
 
+    val notes = bufferNotes.entrySet.filter(_.getValue.get.size > 0)
+    if (!notes.isEmpty) {
+      bb.addSection("Notes")
+      // TODO: make the buffer name a link to the buffer
+      bb.addKeysValues(notes.map(ent => (s"${ent.getKey.name}: ", s"${ent.getValue.get.size}")))
+    }
+
     // add info on our helpers
-    _components.values.foreach { _.describeSelf(bb) }
+    components.values.foreach { _.describeSelf(bb) }
   }
 
   protected def describeMeta (bb :BufferBuilder) {
@@ -299,8 +308,12 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   def sources :Sources = component[Sources] || DefaultSources
   def depends :Depends = component[Depends] || DefaultDepends
   def compiler :Compiler = component[Compiler] || DefaultCompiler
-  def analyzer :Analyzer = component[Analyzer] || DefaultAnalyzer
   def tester :Tester = component[Tester] || DefaultTester
+
+  // this is only a project component to separate the code (and to participate in addToBuffer and
+  // describeSelf component hooks), it's not provided or customized by a project resolver
+  val lang :LangClient.Component =
+    addComponent(classOf[LangClient.Component], new LangClient.Component(this))
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
     * happens when this project's owning workspace is disposed. */
@@ -310,35 +323,34 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     catch {
       case e :Throwable => log.log("$this dispose failure", e)
     }
-    _components.values().foreach(_.close())
-    _components.clear()
+    components.values().foreach(_.close())
+    components.clear()
   }
 
   /** Returns the component for the specified type-key, or `None` if no component is registered. */
   def component[C <: Component] (cclass :Class[C]) :Option[C] =
-    Option(_components.get(cclass).asInstanceOf[C])
+    Option(components.get(cclass).asInstanceOf[C])
 
   /** A `component` variant that uses class tags to allow usage like: `component[Foo]`. */
   def component[C <: Component] (implicit tag :ClassTag[C]) :Option[C] =
     component(tag.runtimeClass.asInstanceOf[Class[C]])
 
   /** Returns whether a `cclass` component has been added to this project. */
-  def hasComponent[C <: Component] (cclass :Class[C]) :Boolean = _components.containsKey(cclass)
+  def hasComponent[C <: Component] (cclass :Class[C]) :Boolean = components.containsKey(cclass)
 
   /** Registers `comp` with this project. If a component of the same type-key is already registered
     * it will be closed and replaced with `comp`. Components will also be closed when this project
     * is disposed.
     */
-  def addComponent[C <: Component] (cclass :Class[C], comp :C) {
+  def addComponent[C <: Component] (cclass :Class[C], comp :C) :C = {
     assert(comp != null)
-    val oldComp = _components.get(cclass)
+    val oldComp = components.get(cclass)
     if (oldComp != null) oldComp.close()
-    _components.put(cclass, comp)
+    components.put(cclass, comp)
     // tell this component about buffers to which we're already added
     activeBuffers foreach comp.addToBuffer
+    comp
   }
-
-  private val _components = new HashMap[Class[_ <: Component],Component]()
 
   /** Creates a meta-value with storage in this project's meta directory. */
   def metaValue[T] (id :String, metameta :MetaMeta[T]) :Value[T] = {
@@ -364,26 +376,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   protected def log = metaSvc.log
   protected def codex = Codex(pspace.wspace.editor)
-
-  private lazy val langPlugins = metaSvc.service[PluginService].
-    resolvePlugins[LangPlugin]("langserver")
-  private def pluginForSuff (suff :String) :Option[LangPlugin] =
-    langPlugins.plugins.filter(_.canActivate(root.path)).find(_.suffs(root.path).contains(suff))
-
-  private val langClients = new HashMap[String,Future[LangClient]]()
-  private def langClientFor (suff :String) :Option[Future[LangClient]] =
-    Option(langClients.get(suff)) orElse pluginForSuff(suff).map(plugin => {
-      val client = plugin.createClient(this)
-      plugin.suffs(root.path).foreach { suff => langClients.put(suff, client) }
-      client onSuccess { client =>
-        // pass lang client messages along to project
-        client.messages.onValue { msg => emitStatus(s"${msg.getType}: ${msg.getMessage}") }
-        toClose += client
-        // TODO: close lang clients if all buffers with their suff are closed
-      }
-      client onFailure exec.handleError
-      client
-    })
 
   /** Returns the directory in which this project will store metadata. */
   private[project] def metaDir = {
@@ -426,8 +418,6 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     override protected def compile (buffer :Buffer, file :Option[Path]) = Future.success(true)
     override protected def nextNote (buffer :Buffer, start :Loc) = Compiler.NoMoreNotes
   }
-
-  lazy val DefaultAnalyzer = new CodexAnalyzer(codex, this)
 
   lazy val DefaultTester = new Tester(this) {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
