@@ -363,10 +363,11 @@ abstract class LangClient (
     }
 
     trace("Shutting down...")
-    server.shutdown().thenAccept(res => {
+    server.shutdown().whenComplete((res, err) => {
       trace("Shutdown complete.")
       server.exit()
-      // serverProc.destroy()
+      // give the langserver five seconds to shutdown, then stick a fork in it
+      exec.bg.schedule(5000L, () => if (serverProc.isAlive) serverProc.destroy())
     })
   }
 
