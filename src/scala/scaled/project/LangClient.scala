@@ -357,27 +357,29 @@ abstract class LangClient (
     buffer.killed.onEmit { textSvc.didClose(new DidCloseTextDocumentParams(docId)) }
 
     // keep the lang server in sync with buffer changes
-    val syncType = LSP.toScala(caps.getTextDocumentSync).fold(k => k, o => o.getChange)
-    // accumulate edits to syncEdits
-    val syncEdits = SeqBuffer[Buffer.Edit]()
-    buffer.edited onValue { edit => syncEdits += edit }
-    // when enough time elapses after the last edit, trigger a flush
-    val debounceTime = 1000L
-    buffer.edited.debounce(debounceTime, exec.ui) onEmit flushEdits
+    LSP.toScala(caps.getTextDocumentSync).fold(k => k, o => o.getChange) match {
+      case TextDocumentSyncKind.Incremental =>
+        buffer.edited onValue { edit =>
+          val changes = Collections.singletonList(toChangeEvent(buffer, edit))
+          textSvc.didChange(new DidChangeTextDocumentParams(incDocId, changes))
+        }
 
-    def flushEdits () :Unit = if (syncEdits.size > 0) {
-      println(s"flushEdits ${syncEdits.size}")
-      syncType match {
-        case TextDocumentSyncKind.Incremental =>
-          val events = syncEdits.map(toChangeEvent(buffer, _))
-          textSvc.didChange(new DidChangeTextDocumentParams(incDocId, events.asJList))
-        case TextDocumentSyncKind.Full =>
-          val events = Collections.singletonList(
-            new TextDocumentContentChangeEvent(Line.toText(buffer.lines)))
-          textSvc.didChange(new DidChangeTextDocumentParams(incDocId, events))
-        case kind => println(s"Not syncing '${path}': (sync kind $kind)")
-      }
-      syncEdits.clear()
+      case TextDocumentSyncKind.Full =>
+        // for full sync servers, we note that a sync is needed, but debounce rapid edits
+        buffer.edited onEmit { syncNeeded = true }
+        // when enough time elapses after the last edit, trigger a flush
+        val debounceTime = 1000L
+        buffer.edited.debounce(debounceTime, exec.ui) onEmit flushEdits
+
+      case _ => // no sync desired
+    }
+
+    var syncNeeded = false
+    def flushEdits () :Unit = if (syncNeeded) {
+      val events = Collections.singletonList(
+        new TextDocumentContentChangeEvent(Line.toText(buffer.lines)))
+      textSvc.didChange(new DidChangeTextDocumentParams(incDocId, events))
+      syncNeeded = false
     }
   }
 
