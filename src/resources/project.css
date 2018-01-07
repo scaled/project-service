@@ -3,15 +3,15 @@
  */
 
 .noteHintFace {
-  -fx-bg-stroke: DarkSlateBlue !important;
+  -fx-underline: true;
 }
 
 .noteInfoFace {
-  -fx-bg-stroke: DarkSlateBlue !important;
+  -fx-underline: true;
 }
 
 .noteWarningFace {
-  -fx-bg-stroke: #FFCC00 !important;
+  -fx-underline: true;
 }
 
 .noteErrorFace {
