@@ -41,6 +41,12 @@ object Project {
     */
   case class SrcURL (vcs :String, url :String) extends Id
 
+  /** Identifies a project by it's root + module. Used for intra-project depends. */
+  case class RootId (path :Path, module :String) extends Id
+  object RootId {
+    def apply (root :Root) :RootId = RootId(root.path, root.module)
+  }
+
   /** An id string to use for [[PlatformId.platform]] for the Java/JDK platform. Versions for this
     * platform should be of the form: `"6"`, `"7"`, `"8"`. */
   final val JavaPlatform = "jdk"

@@ -76,7 +76,10 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
 
   /** Resolves the project for `id` if that project is registered our project database. Unlike
     * [[projectFor]] this will not resolve unregistered projects (usually depends). */
-  def knownProjectFor (id :Id) :Option[Project] = Option(pdb.byId.get(id)).map(projectFor)
+  def knownProjectFor (id :Id) :Option[Project] = id match {
+    case RootId(path, module) => Some(projectFor(Root(path, module)))
+    case _                    => Option(pdb.byId.get(id)).map(projectFor)
+  }
 
   /** Returns all currently resolved projects. */
   def loadedProjects :Seq[Project] = projects.values.toSeq

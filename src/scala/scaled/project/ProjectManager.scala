@@ -20,6 +20,7 @@ object ProjectServiceConfig extends Config.Defs {
 class ProjectManager (metaSvc :MetaService, editor :Editor)
     extends AbstractService with ProjectService {
   import ProjectServiceConfig._
+  import Project._
 
   private val userHome = Paths.get(System.getProperty("user.home"))
 
@@ -45,12 +46,12 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     map
   }
 
-  override def resolveByPaths (paths :List[Path]) :Project.Root = {
+  override def resolveByPaths (paths :List[Path]) :Root = {
     val viablePaths = filterDegenerate(paths)
     rootPlugins.flatMap(_(viablePaths)) match {
       case Seq() =>
         log.log(s"Unable to find project root, falling back to ${paths.head}")
-        Project.Root(paths.head)
+        Root(paths.head)
       case Seq(root) => root
       case roots =>
         log.log(s"Using first of multiple project roots: $roots")
@@ -58,13 +59,16 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     }
   }
 
-  override def resolveById (id :Project.Id) :Option[Project.Root] = {
-    val iter = rootPlugins.iterator
-    while (iter.hasNext) {
-      val root = iter.next.apply(id)
-      if (root.isDefined) return root
-    }
-    None
+  override def resolveById (id :Id) :Option[Root] = id match {
+    case RootId(path, module) => Some(Root(path, module))
+    case _ => {
+        val iter = rootPlugins.iterator
+        while (iter.hasNext) {
+          val root = iter.next.apply(id)
+          if (root.isDefined) return root
+        }
+        None
+      }
   }
 
   override def pathsFor (store :Store) :Option[List[Path]] = store match {
@@ -75,10 +79,9 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
 
   override def docFormatter (suff :String) = docfMap.getOrElse(suff, DocFormatterPlugin.Default)
 
-  override def unknownProject (ps :ProjectSpace) =
-    new Project(ps, Project.Root(Paths.get(""), "")) {
-      override def isIncidental = true
-    }
+  override def unknownProject (ps :ProjectSpace) = new Project(ps, Root(Paths.get(""), "")) {
+    override def isIncidental = true
+  }
 
   override def didStartup () {
     // create our codex and stick it into editor state
