@@ -54,8 +54,9 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
         Root(paths.head)
       case Seq(root) => root
       case roots =>
-        log.log(s"Using first of multiple project roots: $roots")
-        roots.head
+        val byDepth = roots.sortBy(-_.path.getNameCount)
+        log.log(s"Using deepest of multiple project roots: $byDepth")
+        byDepth.head
     }
   }
 
