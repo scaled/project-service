@@ -8,7 +8,7 @@ import java.nio.file.{Path, Files}
 import scaled._
 
 /** Used by the project system to identify project roots. Implementations must be tagged with
-  * `@Plugin("project-root")`.
+  * `@Plugin(tag="project-root")`.
   */
 abstract class RootPlugin extends AbstractPlugin {
 
@@ -64,15 +64,15 @@ object RootPlugin {
   class File (name :String) extends RootPlugin {
     def checkRoot (root :Path) = if (Files.exists(root.resolve(name))) 1 else -1
   }
+}
 
-  /** Roots projects at .git directories. */
-  @Plugin(tag="project-root") class Git extends Directory(".git")
+/** Roots projects at .git directories. */
+@Plugin(tag="project-root") class GitRootPlugin extends RootPlugin.Directory(".git")
 
-  /** Roots projects at .hg directories. */
-  @Plugin(tag="project-root") class Mercurial extends Directory(".hg")
+/** Roots projects at .hg directories. */
+@Plugin(tag="project-root") class MercurialRootPlugin extends RootPlugin.Directory(".hg")
 
-  /** Roots projects at the highest .svn directory. */
-  @Plugin(tag="project-root") class Subversion extends RootPlugin {
-    def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".svn"))) 0 else -1
-  }
+/** Roots projects at the highest .svn directory. */
+@Plugin(tag="project-root") class SubversionRootPlugin extends RootPlugin {
+  def checkRoot (root :Path) = if (Files.isDirectory(root.resolve(".svn"))) 0 else -1
 }
