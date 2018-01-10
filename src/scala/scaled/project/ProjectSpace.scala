@@ -66,7 +66,21 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
       codex.checkProject(proj)
     }
     // let the resolvers add components to the project
-    resolvers.plugins.foreach { _.addComponents(proj) }
+    resolvers.plugins.foreach { plugin =>
+      val metaFiles = plugin.metaFiles(proj.root)
+      if (metaFiles.isEmpty) plugin.addComponents(proj)
+      else {
+        // if the plugin reports meta files, watch those and readd the plugin on change
+        val exists = metaFiles.filter(file => Files.exists(file))
+        if (!exists.isEmpty) {
+          plugin.addComponents(proj)
+          val watchSvc = msvc.service[WatchService]
+          exists.foreach { path =>
+            proj.toClose += watchSvc.watchFile(path, _ => plugin.readdComponents(proj))
+          }
+        }
+      }
+    }
     proj
   }
 

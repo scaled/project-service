@@ -65,25 +65,22 @@ class GenericRootPlugin extends RootPlugin.Directory(Generic.MetaFile)
 class GenericResolverPlugin extends ResolverPlugin {
   import Generic._
 
-  // // reinit if the config file changes
-  // toClose += metaSvc.service[WatchService].watchFile(rootPath.resolve(MetaFile), file => reinit())
+  override def metaFiles (root :Project.Root) = Seq(root.path.resolve(MetaFile))
 
   def addComponents (project :Project) {
     val rootPath = project.root.path
     val metaFile = rootPath.resolve(MetaFile)
-    if (Files.exists(metaFile)) {
-      val config = new MetaConfig(readConfig(metaFile))
+    val config = new MetaConfig(readConfig(metaFile))
 
-      val sb = Ignorer.stockIgnores
-      config.ignoreNames.foreach { sb += Ignorer.ignoreName(_) }
-      config.ignoreRegexes.foreach { sb += Ignorer.ignoreRegex(_) }
-      project.addComponent(classOf[Filer], new DirectoryFiler(project, sb))
+    val sb = Ignorer.stockIgnores
+    config.ignoreNames.foreach { sb += Ignorer.ignoreName(_) }
+    config.ignoreRegexes.foreach { sb += Ignorer.ignoreRegex(_) }
+    project.addComponent(classOf[Filer], new DirectoryFiler(project, sb))
 
-      val sourceDirs = config.sourceDirs.map(rootPath.resolve(_)).toSeq
-      project.addComponent(classOf[Sources], new Sources(sourceDirs))
+    val sourceDirs = config.sourceDirs.map(rootPath.resolve(_)).toSeq
+    project.addComponent(classOf[Sources], new Sources(sourceDirs))
 
-      val oldMeta = project.metaV()
-      project.metaV() = oldMeta.copy(name = config.name)
-    }
+    val oldMeta = project.metaV()
+    project.metaV() = oldMeta.copy(name = config.name)
   }
 }
