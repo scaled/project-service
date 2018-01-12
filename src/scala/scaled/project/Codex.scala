@@ -5,7 +5,7 @@
 package scaled.project
 
 import codex.extract.{Extractor, SourceSet, TextWriter, Writer}
-import codex.model.{Def, Element, Kind, Ref, Relation, Sig, Source}
+import codex.model.{Def, Element, Kind, Flavor, Ref, Relation, Sig, Source}
 import codex.store.{ProjectStore, MapDBStore, Query}
 import java.nio.file.{Path, Files}
 import java.util.{ArrayList, Optional, LinkedHashSet, HashMap}
@@ -160,19 +160,24 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Returns a completer on elements of `kind` in `project`'s Codex. */
-  def completer (project :Project, kind :Kind) :Completer[Def] =
-    new Completer[Def]() {
-      override def minPrefix = 2
-      def complete (glob :String) = Future.success({
-        val elems = glob.split(":", 2) match {
-          case Array(name      ) => query(name)
-          case Array(name, path) => FuzzyMatch(path).filterBy(query(name))(_.qualifier)
-        }
-        Completion(glob, elems, false)(e => s"${e.name}:${e.qualifier}")
-      })
-      private def query (name :String) =
-        (Query.prefix(name) kind(kind) find(stores(project))).toSeqV
+  def completer (project :Project, kind :Kind) :Completer[Def] = new Completer[Def]() {
+    override def minPrefix = 2
+    def complete (glob :String) = Future.success({
+      val elems = glob.split(":", 2) match {
+        case Array(name      ) => query(name)
+        case Array(name, path) => FuzzyMatch(path).filterBy(query(name))(_.qualifier)
+      }
+      Completion(glob, elems, false)(formatDef)
+    })
+    private def query (name :String) =
+      (Query.prefix(name) kind(kind) find(stores(project))).toSeqV
+    private def formatDef (df :Def) = {
+      // TEMP hack to distinguish Scala objects from classes in completions;
+      // not exactly sure how to best handle this in a less hacky way... punt!
+      val suff = if (df.flavor == Flavor.OBJECT) " (object)" else ""
+      s"${df.name}$suff:${df.qualifier}"
     }
+  }
 
   /** Resolves `ref`, which originated from a file in `project`. */
   def resolve (project :Project, ref :Ref) :Option[Def] =
