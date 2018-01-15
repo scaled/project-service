@@ -90,7 +90,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   private def findFileIn (proj :Project) {
     window.mini.read(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.files.completer
-    ) map(wspace.openBuffer) onSuccess frame.visit
+    ) map(wspace.openBuffer) onSuccess(frame.visit(_))
   }
 
   private def bufferNotes = project.notes(buffer.store)
@@ -209,9 +209,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Displays the buffer that contains compiler output for this project.")
-  def showCompilerOutput () {
-    frame.visit(project.logBuffer)
-  }
+  def showCompilerOutput () :Unit = showCompilerOutput(true)
 
   @Fn("Navigates to the next warning in the current compiler warning list, if any.")
   def visitNextWarning () :Unit = project.compiler.warnings().next(window)
@@ -262,9 +260,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Displays the buffer that contains test output for this project.")
-  def showTestOutput () {
-    window.focus.visit(project.logBuffer)
-  }
+  def showTestOutput () :Unit = showTestOutput(true)
 
   //
   // Execute FNs
@@ -329,19 +325,19 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
-  private def tester = (project.testCompanion || project).tester
 
-  private def maybeShowTestOutput () = if (config(showOutputOnTest)) {
-    val win = wspace.getInfoWindow("tests")
-    win.focus.visit(tester.resultsBuffer)
-    win.toFront()
-  }
+  private def tester = (project.testCompanion || project).tester
+  private def showTestOutput (focus :Boolean) =
+    wspace.getInfoWindow("tests").focus.visit(tester.resultsBuffer, focus)
+  private def maybeShowTestOutput () = if (config(showOutputOnTest)) showTestOutput(false)
 
   private def compile (incremental :Boolean, interactive :Boolean) {
     val cfg = Compiler.Config(config(recompileTests), interactive,
                               if (incremental) buffer.store.file else None)
     project.compiler.compile(window, cfg)
   }
+  private def showCompilerOutput (focus :Boolean) =
+    wspace.getInfoWindow("compile").focus.visit(project.logBuffer, focus)
 
   private def runTest (action :RBufferView => Unit) {
     tester.lastTest() = action
