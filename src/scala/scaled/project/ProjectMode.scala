@@ -208,6 +208,12 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     project.compiler.reset()
   }
 
+  @Fn("Displays the internal status of the compiler. For debugging.")
+  def showCompilerStatus () {
+    project.compiler.getStatus(project.logBuffer)
+    showCompilerOutput(true)
+  }
+
   @Fn("Displays the buffer that contains compiler output for this project.")
   def showCompilerOutput () :Unit = showCompilerOutput(true)
 

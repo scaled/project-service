@@ -51,6 +51,11 @@ abstract class Compiler (val project :Project) extends Project.Component {
     // nothing by default
   }
 
+  /** Queries the compiler for internal status and appends it to `buffer`. */
+  def getStatus (buffer :Buffer) {
+    buffer.append(Line.fromTextNL(s"Status not supported by this compiler ($describeEngine)."))
+  }
+
   /** Indicates whether this compiler should be invoked when a buffer is saved. */
   def recompileOnSave :Boolean = true
 
