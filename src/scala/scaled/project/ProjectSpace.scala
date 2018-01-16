@@ -11,7 +11,7 @@ import java.util.stream.Collectors
 import scala.collection.mutable.{ArrayBuffer, Map => MMap}
 import scaled._
 import scaled.major.TextConfig
-import scaled.util.{BufferBuilder, Describable, Errors}
+import scaled.util.{BufferBuilder, Describable, Errors, Close}
 
 /** Manages the projects in a workspace. */
 class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
@@ -35,6 +35,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   private val codex = Codex(wspace.editor)
   private val psvc = msvc.service[ProjectService]
   private def root = wspace.root
+  private val toClose = Close.bag()
 
   private lazy val resolvers = msvc.service[PluginService].
     resolvePlugins[ResolverPlugin]("project-resolver")
@@ -123,6 +124,34 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   /** Manages executions for this project space. */
   lazy val execs :Executions = new Executions(this)
 
+  private lazy val langPlugins = msvc.service[PluginService].
+    resolvePlugins[LangPlugin]("langserver")
+  private def langPluginFor (suff :String, root :Project.Root) :Option[LangPlugin] =
+    langPlugins.plugins.filter(_.canActivate(root)).find(_.suffs(root).contains(suff))
+
+  private case class LangKey (suff :String, root :Path, module :Option[String])
+  private val langClients = new HashMap[LangKey,Future[LangClient]]()
+
+  /** Obtains a `LangClient` for the specified `project` and source code file `suff` (i.e. `java`,
+    * `scala`, etc.). If an applicable client is already available, it is used, otherwise if a
+    * plugin can be found that can start a new language server a new server is started and then
+    * client to it returned. */
+  def langClientFor (project :Project, suff :String) :Option[Future[LangClient]] = {
+    val root = project.root
+    val genKey = LangKey(suff, root.path, None)
+    val modKey = LangKey(suff, root.path, Some(root.module))
+    def langClient (key :LangKey) = Option(langClients.get(key))
+    langClient(genKey) orElse langClient(modKey) orElse langPluginFor(suff, root).map(plugin => {
+      val client = plugin.createClient(msvc, root)
+      val key = if (plugin.moduleSpecific) modKey else genKey
+      plugin.suffs(root).foreach { suff => langClients.put(key, client) }
+      // TODO: close lang clients if all buffers with their suff are closed
+      client onSuccess { client => toClose += client }
+      client onFailure project.exec.handleError
+      client
+    })
+  }
+
   override def describeSelf (bb :BufferBuilder) {
     bb.addHeader(s"Projects")
     val allps = allProjects
@@ -152,10 +181,22 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
                        "Deps: " -> p.depends.ids.size.toString)
     }
 
+    if (!langClients.isEmpty) {
+      bb.addSubHeader("Lang Clients")
+      // ugly hack to provide info for already resolved clients
+      def info (client :Future[LangClient]) :String = {
+        var info = "<resolving>"
+        client.onSuccess(client => info = client.name)
+        info
+      }
+      bb.addKeysValues(langClients.entrySet.map(ent => (s"${ent.getKey}: ", info(ent.getValue))))
+    }
+
     execs.describeSelf(bb)
   }
 
   override def close () {
+    toClose.close()
     projects.values.foreach(_.dispose())
     wspace.state[ProjectSpace].clear()
   }

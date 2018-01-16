@@ -48,11 +48,12 @@ object Generic {
 @Plugin(tag="langserver")
 class GenericLangPlugin extends LangPlugin {
   import Generic._
-  override def suffs (root :Path) = readLangConfig(root).suffs.toSet
-  override def canActivate (root :Path) = Files.exists(root.resolve(LangFile))
-  override def createClient (project :Project) = {
-    val config = readLangConfig(project.root.path)
-    Future.success(new LangClient(project, Seq(config.serverCmd) ++ config.serverArgs) {
+  override def suffs (root :Project.Root) = readLangConfig(root.path).suffs.toSet
+  override def canActivate (root :Project.Root) = Files.exists(root.path.resolve(LangFile))
+  override def createClient (metaSvc :MetaService, root :Project.Root) = {
+    val config = readLangConfig(root.path)
+    val serverCmd = Seq(config.serverCmd) ++ config.serverArgs
+    Future.success(new LangClient(metaSvc, root.path, serverCmd) {
       def name = "Generic"
     })
   }

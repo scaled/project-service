@@ -44,11 +44,11 @@ class LangAnalyzer (client :LangClient, project :Project) extends Analyzer {
     LSP.adapt(textSvc.definition(pparams), target.exec).map(_.find(_.getUri != null)).
       onSuccess(_ match {
         case None      => view.window.popStatus(s"Unable to locate definition.")
-        case Some(loc) => client.visitLocation(LSP.getName(loc), loc, target)
+        case Some(loc) => client.visitLocation(project, LSP.getName(loc), loc, target)
       }).
       map(_.isDefined)
   }
 
-  override def visitSymbol (sym :SymbolInformation, target :Window) =
-    client.visitLocation(s"${sym.getName}:${sym.getContainerName}", sym.getLocation, target)
+  override def visitSymbol (sym :SymbolInformation, target :Window) = client.visitLocation(
+    project, s"${sym.getName}:${sym.getContainerName}", sym.getLocation, target)
 }

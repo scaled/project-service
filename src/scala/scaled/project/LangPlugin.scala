@@ -14,13 +14,20 @@ import scaled.util.{Close, MoreFiles}
 abstract class LangPlugin extends AbstractPlugin {
 
   /** The set of file suffixes handled by this language server.
-    * @param root the root directory of the project in which the langserver will operate. */
-  def suffs (root :Path) :Set[String]
+    * @param root the root of the project in which the langserver will operate. */
+  def suffs (root :Project.Root) :Set[String]
 
   /** Returns whether this language server can be activated in the supplied project `root`. If a
-    * language server requires configuration files to exist, this is the place to check. */
-  def canActivate (root :Path) :Boolean
+    * language server requires configuration files to exist, this is the place to check.
+    * @param root the root of the project for which a langserver is sought. */
+  def canActivate (root :Project.Root) :Boolean
 
-  /** Creates a language client for the supplied `project`. */
-  def createClient (project :Project) :Future[LangClient]
+  /** Whether or not the clients created by this plugin are specific to the particular module via
+    * which they are instantiated (`true`) or whether they can serve requests for all modules that
+    * share the same project `root` (`false`). */
+  def moduleSpecific :Boolean = false
+
+  /** Creates a language client for the supplied project `root`.
+    * @param root the root of the project requesting a langserver. */
+  def createClient (metaSvc :MetaService, root :Project.Root) :Future[LangClient]
 }

@@ -8,7 +8,7 @@ import java.io.{InputStream, PrintWriter}
 import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.{CompletableFuture, ExecutorService}
-import java.util.{Collections, List => JList, HashMap}
+import java.util.{Collections, List => JList, HashMap, HashSet}
 import org.eclipse.lsp4j._
 import org.eclipse.lsp4j.jsonrpc.messages.{Either, Message}
 import org.eclipse.lsp4j.jsonrpc.{Launcher, MessageConsumer}
@@ -26,59 +26,29 @@ object LangClient {
   }
 
   class Component (project :Project) extends Project.Component {
-    private val toClose = Close.bag()
-    private val clients = new HashMap[String,Future[LangClient]]()
-    private lazy val plugins = project.metaSvc.service[PluginService].
-      resolvePlugins[LangPlugin]("langserver")
-
-    private def rootPath = project.root.path
-    private def pluginForSuff (suff :String) :Option[LangPlugin] =
-      plugins.plugins.filter(_.canActivate(rootPath)).find(_.suffs(rootPath).contains(suff))
-
-    /** Resolves the lang client for `suff` code (i.e. `java`, `scala`, etc.). This lazily creates
-      * and caches the language server.
-      */
-    def clientFor (suff :String) :Option[Future[LangClient]] =
-      Option(clients.get(suff)) orElse pluginForSuff(suff).map(plugin => {
-        val client = plugin.createClient(project)
-        plugin.suffs(rootPath).foreach { suff => clients.put(suff, client) }
-        client onSuccess { client =>
-          // pass lang client messages along to project
-          client.messages.onValue { m => project.emitStatus(s"${m.getType}: ${m.getMessage}") }
-          toClose += client
-          // TODO: close lang clients if all buffers with their suff are closed
+    private val clients = new HashSet[Future[LangClient]]()
+    def clientFor (suff :String) :Option[Future[LangClient]] = {
+      val clientO = project.pspace.langClientFor(project, suff)
+      // the first time we get a particular lang client, route its messages to project status
+      clientO.ifDefined(clientF => {
+        if (clients.add(clientF)) clientF.onSuccess { client =>
+          project.toClose += client.messages.onValue(project.emitStatus(_))
         }
-        client onFailure project.exec.handleError
-        client
       })
+      clientO
+    }
 
     override def addToBuffer (buffer :RBuffer) {
       // add a lang client if one is available
       val name = buffer.store.name
       val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
-      clientFor(suff).map(_.onSuccess(_.addToBuffer(buffer)))
+      clientFor(suff).map(_.onSuccess(_.addToBuffer(project, buffer)))
     }
-
-
-    override def describeSelf (bb :BufferBuilder) {
-      if (!clients.isEmpty) {
-        bb.addSubHeader("Lang Clients")
-        // ugly hack to provide info for already resolved clients
-        def info (client :Future[LangClient]) :String = {
-          var info = "<resolving>"
-          client.onSuccess(client => info = client.name)
-          info
-        }
-        bb.addKeysValues(clients.entrySet.map(ent => (s"${ent.getKey}: ", info(ent.getValue))))
-      }
-    }
-
-    override def close () :Unit = toClose.close()
   }
 }
 
 abstract class LangClient (
-  val project :Project, serverCmd :Seq[String]
+  metaSvc :MetaService, root :Path, serverCmd :Seq[String]
 ) extends LanguageClient with AutoCloseable {
 
   private val debugMode = java.lang.Boolean.getBoolean("scaled.debug")
@@ -125,17 +95,19 @@ abstract class LangClient (
   val serverCaps = Promise[ServerCapabilities]()
 
   /** Emitted when the server sends messages. */
-  val messages = Signal[MessageParams]()
+  val messages = Signal[String]()
 
   /** A user friendly name for this language server (i.e. 'Dotty', 'Eclpse', etc.). */
   def name :String
 
   override def toString = s"$name langserver"
 
-  private def exec = project.pspace.wspace.exec
-  private val grammarSvc = project.pspace.msvc.service[GrammarService]
+  private def exec = metaSvc.exec
+  private val grammarSvc = metaSvc.service[GrammarService]
   private val textSvc = server.getTextDocumentService
   private val wspaceSvc = server.getWorkspaceService
+
+  private val uriToProject = new HashMap[String, Project]()
 
   private def init[T] (t :T)(f :T => Unit) = { f(t) ; t }
   private def createClientCaps = init(new ClientCapabilities()) { caps =>
@@ -169,7 +141,6 @@ abstract class LangClient (
   }
 
   /* init */ {
-    val root = project.root.path
     launcher.startListening()
     val initParams = new InitializeParams()
     initParams.setTrace("verbose")
@@ -180,10 +151,10 @@ abstract class LangClient (
     // TODO: can we get our real PID via a Java API? Ensime fails if we don't send something, sigh
     initParams.setProcessId(0)
     trace(s"Initializing at root: $root")
-    project.emitStatus(s"$name langserver initializing...")
+    messages.emit(s"$name langserver initializing...")
     server.initialize(initParams).thenAccept(rsp => {
       serverCaps.succeed(rsp.getCapabilities)
-      project.emitStatus(s"$name langserver ready.")
+      messages.emit(s"$name langserver ready.")
     })
   }
 
@@ -234,7 +205,7 @@ abstract class LangClient (
       override def label = firstNonNull(item.getLabel, item.getInsertText)
       override def sig = Option(item.getDetail).map(formatSig).map(Line.apply)
       override def details (viewWidth :Int) =
-        LSP.adapt(textSvc.resolveCompletionItem(item), project.exec).
+        LSP.adapt(textSvc.resolveCompletionItem(item), exec).
         map(item => Option(item.getDocumentation).
           map(formatDocs(Buffer.scratch("*details*"), viewWidth-4, _)))
     }
@@ -256,7 +227,7 @@ abstract class LangClient (
     * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
     * location (one for which the source is provided by the language server).
     */
-  def visitLocation (name :String, loc :Location, window :Window) {
+  def visitLocation (project :Project, name :String, loc :Location, window :Window) {
     val uri = new URI(loc.getUri)
     val point = LSP.fromPos(loc.getRange.getStart)
     if (uri.getScheme == "file") {
@@ -267,7 +238,7 @@ abstract class LangClient (
         val initState = State.init(classOf[LangClient], this) ::
           State.init(classOf[TextDocumentIdentifier], new TextDocumentIdentifier(loc.getUri)) ::
           project.bufferState(modeFor(loc))
-        val store = Store.text(name, source, project.root.path)
+        val store = Store.text(name, source, root)
         val buf = project.pspace.wspace.createBuffer(store, initState, true)
         val symView = window.focus.visit(buf)
         symView.point() = point
@@ -304,7 +275,7 @@ abstract class LangClient (
 
   /** Adds this lang client to `buffer`, stuffing various things into the buffer state that enable
     * code smarts. */
-  def addToBuffer (buffer :RBuffer) {
+  def addToBuffer (project :Project, buffer :RBuffer) {
     buffer.state[Analyzer]() = new LangAnalyzer(this, project)
 
     buffer.state[CodeCompleter]() = new CodeCompleter() {
@@ -324,15 +295,16 @@ abstract class LangClient (
 
     // let the lang server know we've opened a file (if it corresponds to a file on disk)
     buffer.store.file.foreach(path => serverCaps.onSuccess(caps => {
-      buffer.state[Syncer]() = new Syncer(caps, buffer, path)
+      val uri = path.toUri.toString
+      uriToProject.put(uri, project)
+      buffer.state[Syncer]() = new Syncer(caps, buffer, uri)
     }))
     // TODO: if a file transitions from not having a disk-backed store to having one (i.e. newly
     // created file that is then saved, or file that is save-as-ed), we should tell the lang server
     // about that too
   }
 
-  class Syncer (caps :ServerCapabilities, buffer :RBuffer, path :Path) {
-    val uri = path.toUri.toString
+  class Syncer (caps :ServerCapabilities, buffer :RBuffer, uri :String) {
     var vers = 1
     def incDocId = {
       vers += 1
@@ -456,6 +428,7 @@ abstract class LangClient (
   def publishDiagnostics (pdp :PublishDiagnosticsParams) {
     import Analyzer._
     exec.ui.execute(() => {
+      val project = uriToProject.get(pdp.getUri)
       val store = LSP.toStore(pdp.getUri)
       val diags = pdp.getDiagnostics
       project.notes(store)() = Seq() ++ diags.map(diag => Note(
@@ -475,7 +448,8 @@ abstract class LangClient (
    * The show message notification is sent from a server to a client to ask the client to display a
    * particular message in the user interface.
    */
-  def showMessage (params :MessageParams) :Unit = messages.emit(params)
+  def showMessage (params :MessageParams) :Unit =
+    messages.emit(s"${params.getType}: ${params.getMessage}")
 
   /**
    * The show message request is sent from a server to a client to ask the client to display a
@@ -495,9 +469,7 @@ abstract class LangClient (
    * particular message.
    */
   def logMessage (msg :MessageParams) {
-    exec.ui.execute(() => {
-      project.metaSvc.log.log(s"${msg.getType}: ${msg.getMessage}")
-    })
+    exec.ui.execute(() => metaSvc.log.log(s"${msg.getType}: ${msg.getMessage}"))
   }
 
   protected def trace (msg :Any) {
