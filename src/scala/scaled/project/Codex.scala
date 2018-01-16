@@ -369,7 +369,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     val pstore = store(project)
     if (force || source.lastModified > pstore.lastIndexed(source)) {
       extractor(project, source.fileExt) foreach { ex =>
-        project.emitStatus(s"Reindexing: $source")
+        project.metaSvc.log.log(s"Reindexing: $source")
         ex.process(SourceSet.create(source), pstore.writer)
       }
     } // else println(s"Source up to date: $source")
