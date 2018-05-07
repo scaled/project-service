@@ -53,7 +53,9 @@ abstract class LangClient (
 
   private val debugMode = java.lang.Boolean.getBoolean("scaled.debug")
   trace(s"Starting ${serverCmd}...")
-  private val serverProc = new ProcessBuilder(serverCmd.asJList).start();
+  private val serverProc = new ProcessBuilder(serverCmd.asJList).
+    directory(root.toFile).
+    start();
 
   // read and pass along stderr
   SubProcess.reader(serverProc.getErrorStream,
