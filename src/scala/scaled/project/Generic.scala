@@ -60,7 +60,7 @@ class GenericLangPlugin extends LangPlugin {
 }
 
 @Plugin(tag="project-root")
-class GenericRootPlugin extends RootPlugin.Directory(Generic.MetaFile)
+class GenericRootPlugin extends RootPlugin.File(Generic.MetaFile)
 
 @Plugin(tag="project-resolver")
 class GenericResolverPlugin extends ResolverPlugin {
