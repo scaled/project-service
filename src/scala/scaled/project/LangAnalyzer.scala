@@ -5,6 +5,7 @@
 package scaled.project
 
 import codex.model.Kind
+import java.util.Collections
 import org.eclipse.lsp4j._
 import scaled._
 
@@ -28,7 +29,7 @@ class LangAnalyzer (client :LangClient, project :Project) extends Analyzer {
   override def describeElement (view :RBufferView) {
     val pparams = LSP.toTDPP(view.buffer, view.point())
     LSP.adapt(textSvc.hover(pparams), view.window.exec).onSuccess(hover => {
-      val contents = hover.getContents
+      val contents = if (hover == null) Collections.emptyList else hover.getContents
       if (contents.isEmpty) view.window.popStatus("No info available.")
       else {
         val buffer = Buffer.scratch("*popup*")
