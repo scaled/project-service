@@ -186,6 +186,13 @@ abstract class LangClient (
   def format (buffer :Buffer, code :MarkedString) :Buffer =
     format(buffer, code.getValue, "source." + code.getLanguage)
 
+  /** Formats `markup`, appending it to `buffer`. */
+  def format (buffer :Buffer, wrapWidth :Int, markup :MarkupContent) :Buffer =
+    markup.getKind match {
+      case "markdown"      => format(buffer, wrapWidth, markup.getValue) // TODO: parse & format
+      case _ /*plaintext*/ => format(buffer, wrapWidth, markup.getValue)
+    }
+
   /** Formats `either` a text or code block, appending it to `buffer`. */
   def format (buffer :Buffer, wrapWidth :Int, either :Either[String, MarkedString]) :Buffer =
     LSP.toScala(either) match {
@@ -195,6 +202,13 @@ abstract class LangClient (
 
   /** Formats a `docs` string, appending to `buffer`. May contain newlines. */
   def formatDocs (buffer :Buffer, wrapWidth :Int, docs :String) = format(buffer, wrapWidth, docs)
+
+  /** Formats `either` a text or markup block, appending it to `buffer`. */
+  def formatDocs (buffer :Buffer, wrapWidth :Int, either :Either[String, MarkupContent]) :Buffer =
+    LSP.toScala(either) match {
+      case Left(text) => format(buffer, wrapWidth, text)
+      case Right(mark) => format(buffer, wrapWidth, mark)
+    }
 
   /** Formats a `detail` string into a signature (to be shown next to the completion text).
     * Any newlines must be removed. */
@@ -208,7 +222,7 @@ abstract class LangClient (
       override def sig = Option(item.getDetail).map(formatSig).map(Line.apply)
       override def details (viewWidth :Int) =
         LSP.adapt(textSvc.resolveCompletionItem(item), exec).
-        map(item => Option(item.getDocumentation).
+          map(item => Option(item.getDocumentation).
           map(formatDocs(Buffer.scratch("*details*"), viewWidth-4, _)))
     }
   }
@@ -284,8 +298,9 @@ abstract class LangClient (
       import CodeCompleter._
       def completeAt (window :Window, buffer :Buffer, pos :Loc, point :Loc) = {
         buffer.state.get[Syncer].foreach { _.flushEdits() }
-        val pparams = LSP.toTDPP(buffer, pos)
-        LSP.adapt(textSvc.completion(pparams), window.exec).map(result => {
+        // TODO: add completion context
+        val cparams = new CompletionParams(LSP.docId(buffer), LSP.toPos(pos))
+        LSP.adapt(textSvc.completion(cparams), window.exec).map(result => {
           val (items, incomplete) = LSP.toScala(result).fold(
             items => (items, false),
             list => (list.getItems, list.isIncomplete))
@@ -472,6 +487,16 @@ abstract class LangClient (
    */
   def logMessage (msg :MessageParams) {
     exec.ui.execute(() => metaSvc.log.log(s"${msg.getType}: ${msg.getMessage}"))
+  }
+
+  override def workspaceFolders () :CompletableFuture[JList[WorkspaceFolder]] = {
+    trace("TODO: workspaceFolders")
+    CompletableFuture.completedFuture(Collections.emptyList[WorkspaceFolder])
+  }
+
+  override def configuration (params :ConfigurationParams) :CompletableFuture[JList[Object]] = {
+    trace(s"TODO: workspace/configuration ${params}")
+    CompletableFuture.completedFuture(Collections.emptyList[Object])
   }
 
   protected def trace (msg :Any) {

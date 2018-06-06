@@ -8,5 +8,5 @@ license: New BSD
  depend: git:https://github.com/scaled/codex.git#core
  depend: git:https://github.com/scaled/textmate-grammar.git
  depend: git:https://github.com/scaled/pacman.git
- depend: mvn:org.eclipse.lsp4j:org.eclipse.lsp4j:0.3.0
+ depend: mvn:org.eclipse.lsp4j:org.eclipse.lsp4j:0.4.1
  module: test

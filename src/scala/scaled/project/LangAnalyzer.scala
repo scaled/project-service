@@ -29,12 +29,16 @@ class LangAnalyzer (client :LangClient, project :Project) extends Analyzer {
   override def describeElement (view :RBufferView) {
     val pparams = LSP.toTDPP(view.buffer, view.point())
     LSP.adapt(textSvc.hover(pparams), view.window.exec).onSuccess(hover => {
-      val contents = if (hover == null) Collections.emptyList else hover.getContents
-      if (contents.isEmpty) view.window.popStatus("No info available.")
+      import org.eclipse.lsp4j.jsonrpc.messages.Either
+      val contents = hover.getContents
+      if (contents == null || (contents.isLeft && contents.getLeft.isEmpty)) view.window.popStatus("No info available.")
       else {
         val buffer = Buffer.scratch("*popup*")
         val wrapWidth = view.width()-4
-        Seq.view(contents).foldLeft(buffer)((b, c) => client.format(buffer, wrapWidth, c))
+        LSP.toScala(contents) match {
+          case Left(segs) => for (seg <- segs) client.format(buffer, wrapWidth, seg)
+          case Right(markup) => client.format(buffer, wrapWidth, markup)
+        }
         view.popup() = Popup.buffer(buffer, Popup.UpRight(view.point()))
       }
     })
