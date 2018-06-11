@@ -157,6 +157,19 @@ abstract class LangClient (
     server.initialize(initParams).thenAccept(rsp => {
       serverCaps.succeed(rsp.getCapabilities)
       messages.emit(s"$name langserver ready.")
+    }).exceptionally(err => {
+      import org.eclipse.lsp4j.jsonrpc.MessageIssueException
+      messages.emit(s"$name init failure: ${err.getMessage}")
+      err.getCause match {
+        case me :MessageIssueException =>
+          println(s"Broken message: '${me.getMessage}'")
+          for (issue <- Seq.view(me.getIssues)) {
+            println(s"Issue ${issue.getIssueCode}: ${issue.getText}")
+            issue.getCause.printStackTrace(System.out)
+          }
+        case err => err.printStackTrace(System.err)
+      }
+      null
     })
   }
 
