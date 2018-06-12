@@ -40,10 +40,12 @@ object Ignorer {
     override def toString = s"m/$regex/"
   }
 
-  /** Returns an ignorer for a specific path.
+  /** Returns an ignorer for a specific path. The path must be absolute.
     * @param relativeTo a path to which _path is relative (usually the project root), used when
     * showing the ignore in the project description. */
   def ignorePath (_path :Path, relativeTo :Path) = new Ignorer {
+    if (!_path.isAbsolute) throw new IllegalArgumentException(
+      s"Must provide absolute path to ignorePath. Got: ${_path}")
     override def apply (path :Path) = path == _path
     override def toString = s"${relativeTo.relativize(_path)}/"
   }
