@@ -142,7 +142,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
     val modKey = LangKey(suff, root.path, Some(root.module))
     def langClient (key :LangKey) = Option(langClients.get(key))
     langClient(genKey) orElse langClient(modKey) orElse langPluginFor(suff, root).map(plugin => {
-      val client = plugin.createClient(msvc, root)
+      val client = plugin.createClient(project)
       val key = if (plugin.moduleSpecific) modKey else genKey
       plugin.suffs(root).foreach { suff => langClients.put(key, client) }
       // TODO: close lang clients if all buffers with their suff are closed

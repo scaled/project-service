@@ -50,10 +50,10 @@ class GenericLangPlugin extends LangPlugin {
   import Generic._
   override def suffs (root :Project.Root) = readLangConfig(root.path).suffs.toSet
   override def canActivate (root :Project.Root) = Files.exists(root.path.resolve(LangFile))
-  override def createClient (metaSvc :MetaService, root :Project.Root) = {
-    val config = readLangConfig(root.path)
+  override def createClient (proj :Project) = {
+    val config = readLangConfig(proj.root.path)
     val serverCmd = Seq(config.serverCmd) ++ config.serverArgs
-    Future.success(new LangClient(metaSvc, root.path, serverCmd) {
+    Future.success(new LangClient(proj.metaSvc, proj.root.path, serverCmd) {
       def name = "Generic"
     })
   }

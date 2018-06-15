@@ -27,7 +27,7 @@ abstract class LangPlugin extends AbstractPlugin {
     * share the same project `root` (`false`). */
   def moduleSpecific :Boolean = false
 
-  /** Creates a language client for the supplied project `root`.
-    * @param root the root of the project requesting a langserver. */
-  def createClient (metaSvc :MetaService, root :Project.Root) :Future[LangClient]
+  /** Creates a language client for the supplied `project`.
+    * @param project the project requesting a langserver. */
+  def createClient (project :Project) :Future[LangClient]
 }
