@@ -58,13 +58,14 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
       val store = Codex.toStore(src)
       def offat (oo :Int) = if (oo < offsets.length) offsets(oo) else -1
       var oo = 0
-      store.readLines { (line, offset) =>
+      store.read(Store.reader { (data, start, end, offset) =>
         def add (fileoff :Int) :Boolean = {
+          val length = end-start
           val lineoff = fileoff - offset
-          if (lineoff < 0 || lineoff >= line.length) false
+          if (lineoff < 0 || lineoff >= length) false
           else {
             val visit = Visit(store, fileoff)
-            lines += Line.builder(line).
+            lines += Line.builder(data, start, end).
               withStyle(matchStyle, lineoff, lineoff+df.name.length).
               withLineTag(Visit.Tag(visit)).
               build()
@@ -74,7 +75,7 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
         }
         while (add(offat(oo))) oo += 1
         if (srcdef) add(df.offset)
-      }
+      })
       window.exec.runOnUI {
         buffer append lines
         buffer split buffer.end
