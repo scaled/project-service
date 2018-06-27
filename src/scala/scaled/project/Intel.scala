@@ -10,12 +10,12 @@ import java.nio.file.Path
 import scaled._
 import scaled.util.Errors
 
-/** Static [[Analyzer]] bits. */
-object Analyzer {
+/** Static [[Intel]] bits. */
+object Intel {
 
-  /** Returns the `Analyzer` associated with `buffer`. */
-  def apply (buffer :Buffer) :Analyzer = buffer.state.get[Analyzer].getOrElse {
-    throw Errors.feedback(s"No analyzer configured in buffer: '$buffer'")
+  /** Returns the `Intel` associated with `buffer`. */
+  def apply (buffer :Buffer) :Intel = buffer.state.get[Intel].getOrElse {
+    throw Errors.feedback(s"No intel configured in buffer: '$buffer'")
   }
 
   /** Enumerates different kinds of [[Note]]s. */
@@ -58,12 +58,12 @@ object Analyzer {
   * (simple) model used by [[Codex]]. This should be added to buffer state by a project component
   * if analysis is available for the buffer's file.
   */
-abstract class Analyzer {
-  import Analyzer._
+abstract class Intel {
+  import Intel._
 
   type Symbol
 
-  /** A completer on all symbols known to this analyzer (project or workspace wide).
+  /** A completer on all symbols known to the analyzer (project or workspace wide).
     * @param kind an optional kind to which to restrict the results. */
   def symbolCompleter (kind :Option[Kind]) :Completer[Symbol]
 

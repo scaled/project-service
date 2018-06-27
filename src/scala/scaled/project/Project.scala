@@ -151,7 +151,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   private val components = new HashMap[Class[_ <: Component],Component]()
   private val activeBuffers = SeqBuffer[RBuffer]()
-  private val bufferNotes = new TreeMap[Store, Value[Seq[Analyzer.Note]]]()
+  private val bufferNotes = new TreeMap[Store, Value[Seq[Intel.Note]]]()
 
   /** Tracks the basic project metadata. This should only be updated by the project, but outside
     * parties may want to react to changes to it. */
@@ -212,8 +212,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     map(_.getKey)
 
   /** Returns the analyzer notes for the buffer identified by `store`. */
-  def notes (store :Store) :Value[Seq[Analyzer.Note]] =
-    Mutable.getOrPut(bufferNotes, store, Value(Seq[Analyzer.Note]()))
+  def notes (store :Store) :Value[Seq[Intel.Note]] =
+    Mutable.getOrPut(bufferNotes, store, Value(Seq[Intel.Note]()))
 
   /** Adds this project to `buffer`'s state. Called by [[ProjectSpace]] whenever a buffer is
     * created (and only after this project has reported itself as ready).
@@ -226,7 +226,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
     buffer.state[Codex]() = codex
-    buffer.state[Analyzer]() = new CodexAnalyzer(codex, this)
+    buffer.state[Intel]() = new CodexIntel(codex, this)
 
     // tell our components that we've been added
     components.values.foreach { _.addToBuffer(buffer) }

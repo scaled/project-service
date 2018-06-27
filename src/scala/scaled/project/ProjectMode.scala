@@ -25,11 +25,11 @@ object ProjectConfig extends Config.Defs {
   val showOutputOnTest = key(true)
 
   /** Provides the CSS style for `note`. */
-  def noteStyle (note :Analyzer.Note) = note.sev match {
-    case Analyzer.Hint    => "noteHintFace"
-    case Analyzer.Info    => "noteInfoFace"
-    case Analyzer.Warning => "noteWarningFace"
-    case Analyzer.Error   => "noteErrorFace"
+  def noteStyle (note :Intel.Note) = note.sev match {
+    case Intel.Hint    => "noteHintFace"
+    case Intel.Info    => "noteInfoFace"
+    case Intel.Warning => "noteWarningFace"
+    case Intel.Error   => "noteErrorFace"
   }
 
   def isNoteStyle (style :String) = style startsWith "note"
@@ -60,7 +60,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     bind("find-file-in-test-project", "C-x S-C-p").
     bind("find-file-other-project",   "C-x C-o").
 
-    // analyzer fns
+    // intel fns
     bind("describe-element", "C-c C-d").
     bind("visit-symbol",     "C-c C-k").
     bind("visit-element",    "M-.").
@@ -97,7 +97,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   // provides a custom Visit.List that cycles through the notes in the current buffer and only
   // advances to the next buffer if we have no notes in this buffer
-  private def notesVisitList (notes :SeqV[Analyzer.Note]) :Visit.List =
+  private def notesVisitList (notes :SeqV[Intel.Note]) :Visit.List =
     new Visit.List("buffer note", notes) {
       override def next (win :Window) :Unit = if (isEmpty) skip(win,  1) else super.next(win)
       override def prev (win :Window) :Unit = if (isEmpty) skip(win, -1) else super.prev(win)
@@ -166,26 +166,26 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   //
-  // Analyzer FNs
+  // Intel FNs
 
   @Fn("Describes the element at the point.")
-  def describeElement () :Unit = Analyzer(buffer).describeElement(view)
+  def describeElement () :Unit = Intel(buffer).describeElement(view)
 
   @Fn("Navigates to the referent of the element at the point.")
   def visitElement () {
     val loc = view.point()
-    Analyzer(buffer).visitElement(view, window).onSuccess { visited =>
+    Intel(buffer).visitElement(view, window).onSuccess { visited =>
       if (visited) window.visitStack.push(buffer, loc)
     }
   }
 
   @Fn("Queries for a project-wide symbol and visits it.")
   def visitSymbol () {
-    val analyzer = Analyzer(buffer)
+    val intel = Intel(buffer)
     window.mini.read("Symbol:", wordAt(view.point()), symbolHistory,
-                     analyzer.symbolCompleter(None)).onSuccess(sym => {
+                     intel.symbolCompleter(None)).onSuccess(sym => {
       window.visitStack.push(view) // push current loc to the visit stack
-      analyzer.visitSymbol(sym, window)
+      intel.visitSymbol(sym, window)
     })
   }
 

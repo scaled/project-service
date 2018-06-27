@@ -9,8 +9,8 @@ import java.util.Collections
 import org.eclipse.lsp4j._
 import scaled._
 
-class LangAnalyzer (client :LangClient, project :Project) extends Analyzer {
-  import Analyzer._
+class LangIntel (client :LangClient, project :Project) extends Intel {
+  import Intel._
 
   type Symbol = SymbolInformation
   def textSvc = client.server.getTextDocumentService

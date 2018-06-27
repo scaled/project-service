@@ -8,9 +8,9 @@ import codex.model.{Def, Kind}
 import scaled._
 import scaled.util.Errors
 
-/** Provides some analysis functionality based on `Codex`. */
-class CodexAnalyzer (codex :Codex, project :Project) extends Analyzer {
-  import Analyzer._
+/** Provides some code intelligence based on `Codex`. */
+class CodexIntel (codex :Codex, project :Project) extends Intel {
+  import Intel._
   type Symbol = Def
 
   override def symbolCompleter (kind :Option[Kind]) :Completer[Def] =

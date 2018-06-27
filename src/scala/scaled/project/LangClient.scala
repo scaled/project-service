@@ -305,7 +305,7 @@ abstract class LangClient (
   /** Adds this lang client to `buffer`, stuffing various things into the buffer state that enable
     * code smarts. */
   def addToBuffer (project :Project, buffer :RBuffer) {
-    buffer.state[Analyzer]() = new LangAnalyzer(this, project)
+    buffer.state[Intel]() = new LangIntel(this, project)
 
     buffer.state[CodeCompleter]() = new CodeCompleter() {
       import CodeCompleter._
@@ -456,7 +456,7 @@ abstract class LangClient (
    * validation runs.
    */
   def publishDiagnostics (pdp :PublishDiagnosticsParams) {
-    import Analyzer._
+    import Intel._
     exec.ui.execute(() => {
       val project = uriToProject.get(pdp.getUri)
       val store = LSP.toStore(pdp.getUri)
