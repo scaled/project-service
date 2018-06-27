@@ -56,4 +56,29 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
 
   override def visitSymbol (sym :SymbolInformation, target :Window) = client.visitLocation(
     project, s"${sym.getName}:${sym.getContainerName}", sym.getLocation, target)
+
+  override def renameElementAt (view :RBufferView, window :Window, loc :Loc, newName :String) =
+    client.serverCaps.flatMap(caps => {
+      val canRename = Option(caps.getRenameProvider).map(_.booleanValue) || false
+      if (!canRename) abort("Language Server does not support rename refactoring.")
+
+      val rparams = new RenameParams(LSP.docId(view.buffer), LSP.toPos(loc), newName)
+      LSP.adapt(textSvc.rename(rparams), window.exec).map(edits => {
+        val docChanges = edits.getDocumentChanges
+        if (docChanges != null) {
+          println(s"TODO(docChanges): $docChanges")
+        }
+
+        // TODO: resource changes...
+
+        val changes = edits.getChanges
+        if (changes == null) abort(s"No changes returned for rename (to $newName)")
+        // def toEdit (edit :TextEdit) = Edit(LSP.fromRange(edit.getRange), edit.getNewText)
+        Map.view(changes).map((uri, edits) => new Renamer(LSP.toStore(uri)) {
+          def validate (buffer :Buffer) {} // LSP does not supply enough info to validate
+          def apply (buffer :Buffer) = for (edit <- edits) buffer.replace(
+            LSP.fromRange(edit.getRange), Seq(Line(edit.getNewText)))
+        })
+      })
+    })
 }

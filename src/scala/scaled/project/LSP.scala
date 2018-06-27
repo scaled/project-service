@@ -26,6 +26,7 @@ object LSP {
   def getName (loc :Location) = Paths.get(new URI(loc.getUri).getPath()).getFileName.toString
 
   def fromPos (pos :Position) = Loc.apply(pos.getLine, pos.getCharacter)
+  def fromRange (range :Range) = Region(fromPos(range.getStart), fromPos(range.getEnd))
 
   def toScala[A,B] (either :Either[A, B]) =
     if (either.isLeft) Left(either.getLeft) else Right(either.getRight)

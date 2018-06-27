@@ -191,7 +191,7 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Applies `fn` to the the `Element` at `loc` in `buffer`, if known. Otherwise throws a feedback
     * exception indicating that no element could be found at `loc`. */
-  def onElemAt (buffer :Buffer, loc :Loc)(fn :(Element, Loc, Def) => Unit) {
+  def onElemAt[A] (buffer :Buffer, loc :Loc)(fn :(Element, Loc, Def) => A) :A = {
     val elloc = buffer.tagsAt(classOf[Element], loc) match {
       case el :: _ => Some(el.tag -> loc.atCol(el.start))
       case Nil     => buffer.state.get[SourceIndex].flatMap(_.elementAt(loc) map(

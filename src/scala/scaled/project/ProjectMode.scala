@@ -62,8 +62,9 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
     // intel fns
     bind("describe-element", "C-c C-d").
-    bind("visit-symbol",     "C-c C-k").
     bind("visit-element",    "M-.").
+    bind("visit-symbol",     "C-c C-k").
+    bind("rename-element",   "C-c C-r").
 
     // compilation fns
     bind("compile-incremental", "F5").
@@ -187,6 +188,42 @@ class ProjectMode (env :Env) extends MinorMode(env) {
       window.visitStack.push(view) // push current loc to the visit stack
       intel.visitSymbol(sym, window)
     })
+  }
+
+  @Fn("Renames all occurrences of the element at the point.")
+  def renameElement () {
+    val loc = view.point()
+    val intel = Intel(buffer)
+    window.mini.read("New name:", wordAt(loc), renameHistory, Completer.none).
+      flatMap(name => intel.renameElementAt(view, window, loc, name)).
+      onSuccess(renamers => {
+        println(s"Renames $renamers")
+        if (renamers.isEmpty) abort(
+          "No renames returned for refactor. Is there an element at the point?")
+
+        def doit (save :Boolean) = try {
+          renamers.foreach { renamer =>
+            val buffer = project.pspace.wspace.openBuffer(renamer.store)
+            renamer.validate(buffer)
+          }
+          renamers.foreach { renamer =>
+            val buffer = project.pspace.wspace.openBuffer(renamer.store)
+            renamer.apply(buffer)
+            if (save) buffer.save()
+          }
+        } catch {
+          case err :Throwable => window.exec.handleError(err)
+        }
+
+        // if there are occurrences outside the current buffer, confirm the rename
+        if (renamers.size == 1 && renamers(0).store == view.buffer.store) doit(false)
+        else window.mini.readYN(
+          s"'Element occurs in ${renamers.size-1} source file(s) not including this one. " +
+            "Undoing the rename will not be trivial, continue?").onSuccess { yes =>
+          if (yes) doit(true)
+        }
+      }).
+      onFailure(window.exec.handleError)
   }
 
   //
@@ -326,8 +363,8 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // Implementation details
 
   private def projectHistory = wspace.historyRing("project-name")
-
   private def symbolHistory = wspace.historyRing("project-symbol")
+  private def renameHistory = wspace.historyRing("project-rename")
 
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }

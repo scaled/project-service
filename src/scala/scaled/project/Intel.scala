@@ -51,12 +51,23 @@ object Intel {
       view.showPopup(if (sev == Error) pop.toError else pop)
     }
   }
+
+  /** Handles a rename refactoring in a single store. */
+  abstract class Renamer (val store :Store) {
+    /** Validates that this renamer can be applied to `buffer` (checking that its renames match
+      * up with the buffer as expected).
+      * @throw FeedbackException if something doesn't line up.
+      */
+    def validate (buffer :Buffer) :Unit
+    /** Applies the rename to `buffer` (which will correspond to this renamer's `store`). */
+    def apply (buffer :Buffer) :Unit
+  }
 }
 
 /** Integrates with a language's compiler to provide more sophisticated feedback and analysis. This
   * includes compilation notes (warnings, errors, etc.) as well as providing metadata based on the
   * (simple) model used by [[Codex]]. This should be added to buffer state by a project component
-  * if analysis is available for the buffer's file.
+  * if intelligence is available for the buffer's file.
   */
 abstract class Intel {
   import Intel._
@@ -83,4 +94,10 @@ abstract class Intel {
 
   /** Visits the supplied symbol (obtained from the symbol completer), in `target`. */
   def visitSymbol (sym :Symbol, target :Window) :Unit
+
+  /** Requests that the symbol at `loc` be renamed to `newName`. */
+  def renameElementAt (view :RBufferView, window :Window, loc :Loc,
+                       newName :String) :Future[Seq[Renamer]]
+
+  protected def abort (msg :String) :Nothing = throw Errors.feedback(msg)
 }

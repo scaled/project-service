@@ -61,7 +61,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
     bind("codex-find-uses",         "C-c C-f").
     bind("codex-highlight-element", "C-c C-h").
-    bind("codex-rename-element",    "C-c C-r").
     // bind("codex-visit-element",     "M-.").
 
     bind("run-test-at-point", "C-c C-t C-p");
@@ -210,58 +209,6 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     onElemAt(view.point()) { (elem, loc, df) =>
       val initState = project.codexBufferState("codex-find-uses", df)
       window.focus.visit(project.createBuffer(s"*codex: ${df.name}*", initState))
-    }
-  }
-
-  private val renameHistory = new Ring(editor.config(EditorConfig.historySize))
-
-  class Renamer (df :Def, src :Source, offsets :Array[Int]) {
-    val store = Codex.toStore(src)
-    lazy val buffer = wspace.openBuffer(store)
-    lazy val locs = {
-      // convert the offsets to locs and sort them in reverse order
-      // (that way when we replace them, the earlier locs don't mess up the later locs)
-      val offs = if (src == df.source) df.offset +: offsets else offsets
-      (offs map buffer.loc).sortWith(_ > _).toSeq
-    }
-
-    def validate (elM :Matcher) = locs foreach { loc =>
-      if (!buffer.line(loc).matches(elM, loc.col)) abort(
-        s"$store not in sync with index @ $loc. Can't rename.")
-    }
-
-    def replace (nameL :LineV) = locs foreach { loc => buffer.replace(loc, df.name.length, nameL) }
-  }
-
-  @Fn("Renames all occurrences of an element.")
-  def codexRenameElement () {
-    onElemAt(view.point()) { (elem, loc, df) =>
-      if (df.kind != Kind.FUNC && df.kind != Kind.VALUE) abort(
-        "Rename only supported for methods and variables. Not types or packages.")
-
-      val renamers = codex.store(project).usesOf(df).toMapV.map(new Renamer(df, _, _))
-      if (renamers.isEmpty) abort(
-        "No uses found for element at point. Perhaps try codex-reindex-project?")
-
-      def doit (save :Boolean) {
-        val elM = Matcher.exact(df.name)
-        renamers.foreach(_.validate(elM))
-        window.mini.read("New name:", df.name, renameHistory, Completer.none).onSuccess { nm =>
-          if (nm != df.name) {
-            val nameL = Line(nm)
-            renamers.foreach(_.replace(nameL))
-            if (save) renamers.foreach(_.buffer.save())
-          }
-        }
-      }
-
-      // if there are occurrences outside the current buffer, confirm the rename
-      if (renamers.size == 1 && renamers(0).store == buffer.store) doit(false)
-      else window.mini.readYN(
-        s"'${df.name}' occurs in ${renamers.size-1} source file(s) not including this one. " +
-          "Undoing the rename will not be trivial, continue?").onSuccess { yes =>
-        if (yes) doit(true)
-      }
     }
   }
 
