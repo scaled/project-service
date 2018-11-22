@@ -6,7 +6,6 @@ package scaled.project
 
 import codex.model.{Def, Kind}
 import java.nio.file.Path
-import javafx.scene.control.Tooltip
 import scala.collection.mutable.ArrayBuffer
 import scaled._
 import scaled.util.{BufferBuilder, Chars, Errors}
@@ -123,7 +122,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   // display the project status in the modeline
-  note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => new Tooltip(s._2))))
+  note(env.mline.addDatum(project.status.map(_._1), project.status.map(s => s._2)))
 
   // forward project feedback to our window
   note(project.feedback.onValue(_ fold((window.emitStatus _).tupled, window.emitError)))
