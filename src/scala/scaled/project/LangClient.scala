@@ -8,7 +8,7 @@ import java.io.{InputStream, PrintWriter}
 import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.{CompletableFuture, ExecutorService}
-import java.util.{Collections, List => JList, HashMap, HashSet}
+import java.util.{Arrays, Collections, List => JList, HashMap, HashSet}
 import org.eclipse.lsp4j._
 import org.eclipse.lsp4j.jsonrpc.messages.{Either, Message}
 import org.eclipse.lsp4j.jsonrpc.{Launcher, MessageConsumer}
@@ -102,6 +102,13 @@ abstract class LangClient (
   /** A user friendly name for this language server (i.e. 'Dotty', 'Eclpse', etc.). */
   def name :String
 
+  /** The execute commands supported by the server. */
+  def execCommands :Set[String] = execCmds
+  private var execCmds = Set[String]()
+  serverCaps.onSuccess { caps =>
+    execCmds = Seq.view(caps.getExecuteCommandProvider.getCommands).toSet
+  }
+
   override def toString = s"$name langserver"
 
   private def exec = metaSvc.exec
@@ -119,14 +126,16 @@ abstract class LangClient (
           caps.setSnippetSupport(true)
         })
         // completionItemKind? { valueSet? :CompletionItemKind[] }
-        // contextSupport?
+        caps.setContextSupport(true)
       })
-      // caps.setHover(init(new HoverCapabilities()) { caps =>
-      //   // TODO: contentFormat?: MarkupKind[];
-      // })
-      // caps.setSignatureHelp(init(new SignatureHelpCapabilities()) { caps =>
-      //   // TODO: signatureInformation?: { documentationFormat?: MarkupKind[] }
-      // })
+      caps.setHover(init(new HoverCapabilities()) { caps =>
+        caps.setContentFormat(Arrays.asList("markdown", "plaintext"))
+      })
+      caps.setSignatureHelp(init(new SignatureHelpCapabilities()) { caps =>
+        caps.setSignatureInformation(init(new SignatureInformationCapabilities()) { caps =>
+          caps.setDocumentationFormat(Arrays.asList("markdown", "plaintext"))
+        })
+      })
       // caps.setDocumentSymbol(init(new DocumentSymbolCapabilities()) { caps =>
       //   // TODO:   symbolKind?: { valueSet?: SymbolKind[] }
       // })
@@ -171,6 +180,15 @@ abstract class LangClient (
       }
       null
     })
+  }
+
+  /** Executes `cmd` on the language server. The command should come from [[execCommands]] which
+    * enumerates all commands supported by the server. */
+  def execCommand (cmd :String) :Future[Any] = {
+    val params = new ExecuteCommandParams()
+    params.setCommand(cmd)
+    // TODO: args?
+    LSP.adapt(wspaceSvc.executeCommand(params), exec)
   }
 
   /** Formats (and styles) a `text` block, appending it to `buffer`. */
@@ -305,6 +323,7 @@ abstract class LangClient (
   /** Adds this lang client to `buffer`, stuffing various things into the buffer state that enable
     * code smarts. */
   def addToBuffer (project :Project, buffer :RBuffer) {
+    buffer.state[LangClient]() = this
     buffer.state[Intel]() = new LangIntel(this, project)
 
     buffer.state[CodeCompleter]() = new CodeCompleter() {
