@@ -59,7 +59,10 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
 
   override def renameElementAt (view :RBufferView, window :Window, loc :Loc, newName :String) =
     client.serverCaps.flatMap(caps => {
-      val canRename = Option(caps.getRenameProvider).map(_.booleanValue) || false
+      val canRename = Option(caps.getRenameProvider).map(LSP.toScala).map(_ match {
+        case Left(bv) => bv.booleanValue
+        case Right(opts) => true
+      }) || false
       if (!canRename) abort("Language Server does not support rename refactoring.")
 
       val rparams = new RenameParams(LSP.docId(view.buffer), LSP.toPos(loc), newName)
