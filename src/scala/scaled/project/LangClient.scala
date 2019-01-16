@@ -106,7 +106,8 @@ abstract class LangClient (
   def execCommands :Set[String] = execCmds
   private var execCmds = Set[String]()
   serverCaps.onSuccess { caps =>
-    execCmds = Seq.view(caps.getExecuteCommandProvider.getCommands).toSet
+    val ecp = caps.getExecuteCommandProvider
+    if (ecp != null) execCmds = Seq.view(ecp.getCommands).toSet
   }
 
   override def toString = s"$name langserver"
