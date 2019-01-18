@@ -477,6 +477,12 @@ abstract class LangClient (
    */
   def publishDiagnostics (pdp :PublishDiagnosticsParams) {
     import Intel._
+    def sevToNote (sev :DiagnosticSeverity) = sev match {
+      case DiagnosticSeverity.Hint => Hint
+      case DiagnosticSeverity.Information => Info
+      case DiagnosticSeverity.Warning => Warning
+      case DiagnosticSeverity.Error => Error
+    }
     exec.ui.execute(() => {
       val project = uriToProject.get(pdp.getUri)
       val store = LSP.toStore(pdp.getUri)
@@ -485,12 +491,7 @@ abstract class LangClient (
         store,
         Region(LSP.fromPos(diag.getRange.getStart), LSP.fromPos(diag.getRange.getEnd)),
         diag.getMessage,
-        diag.getSeverity match {
-          case DiagnosticSeverity.Hint => Hint
-          case DiagnosticSeverity.Information => Info
-          case DiagnosticSeverity.Warning => Warning
-          case DiagnosticSeverity.Error => Error
-        }))
+        Option(diag.getSeverity) map sevToNote getOrElse Warning))
     })
   }
 
