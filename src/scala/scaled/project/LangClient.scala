@@ -486,7 +486,7 @@ abstract class LangClient (
         store,
         Region(LSP.fromPos(diag.getRange.getStart), LSP.fromPos(diag.getRange.getEnd)),
         diag.getMessage,
-        Option(diag.getSeverity) map sevToNote getOrElse Warning))
+        Option(diag.getSeverity) map sevToNote getOrElse Error))
     })
   }
 
