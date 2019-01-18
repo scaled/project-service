@@ -356,12 +356,7 @@ abstract class LangClient (
 
   class Syncer (caps :ServerCapabilities, buffer :RBuffer, uri :String) {
     var vers = 1
-    def incDocId = {
-      vers += 1
-      val docId = new VersionedTextDocumentIdentifier(vers)
-      docId.setUri(uri) // machine generated API fail...
-      docId
-    }
+    def incDocId = { vers += 1 ; new VersionedTextDocumentIdentifier(uri, vers) }
     val docId = new TextDocumentIdentifier(uri)
     buffer.state[TextDocumentIdentifier]() = docId
 
