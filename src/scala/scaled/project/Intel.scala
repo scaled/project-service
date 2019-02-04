@@ -46,8 +46,8 @@ object Intel {
 
     override protected def go (window :Window) = {
       val view = window.focus.visitFile(store)
-      view.point() = region.start
-      val pop = Popup.buffer(format(view.width()-2, msg), Popup.UpRight(region.start))
+      view.point() = view.buffer.clamp(region.start)
+      val pop = Popup.buffer(format(view.width()-2, msg), Popup.UpRight(view.point()))
       view.showPopup(if (sev == Error) pop.toError else pop)
     }
   }

@@ -138,7 +138,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     // clear all note styles from the buffer and readd to the current set; this is not very
     // efficient but tracking the old notes through all possible buffer edits is rather a PITA
     buffer.removeTags(classOf[String], isNoteStyle, buffer.start, buffer.end)
-    for (n <- notes) buffer.addStyle(noteStyle(n), n.region)
+    for (n <- notes) buffer.addStyle(noteStyle(n), buffer.clamp(n.region))
     updateVisits(false)(notesVisitList(notes));
   }))
 
