@@ -137,8 +137,13 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Removes the database for the Codex store in `root`. */
-  def deleteStore(project :Project) {
-    storesByRoot.remove(project.root)
+  def deleteStore (project :Project) {
+    val store = storesByRoot.remove(project.root)
+    if (store != null) {
+      val iter = storesById.entrySet.iterator
+      while (iter.hasNext) if (iter.next().getValue == store) iter.remove()
+      store.close()
+    }
     Files.deleteIfExists(codexDir.resolve(project.root.hashName).resolve("index"))
   }
 
@@ -152,9 +157,9 @@ class Codex (editor :Editor, msvc :MetaService) {
       map(entry => { (s"${entry.getKey} ", entry.getValue.defCount) }).
       toSeq.sortBy(-_._2))
 
-    val idedRoots = storesById.values.map(_.root).toSet
+    // val idedRoots = storesById.values.map(_.root).toSet
     bb.addSubHeader("Indices by Root:")
-    bb.addKeysValues(storesByRoot.entrySet.filterNot(entry => idedRoots(entry.getKey)).
+    bb.addKeysValues(storesByRoot.entrySet/*.filterNot(entry => idedRoots(entry.getKey))*/.
       map(entry => { (s"${entry.getKey} ", entry.getValue.defCount) }).
       toSeq.sortBy(-_._2))
   }
@@ -295,14 +300,15 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Performs any "project just got loaded/reloaded" stuffs needed by the Codex system. */
   def checkProject (project :Project) {
-    val pstore = store(project)
-
-    val isEmpty = try pstore.isEmpty catch {
-      case ex :Throwable =>
-        val msg = s"Codex store corrupt for ${project.name}. Resetting..."
-        project.emitError(new Exception(msg, ex))
-        deleteStore(project)
-        true
+    val (pstore, isEmpty) = {
+      val pstore = store(project)
+      try {(pstore, pstore.isEmpty)} catch {
+        case ex :Throwable =>
+          val msg = s"Codex store corrupt for ${project.name}. Resetting..."
+          project.emitError(new Exception(msg, ex))
+          deleteStore(project)
+          (store(project), true)
+      }
     }
 
     // map the project's store by its ids
@@ -347,9 +353,8 @@ class Codex (editor :Editor, msvc :MetaService) {
   /** Performs a full reindex of this project. This method is called on a background thread. */
   protected def reindexAll (project :Project) {
     val pstore = store(project)
-    val sums = project.sources.summarize
     pstore.clear()
-    sums foreach { (suff, srcs) =>
+    project.sources.summarize foreach { (suff, srcs) =>
       extractor(project, suff) foreach { extr =>
         project.emitStatus(s"Reindexing ${srcs.size} $suff files in ${project.name}...")
         try {
