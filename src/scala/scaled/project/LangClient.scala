@@ -165,7 +165,7 @@ abstract class LangClient (
     trace(s"Initializing at root: $root")
     messages.emit(s"$name langserver initializing...")
     server.initialize(initParams).thenAccept(rsp => {
-      server.initialized()
+      server.initialized(new InitializedParams())
       serverCaps.succeed(rsp.getCapabilities)
       messages.emit(s"$name langserver ready.")
     }).exceptionally(err => {
