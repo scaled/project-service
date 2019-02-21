@@ -428,11 +428,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   lazy val DefaultTester = new Tester(this) {
     // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
-    override def runTests (window :Window, iact :Boolean,
-                           file :Path, typess :SeqV[Def]) = false
-    override def runTest (window :Window, file :Path, elem :Def) = {
-      window.emitStatus("${project.name} does not provide a tester.")
-      Future.success(this)
-    }
+    override def runTests (window :Window, iact :Boolean, file :Path) = false
+    override def runTest (window :Window, file :Path, defn :Intel.Defn) =
+      Future.failure(Errors.feedback(s"Project '${name}' does not provide a tester."))
   }
 }

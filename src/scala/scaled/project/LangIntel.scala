@@ -31,7 +31,8 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
     LSP.adapt(textSvc.hover(pparams), view.window.exec).onSuccess(hover => {
       import org.eclipse.lsp4j.jsonrpc.messages.Either
       val contents = if (hover == null) null else hover.getContents
-      if (contents == null || (contents.isLeft && contents.getLeft.isEmpty)) view.window.popStatus("No info available.")
+      if (contents == null || (contents.isLeft && contents.getLeft.isEmpty))
+        view.window.popStatus("No info available.")
       else {
         val buffer = Buffer.scratch("*popup*")
         val wrapWidth = view.width()-4
@@ -42,6 +43,10 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
         view.popup() = Popup.buffer(buffer, Popup.UpRight(view.point()))
       }
     })
+  }
+
+  override def enclosers (view :RBufferView, loc :Loc) :Seq[Defn] = {
+    abort("TODO")
   }
 
   override def visitElement (view :RBufferView, target :Window) :Future[Boolean] = {
@@ -57,7 +62,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
   override def visitSymbol (sym :SymbolInformation, target :Window) = client.visitLocation(
     project, s"${sym.getName}:${sym.getContainerName}", sym.getLocation, target)
 
-  override def renameElementAt (view :RBufferView, window :Window, loc :Loc, newName :String) =
+  override def renameElementAt (view :RBufferView, loc :Loc, newName :String) =
     client.serverCaps.flatMap(caps => {
       val canRename = Option(caps.getRenameProvider).map(LSP.toScala).map(_ match {
         case Left(bv) => bv.booleanValue
@@ -66,7 +71,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
       if (!canRename) abort("Language Server does not support rename refactoring.")
 
       val rparams = new RenameParams(LSP.docId(view.buffer), LSP.toPos(loc), newName)
-      LSP.adapt(textSvc.rename(rparams), window.exec).map(edits => {
+      LSP.adapt(textSvc.rename(rparams), view.window.exec).map(edits => {
         val docChanges = edits.getDocumentChanges
         if (docChanges != null) {
           println(s"TODO(docChanges): $docChanges")

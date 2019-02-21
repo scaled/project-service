@@ -76,6 +76,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     // test fns
     bind("run-all-tests",     "C-c C-t C-a").
     bind("run-file-tests",    "C-c C-t C-f").
+    bind("run-test-at-point", "C-c C-t C-p").
     bind("repeat-last-test",  "C-c C-t C-r", "F6").
     bind("visit-tests",       "C-x C-t").
 
@@ -194,7 +195,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     val loc = view.point()
     val intel = Intel(buffer)
     window.mini.read("New name:", wordAt(loc), renameHistory, Completer.none).
-      flatMap(name => intel.renameElementAt(view, window, loc, name)).
+      flatMap(name => intel.renameElementAt(view, loc, name)).
       onSuccess(renamers => {
         println(s"Renames $renamers")
         if (renamers.isEmpty) abort(
@@ -270,14 +271,28 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     maybeShowTestOutput()
   }
 
-  @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's file
-         itself if that file contains tests) and runs the tests in it.
+  @Fn("""Identifies the test file associated with the current buffer (which may be the buffer's
+         file itself if that file contains tests) and runs the tests in it.
          See project-run-all-tests for info on test output and failure navigation.""")
   def runFileTests () :Unit = tester.findTestFile(bufferFile) match {
     case None        => abort(s"Cannot find test file for $bufferFile")
     case Some(tfile) => runTest { _ =>
-      if (!tester.runTests(window, true, tfile, Seq())) abort(s"No tests found in $tfile.")
+      if (!tester.runTests(window, true, tfile)) abort(s"No tests found in $tfile.")
       maybeShowTestOutput()
+    }
+  }
+
+  @Fn("Determines the test method enclosing the point and runs it.")
+  def runTestAtPoint () {
+    Intel(buffer).enclosers(view, view.point()).find(tester.isTestFunc) match {
+      case Some(defn) =>
+        println(s"Tester ${project.tester} on ${defn.name}")
+        project.tester.runTest(window, bufferFile, defn).onFailure(window.exec.handleError)
+               .onSuccess { _ =>
+          // display the test output as a popup over the point
+          view.popup() = Popup.lines(project.logBuffer.lines, Popup.UpRight(view.point()))
+        }
+      case None => abort("Unable to find enclosing test function.")
     }
   }
 

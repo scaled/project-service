@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import codex.model.Kind
+import codex.model.{Kind, Flavor}
 import java.net.URI
 import java.nio.file.Path
 import scaled._
@@ -52,6 +52,11 @@ object Intel {
     }
   }
 
+  /** A (code) definition. This is a denormalized version of Codex's `Def` which is easier for
+    * non-Codex intelligence to provide (like the LSP client). */
+  case class Defn (kind :Kind, flavor :Flavor, name :String, sig :Option[String], offset :Int,
+                   bodyStart :Int, bodyEnd :Int)
+
   /** Handles a rename refactoring in a single store. */
   abstract class Renamer (val store :Store) {
     /** Validates that this renamer can be applied to `buffer` (checking that its renames match
@@ -87,6 +92,9 @@ abstract class Intel {
   // /** Summarizes the element at the point. The results should be displayed in a buffer. */
   // def summarizeElement (window :Window, view :BufferView) :Unit
 
+  /** Returns the definitions enclosing `loc` ordered from inner-most to outer-most. */
+  def enclosers (view :RBufferView, loc :Loc) :Seq[Defn]
+
   /** Visits the element at `view`'s point, in `target`.
     * @return true if an element was visited, false if no element could be discerned at the current
     * point. */
@@ -96,8 +104,7 @@ abstract class Intel {
   def visitSymbol (sym :Symbol, target :Window) :Unit
 
   /** Requests that the symbol at `loc` be renamed to `newName`. */
-  def renameElementAt (view :RBufferView, window :Window, loc :Loc,
-                       newName :String) :Future[Seq[Renamer]]
+  def renameElementAt (view :RBufferView, loc :Loc, newName :String) :Future[Seq[Renamer]]
 
   protected def abort (msg :String) :Nothing = throw Errors.feedback(msg)
 }

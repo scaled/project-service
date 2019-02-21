@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import codex.model.{Def, Kind}
+import codex.model.Kind
 import java.nio.file.Path
 import scaled._
 import scaled.util.Errors
@@ -24,9 +24,9 @@ abstract class Tester (project :Project) extends Project.Component {
   /** Locates the test file that's associated with the specified source file. */
   def findTestFile (file :Path) :Option[Path] = None
 
-  /** Returns true if `df` represents a test function. By default all functions are considered so,
-    * but a tester may wish to refine this notion. */
-  def isTestFunc (df :Def) :Boolean = df.kind == Kind.FUNC
+  /** Returns true if `defn` represents a test function. By default all functions are considered
+    * so, but a tester may wish to refine this notion. */
+  def isTestFunc (defn :Intel.Defn) :Boolean = defn.kind == Kind.FUNC
 
   /** Runs all tests in the project.
     * @param window a window to pass to `noteResults`. *.
@@ -36,21 +36,20 @@ abstract class Tester (project :Project) extends Project.Component {
     */
   def runAllTests (window :Window, interact :Boolean) :Boolean
 
-  /** Runs all tests in `file`. If available, model information for all types (classes) in that
-    * compilation unit will also be provided, to make life easier for the test framework.
+  /** Runs all tests in `file`.
     * @param window a window to pass to `noteResults`. *.
     * @param interact if true the user manually requested this test run, if false, it was
     * triggered as a result of `retest-on-save`.
     * @return false if we know immediately that there are no tests to run, true otherwise.
     */
-  def runTests (window :Window, interact :Boolean, file :Path, types :SeqV[Def]) :Boolean
+  def runTests (window :Window, interact :Boolean, file :Path) :Boolean
 
-  /** Runs a single test in `file`. The test to be run is identified by `elem`. This is only ever
+  /** Runs a single test in `file`. The test to be run is identified by `name`. This is only ever
     * invoked interactively.
     * @param window a window to pass to `noteResults`. *.
     * @return a future which will be completed with `this` the test completes.
     */
-  def runTest (window :Window, file :Path, elem :Def) :Future[Tester]
+  def runTest (window :Window, file :Path, defn :Intel.Defn) :Future[Tester]
 
   /** Reports the results of a test run. */
   protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :SeqV[Visit]) {

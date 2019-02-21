@@ -137,9 +137,10 @@ abstract class LangClient (
           caps.setDocumentationFormat(Arrays.asList("markdown", "plaintext"))
         })
       })
-      // caps.setDocumentSymbol(init(new DocumentSymbolCapabilities()) { caps =>
-      //   // TODO:   symbolKind?: { valueSet?: SymbolKind[] }
-      // })
+      caps.setDocumentSymbol(init(new DocumentSymbolCapabilities()) { caps =>
+        // TODO:   symbolKind?: { valueSet?: SymbolKind[] }
+        caps.setHierarchicalDocumentSymbolSupport(true)
+      })
       caps.setSynchronization(init(new SynchronizationCapabilities()) { caps =>
         // TODO: support will save (& wait until)?
         caps.setDidSave(true)

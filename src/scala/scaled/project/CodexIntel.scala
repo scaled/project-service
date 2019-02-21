@@ -23,6 +23,14 @@ class CodexIntel (codex :Codex, project :Project) extends Intel {
     }
   }
 
+  override def enclosers (view :RBufferView, loc :Loc) :Seq[Defn] = {
+    def toDefns (df :Def, defns :List[Defn]) :Seq[Defn] =
+      if (df == null) Seq() ++ defns.reverse else toDefns(df.outer, toDefn(df) :: defns)
+    (for (index <- view.buffer.state[SourceIndex].getOption ;
+          edef <- index.encloser(view.buffer.offset(loc)))
+     yield toDefns(edef, Nil)) getOrElse Seq()
+  }
+
   override def visitElement (view :RBufferView, target :Window) :Future[Boolean] = {
     codex.onElemAt(view.buffer, view.point())((_, _, df) => codex.visit(target, df))
     Future.success(true)
@@ -30,7 +38,7 @@ class CodexIntel (codex :Codex, project :Project) extends Intel {
 
   override def visitSymbol (sym :Def, target :Window) = codex.visit(target, sym)
 
-  override def renameElementAt (view :RBufferView, window :Window, loc :Loc, newName :String) =
+  override def renameElementAt (view :RBufferView, loc :Loc, newName :String) =
     codex.onElemAt(view.buffer, loc) { (elem, loc, df) =>
       if (df.kind != Kind.FUNC && df.kind != Kind.VALUE) abort(
         "Rename only supported for methods and variables. Not types or packages.")
@@ -54,4 +62,7 @@ class CodexIntel (codex :Codex, project :Project) extends Intel {
       }
       Future.success(Map.view(codex.store(project).usesOf(df)).map(mkRenamer))
     }
+
+  private def toDefn (df :Def) = Defn(df.kind, df.flavor, df.name, Option.from(df.sig).map(_.text),
+                                      df.offset, df.bodyStart, df.bodyEnd)
 }

@@ -60,10 +60,8 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     bind("codex-debug-element",     "C-c S-C-d").
 
     bind("codex-find-uses",         "C-c C-f").
-    bind("codex-highlight-element", "C-c C-h").
     // bind("codex-visit-element",     "M-.").
-
-    bind("run-test-at-point", "C-c C-t C-p");
+    bind("codex-highlight-element", "C-c C-h");
 
   override def deactivate () {
     super.deactivate()
@@ -234,30 +232,8 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     codex.debugReindex(project, buffer.store)
   }
 
-  @Fn("Determines the test method enclosing the point and runs it.")
-  def runTestAtPoint () {
-    onEncloser(view.point()) { df =>
-      def ffunc (df :Def) :Def =
-        if (df == null) abort("Unable to find enclosing test function.")
-        else if (tester.isTestFunc(df)) df
-        else ffunc(df.outer)
-      val tfunc = ffunc(df)
-      runTest { view =>
-        project.tester.runTest(window, bufferFile, tfunc).onSuccess { _ =>
-          // display the test output as a popup over the point
-          view.popup() = Popup.lines(project.logBuffer.lines, Popup.UpRight(view.point()))
-        }
-      }
-    }
-  }
-
   private def bufferFile :Path = buffer.store.file getOrElse { abort(
       "This buffer has no associated file. A file is needed to detect tests.") }
-  private def tester = (project.testCompanion || project).tester
-  private def runTest (action :RBufferView => Unit) {
-    tester.lastTest() = action
-    action(view)
-  }
 
   // TODO: codexReindexWorkspace?
 }
