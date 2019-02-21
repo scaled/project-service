@@ -22,6 +22,9 @@ abstract class Compiler (val project :Project) extends Project.Component {
   /** The current set of compiler errors, if any. */
   val errors = Value[Visit.List](null)
 
+  /** A signal emitted when an individual file is successfully recompiled. */
+  val compiled = Signal[Path]()
+
   // initialize warnings & errors to empty lists
   setNotes(Seq(), Seq())
 
@@ -92,6 +95,8 @@ abstract class Compiler (val project :Project) extends Project.Component {
           window.emitStatus(s"${project.name} compile $result: " +
             s"${ecount} error(s), ${wcount} warning(s).")
         }
+
+        if (success) config.file.foreach { path => compiled.emit(path) }
 
         if (success && config.tests) {
           project.testCompanion.foreach { _.compiler.compile(window, config.copy(tests=false)) }
