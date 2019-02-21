@@ -34,10 +34,13 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
 
   // request that our store be indexed (which should eventually populate `index`)
-  note(buffer.storeV.onValueNotify { store =>
+  {
+    def bstore = buffer.storeV()
     // don't attempt to index non- or not-yet-existent files
-    if (store.exists) codex.queueReindex(project, store, false)
-  })
+    def reindex () = if (bstore.exists) codex.queueReindex(project, bstore, false)
+    if (!project.compiler.recompileOnSave) note(buffer.storeV.onValueNotify { store => reindex })
+    else note(project.compiler.compiled.onValue { path => if (Some(path) == bstore.file) reindex })
+  }
 
   override def keymap = super.keymap.
     bind("describe-codex", "C-h c").
