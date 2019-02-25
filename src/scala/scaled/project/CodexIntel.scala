@@ -23,12 +23,12 @@ class CodexIntel (codex :Codex, project :Project) extends Intel {
     }
   }
 
-  override def enclosers (view :RBufferView, loc :Loc) :Seq[Defn] = {
+  override def enclosers (view :RBufferView, loc :Loc) = {
     def toDefns (df :Def, defns :List[Defn]) :Seq[Defn] =
       if (df == null) Seq() ++ defns.reverse else toDefns(df.outer, toDefn(df) :: defns)
-    (for (index <- view.buffer.state[SourceIndex].getOption ;
-          edef <- index.encloser(view.buffer.offset(loc)))
-     yield toDefns(edef, Nil)) getOrElse Seq()
+    Future.success((for (index <- view.buffer.state[SourceIndex].getOption ;
+                         edef <- index.encloser(view.buffer.offset(loc)))
+                    yield toDefns(edef, Nil)) getOrElse Seq())
   }
 
   override def visitElement (view :RBufferView, target :Window) :Future[Boolean] = {

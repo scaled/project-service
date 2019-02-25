@@ -93,7 +93,7 @@ abstract class Intel {
   // def summarizeElement (window :Window, view :BufferView) :Unit
 
   /** Returns the definitions enclosing `loc` ordered from inner-most to outer-most. */
-  def enclosers (view :RBufferView, loc :Loc) :Seq[Defn]
+  def enclosers (view :RBufferView, loc :Loc) :Future[Seq[Defn]]
 
   /** Visits the element at `view`'s point, in `target`.
     * @return true if an element was visited, false if no element could be discerned at the current
