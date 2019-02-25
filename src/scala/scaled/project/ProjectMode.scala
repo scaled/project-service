@@ -284,7 +284,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   @Fn("Determines the test method enclosing the point and runs it.")
   def runTestAtPoint () {
-    Intel(buffer).enclosers(view, view.point()).find(tester.isTestFunc) match {
+    Intel(buffer).enclosers(view, view.point()).map(tester.findTestFunc).onSuccess(_ match {
       case Some(defn) =>
         println(s"Tester ${project.tester} on ${defn.name}")
         project.tester.runTest(window, bufferFile, defn).onFailure(window.exec.handleError)
@@ -293,7 +293,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
           view.popup() = Popup.lines(project.logBuffer.lines, Popup.UpRight(view.point()))
         }
       case None => abort("Unable to find enclosing test function.")
-    }
+    }).onFailure(window.exec.handleError)
   }
 
   @Fn("""Repeats the last run-all-tests or run-file-tests, in the window it was run.

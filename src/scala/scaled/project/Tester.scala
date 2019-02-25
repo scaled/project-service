@@ -24,9 +24,13 @@ abstract class Tester (project :Project) extends Project.Component {
   /** Locates the test file that's associated with the specified source file. */
   def findTestFile (file :Path) :Option[Path] = None
 
-  /** Returns true if `defn` represents a test function. By default all functions are considered
-    * so, but a tester may wish to refine this notion. */
-  def isTestFunc (defn :Intel.Defn) :Boolean = defn.kind == Kind.FUNC
+  /** Finds the test function (if any) in the supplied list of definitions that "enclose" the
+    * point. These definitions are obtained from the language intel when the user asks to "run the
+    * test at the point".
+    * @param defns the definitions that enclose a point in the buffer, from inner-most to
+    * outer-most. */
+  def findTestFunc (defns :Ordered[Intel.Defn]) :Option[Intel.Defn] =
+    defns.find(_.kind == Kind.FUNC)
 
   /** Runs all tests in the project.
     * @param window a window to pass to `noteResults`. *.
