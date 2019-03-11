@@ -141,15 +141,18 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
     val genKey = LangKey(suff, root.path, None)
     val modKey = LangKey(suff, root.path, Some(root.module))
     def langClient (key :LangKey) = Option(langClients.get(key))
-    langClient(genKey) orElse langClient(modKey) orElse langPluginFor(suff, root).map(plugin => {
-      val client = plugin.createClient(project)
-      val key = if (plugin.moduleSpecific) modKey else genKey
-      plugin.suffs(root).foreach { suff => langClients.put(key, client) }
-      // TODO: close lang clients if all buffers with their suff are closed
-      client onSuccess { client => toClose += client }
-      client onFailure project.exec.handleError
-      client
-    })
+    langClient(genKey) orElse langClient(modKey) orElse langPluginFor(suff, root).flatMap(
+      plugin => try {
+        val client = plugin.createClient(project)
+        val key = if (plugin.moduleSpecific) modKey else genKey
+        plugin.suffs(root).foreach { suff => langClients.put(key, client) }
+        // TODO: close lang clients if all buffers with their suff are closed
+        client onSuccess { client => toClose += client }
+        client onFailure project.exec.handleError
+        Some(client)
+      } catch {
+        case t :Throwable => project.exec.handleError(t) ; None
+      })
   }
 
   override def describeSelf (bb :BufferBuilder) {
