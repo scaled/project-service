@@ -21,6 +21,11 @@ abstract class Tester (project :Project) extends Project.Component {
   /** Aborts any currently active test session. */
   def abort () :Unit = throw Errors.feedback("This tester does not support aborting tests.")
 
+  /** Requests that this tester be reset. If a connection to an external process is being
+    * maintained, it should be closed so that the next [[test]] request causes a new process to be
+    * started. */
+  def reset () {} // nada by default
+
   /** Locates the test file that's associated with the specified source file. */
   def findTestFile (file :Path) :Option[Path] = None
 

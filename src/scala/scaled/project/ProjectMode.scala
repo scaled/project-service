@@ -241,9 +241,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   @Fn("""Resets the compiler for this project. This can be useful if the compiler misbehaves,
          due perhaps to a command line compiler stomping on its files or something similar.""")
-  def resetCompiler () {
-    project.compiler.reset()
-  }
+  def resetCompiler () :Unit = project.compiler.reset()
 
   @Fn("Displays the internal status of the compiler. For debugging.")
   def showCompilerStatus () {
@@ -312,12 +310,14 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   @Fn("""Forcibly aborts any tests in progress and terminates any daemon currently being used
          to run this project's tests.""")
-  def abortTests () {
-    tester.abort()
-  }
+  def abortTests () :Unit = tester.abort()
 
   @Fn("Displays the buffer that contains test output for this project.")
   def showTestOutput () :Unit = showTestOutput(true)
+
+  @Fn("""Resets the tester for this project. If an external process is handling testing, it will
+         be terminated so that a new process is started to handle the next test command.""")
+  def resetTester () :Unit = tester.reset()
 
   //
   // Execute FNs
