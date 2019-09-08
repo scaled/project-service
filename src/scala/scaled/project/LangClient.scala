@@ -277,34 +277,25 @@ abstract class LangClient (
     * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
     * location (one for which the source is provided by the language server).
     */
-  def visitLocation (project :Project, name :String, loc :Location, window :Window) {
-    val uri = new URI(loc.getUri)
-    val point = LSP.fromPos(loc.getRange.getStart)
-    if (uri.getScheme == "file") {
-      val symView = window.focus.visitFile(LSP.toStore(uri))
-      symView.point() = point
-    } else {
-      fetchContents(loc, window.exec).onSuccess(source => {
-        val initState = State.init(classOf[LangClient], this) ::
-          State.init(classOf[TextDocumentIdentifier], new TextDocumentIdentifier(loc.getUri)) ::
-          project.bufferState(modeFor(loc))
-        val store = Store.text(name, source, root)
-        val buf = project.pspace.wspace.createBuffer(store, initState, true)
-        val symView = window.focus.visit(buf)
-        symView.point() = point
-      }).onFailure(err => {
-        window.popStatus(err.getMessage)
-      })
-    }
+  def visitLocation (project :Project, name :String, loc :LSP.URILoc, window :Window) {
+    val point = LSP.fromPos(loc.range.getStart)
+    if (loc.uri.getScheme == "file") window.focus.visitFile(loc.store).point() = point
+    else fetchContents(loc.uri, window.exec).onSuccess(source => {
+      val initState = State.init(classOf[LangClient], this) ::
+        State.init(classOf[TextDocumentIdentifier], new TextDocumentIdentifier(loc.uri.toString)) ::
+        project.bufferState(modeFor(loc.uri))
+      val buf = project.pspace.wspace.createBuffer(Store.text(name, source, root), initState, true)
+      window.focus.visit(buf).point() = point
+    }).onFailure(err => window.popStatus(err.getMessage))
   }
 
   /** Provides the major editing mode source code fetched from the language server via
     * [[fetchContents]]. */
-  def modeFor (loc :Location) :String = "text"
+  def modeFor (loc :URI) :String = "text"
 
   /** Fetches the contents for a "synthetic" location, one hosted by the language server. */
-  def fetchContents (loc :Location, exec :Executor) :Future[String] = {
-    Future.failure(new Exception("No support for fetching contents.\n" + loc))
+  def fetchContents (uri :URI, exec :Executor) :Future[String] = {
+    Future.failure(new Exception("No support for fetching contents.\n" + uri))
   }
 
   private def debug (item :CompletionItem) :CompletionItem = {
@@ -367,10 +358,14 @@ abstract class LangClient (
       new DidOpenTextDocumentParams(item)
     })
 
-    // let the server know when we save the buffer
-    buffer.dirtyV.onValue { dirty =>
+    // let the server know when we save the buffer (if desired)
+    val (wantDidSave, wantSaveText) = LSP.toScala(caps.getTextDocumentSync).fold(
+      k => (true, false),
+      o => (o.getSave != null, o.getSave != null && o.getSave.getIncludeText))
+    if (wantDidSave) buffer.dirtyV.onValue { dirty =>
       if (!dirty) textSvc.didSave(new DidSaveTextDocumentParams(docId))
     }
+    // TODO: handle SaveOptions.includeText?
 
     // send a close event when the buffer is closed
     buffer.killed.onEmit { textSvc.didClose(new DidCloseTextDocumentParams(docId)) }
@@ -482,13 +477,16 @@ abstract class LangClient (
     }
     exec.ui.execute(() => {
       val project = uriToProject.get(pdp.getUri)
-      val store = LSP.toStore(pdp.getUri)
-      val diags = pdp.getDiagnostics
-      project.notes(store)() = Seq() ++ diags.map(diag => Note(
-        store,
-        Region(LSP.fromPos(diag.getRange.getStart), LSP.fromPos(diag.getRange.getEnd)),
-        diag.getMessage,
-        Option(diag.getSeverity) map sevToNote getOrElse Error))
+      if (project == null) trace(s"Got diagnostics for unmapped URI: ${pdp.getUri}")
+      else {
+        val store = LSP.toStore(pdp.getUri)
+        val diags = pdp.getDiagnostics
+        project.notes(store)() = Seq() ++ diags.map(diag => Note(
+          store,
+          Region(LSP.fromPos(diag.getRange.getStart), LSP.fromPos(diag.getRange.getEnd)),
+          diag.getMessage,
+          Option(diag.getSeverity) map sevToNote getOrElse Error))
+      }
     })
   }
 

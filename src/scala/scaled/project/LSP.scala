@@ -15,6 +15,15 @@ import scaled.util.Errors
 /** Helpers to make it easier to work with lsp4j types. */
 object LSP {
 
+  case class URILoc (uri :URI, range :Range) {
+    def name :String = Paths.get(uri.getPath()).getFileName.toString
+    def store = Store(Paths.get(uri))
+  }
+  case object URILoc {
+    def apply (loc :Location) :URILoc = URILoc(new URI(loc.getUri), loc.getRange)
+    def apply (link :LocationLink) :URILoc = URILoc(new URI(link.getTargetUri), link.getTargetRange)
+  }
+
   def textDocItem(uri :String, langId :String, vers :Int, text :String) :TextDocumentItem =
     new TextDocumentItem(uri, langId, vers, text)
 
@@ -22,8 +31,6 @@ object LSP {
   def toStore (uri :URI) :Store = Store(Paths.get(uri))
 
   def toPos (loc :Loc) = new Position(loc.row, loc.col)
-
-  def getName (loc :Location) = Paths.get(new URI(loc.getUri).getPath()).getFileName.toString
 
   def fromPos (pos :Position) = Loc.apply(pos.getLine, pos.getCharacter)
   def fromRange (range :Range) = Region(fromPos(range.getStart), fromPos(range.getEnd))

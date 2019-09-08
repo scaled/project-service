@@ -90,16 +90,17 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
 
   override def visitElement (view :RBufferView, target :Window) :Future[Boolean] = {
     val pparams = LSP.toTDPP(view.buffer, view.point())
-    LSP.adapt(textSvc.definition(pparams), target.exec).map(_.find(_.getUri != null)).
-      onSuccess(_ match {
-        case None      => view.window.popStatus(s"Unable to locate definition.")
-        case Some(loc) => client.visitLocation(project, LSP.getName(loc), loc, target)
-      }).
-      map(_.isDefined)
+    LSP.adapt(textSvc.definition(pparams), target.exec).map(res => LSP.toScala(res) match {
+      case Left(locs) => locs.find(_.getUri != null).map(LSP.URILoc.apply)
+      case Right(links) => links.find(_.getTargetUri != null).map(LSP.URILoc.apply)
+    }).onSuccess(_ match {
+      case None      => view.window.popStatus(s"Unable to locate definition.")
+      case Some(loc) => client.visitLocation(project, loc.name, loc, target)
+    }).map(_.isDefined)
   }
 
   override def visitSymbol (sym :SymbolInformation, target :Window) = client.visitLocation(
-    project, s"${sym.getName}:${sym.getContainerName}", sym.getLocation, target)
+    project, s"${sym.getName}:${sym.getContainerName}", LSP.URILoc(sym.getLocation), target)
 
   override def renameElementAt (view :RBufferView, loc :Loc, newName :String) =
     client.serverCaps.flatMap(caps => {
