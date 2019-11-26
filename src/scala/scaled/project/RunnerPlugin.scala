@@ -16,7 +16,7 @@ abstract class RunnerPlugin (pspace :ProjectSpace) extends AbstractPlugin {
   /** Invokes `exec`.
     * @param project the active project when the execution was initiated.
     */
-  def execute (exec :Execution, project :Project) {
+  def execute (exec :Execution, project :Project) :Unit = {
     val wspace = project.pspace.wspace
     val bufname = s"*exec:${exec.name}*"
     val buffer = wspace.createBuffer(Store.scratch(bufname, project.root.path),

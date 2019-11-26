@@ -24,7 +24,7 @@ abstract class Tester (project :Project) extends Project.Component {
   /** Requests that this tester be reset. If a connection to an external process is being
     * maintained, it should be closed so that the next [[test]] request causes a new process to be
     * started. */
-  def reset () {} // nada by default
+  def reset () :Unit = {} // nada by default
 
   /** Locates the test file that's associated with the specified source file. */
   def findTestFile (file :Path) :Option[Path] = None
@@ -61,7 +61,7 @@ abstract class Tester (project :Project) extends Project.Component {
   def runTest (window :Window, file :Path, defn :Intel.Defn) :Future[Tester]
 
   /** Reports the results of a test run. */
-  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :SeqV[Visit]) {
+  protected def noteResults (window :Window, interact :Boolean, succs :Int, fails :SeqV[Visit]) :Unit = {
     window.visits() = new Visit.List("test failure", fails)
     if (interact) {
       val msg = s"Test run completed; $succs succeeded, ${fails.size} failed."

@@ -13,8 +13,8 @@ class CodecTest {
   import Project._
   import Codec._
 
-  @Test def testReadShowRoot () {
-    def test (root :Root) {
+  @Test def testReadShowRoot () :Unit = {
+    def test (root :Root) :Unit = {
       val str = showRoot(root)
       assertEquals(root, readRoot(str))
     }
@@ -23,8 +23,8 @@ class CodecTest {
     test(Root(Paths.get("c:\\monkey\\butter"), "pickle-sauce"))
   }
 
-  @Test def testReadShowId () {
-    def test (id :Id) {
+  @Test def testReadShowId () :Unit = {
+    def test (id :Id) :Unit = {
       val str = showId(id)
       // println(s"$id --> $str")
       assertEquals(id, readId(str).get)

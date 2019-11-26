@@ -26,7 +26,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
 
   override def fqName (sym :SymbolInformation) :String = client.fqName(sym)
 
-  override def describeElement (view :RBufferView) {
+  override def describeElement (view :RBufferView) :Unit = {
     val pparams = LSP.toTDPP(view.buffer, view.point())
     LSP.adapt(textSvc.hover(pparams), view.window.exec).onSuccess(hover => {
       import org.eclipse.lsp4j.jsonrpc.messages.Either
@@ -123,7 +123,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
         if (changes == null) abort(s"No changes returned for rename (to $newName)")
         // def toEdit (edit :TextEdit) = Edit(LSP.fromRange(edit.getRange), edit.getNewText)
         Map.view(changes).map((uri, edits) => new Renamer(LSP.toStore(uri)) {
-          def validate (buffer :Buffer) {} // LSP does not supply enough info to validate
+          def validate (buffer :Buffer) :Unit = {} // LSP does not supply enough info to validate
           def apply (buffer :Buffer) = for (edit <- edits) buffer.replace(
             LSP.fromRange(edit.getRange), Seq(Line(edit.getNewText)))
         })

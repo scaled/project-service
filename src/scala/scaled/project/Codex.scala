@@ -41,7 +41,7 @@ object Codex {
 /** Used to report Codex info inside a project. */
 class CodexComponent (codex :Codex, store :CodexStore) extends Project.Component {
 
-  override def addToBuffer (buffer :RBuffer) {
+  override def addToBuffer (buffer :RBuffer) :Unit = {
     // while this buffer is open, keep an up to date SourceIndex in its state
     val conn = codex.indexed.onValue { idx =>
       if (idx.store == buffer.store) buffer.state[SourceIndex]() = idx
@@ -50,7 +50,7 @@ class CodexComponent (codex :Codex, store :CodexStore) extends Project.Component
   }
 
   /** Appends a description of this store to `bb`. */
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addSubHeader("Codex:")
     bb.add(Line.builder(s"Defs: ${store.defCount}").withLineTag(Visit.Tag(new Visit() {
       protected def go (window :Window) = CodexSummaryMode.visitTopLevel(window, store)
@@ -85,7 +85,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   val indexQueue :Pipe[Unit] = msvc.process(())
 
   /** Closes all of our open stores in preparation for editor shutdown. */
-  def close () {
+  def close () :Unit = {
     storesByRoot.values.foreach { _.close() }
   }
 
@@ -121,7 +121,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     * the stores for the dependencies of `project`. */
   def stores (project :Project) :LinkedHashSet[ProjectStore] = {
     val stores = new LinkedHashSet[ProjectStore]()
-    def checkedAdd (store :CodexStore) {
+    def checkedAdd (store :CodexStore) :Unit = {
       // if this store is empty; trigger a resolution of its project to cause it to be indexed for
       // the first time
       if (store.isEmpty) {
@@ -137,7 +137,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Removes the database for the Codex store in `root`. */
-  def deleteStore (project :Project) {
+  def deleteStore (project :Project) :Unit = {
     val store = storesByRoot.remove(project.root)
     if (store != null) {
       val iter = storesById.entrySet.iterator
@@ -148,7 +148,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Describes the state of the Codex. */
-  def describeSelf (bb :BufferBuilder) {
+  def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addHeader("Codex")
     bb.addBlank()
 
@@ -189,7 +189,7 @@ class Codex (editor :Editor, msvc :MetaService) {
     Option.from(Ref.resolve(stores(project), ref))
 
   /** Visits the source of `df` in a buffer in `window`. */
-  def visit (window :Window, df :Def) {
+  def visit (window :Window, df :Def) :Unit = {
     val view = window.focus.visitFile(toStore(df.source))
     view.point() = view.buffer.loc(df.offset)
   }
@@ -299,7 +299,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Performs any "project just got loaded/reloaded" stuffs needed by the Codex system. */
-  def checkProject (project :Project) {
+  def checkProject (project :Project) :Unit = {
     val (pstore, isEmpty) = {
       val pstore = store(project)
       try {(pstore, pstore.isEmpty)} catch {
@@ -325,7 +325,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Requests that `project`'s code be fully reindexed. */
-  def queueReindexAll (project :Project) {
+  def queueReindexAll (project :Project) :Unit = {
     indexQueue.tell(_ => reindexAll(project))
   }
 
@@ -336,13 +336,13 @@ class Codex (editor :Editor, msvc :MetaService) {
     * @param force if true, file is indexed regardless of whether its last modified time is more
     * recent than the file's last recorded index.
     */
-  def queueReindex (project :Project, store :Store, force :Boolean) {
+  def queueReindex (project :Project, store :Store, force :Boolean) :Unit = {
     // invoke the reindex in the background
     indexQueue.tell(_ => reindex(project, toSource(store), force))
   }
 
   /** Performs a debug reindex of store, writing the output to stdout. */
-  def debugReindex (project :Project, store :Store) {
+  def debugReindex (project :Project, store :Store) :Unit = {
     if (System.console == null) throw Errors.feedback("No console, can't emit debug output.")
     val source = toSource(store)
     extractor(project, source.fileExt) foreach { ex =>
@@ -351,7 +351,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Performs a full reindex of this project. This method is called on a background thread. */
-  protected def reindexAll (project :Project) {
+  protected def reindexAll (project :Project) :Unit = {
     val pstore = store(project)
     pstore.clear()
     project.sources.summarize foreach { (suff, srcs) =>
@@ -370,7 +370,7 @@ class Codex (editor :Editor, msvc :MetaService) {
   }
 
   /** Performs the actual reindexing of `source`. This method is called on a background thread. */
-  protected def reindex (project :Project, source :Source, force :Boolean) {
+  protected def reindex (project :Project, source :Source, force :Boolean) :Unit = {
     val pstore = store(project)
     if (force || source.lastModified > pstore.lastIndexed(source)) {
       extractor(project, source.fileExt) foreach { ex =>
@@ -383,7 +383,7 @@ class Codex (editor :Editor, msvc :MetaService) {
 
   /** Called when reindexing of a source file is complete. Reindexing takes place on a background
     * thread, and this method is called therefrom. */
-  protected def reindexComplete (project :Project, source :Source) {
+  protected def reindexComplete (project :Project, source :Source) :Unit = {
     val ib = SourceIndex.builder(toStore(source))
     if (store(project).visit(source, ib)) project.pspace.wspace.exec.runOnUI {
       indexed.emit(ib.build())

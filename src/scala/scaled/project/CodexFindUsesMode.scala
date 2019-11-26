@@ -39,7 +39,7 @@ class CodexFindUsesMode (env :Env, df :Def) extends ReadingMode(env) {
   })
 
   @Fn("Visits the use on the current line.")
-  def visitUse () {
+  def visitUse () :Unit = {
     buffer.line(view.point()).lineTag(noUse)(window)
   }
 

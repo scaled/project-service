@@ -17,7 +17,7 @@ class CodexIntel (codex :Codex, project :Project) extends Intel {
 
   override def fqName (sym :Def) = sym.fqName
 
-  override def describeElement (view :RBufferView) {
+  override def describeElement (view :RBufferView) :Unit = {
     codex.onElemAt(view.buffer, view.point()) { (elem, loc, df) =>
       view.popup() = codex.mkDefPopup(view, codex.stores(project), df, loc)
     }

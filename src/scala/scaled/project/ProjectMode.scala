@@ -88,7 +88,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // Behaviors
 
   /** Finds a file in `proj` and visits it. */
-  private def findFileIn (proj :Project) {
+  private def findFileIn (proj :Project) :Unit = {
     window.mini.read(
       s"Find file in project (${proj.name}):", "", proj.fileHistory, proj.files.completer
     ) map(wspace.openBuffer) onSuccess(frame.visit(_))
@@ -114,7 +114,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
       }
     }
 
-  private def updateVisits (onCreate :Boolean)(list :Visit.List) {
+  private def updateVisits (onCreate :Boolean)(list :Visit.List) :Unit = {
     val curlist = window.visits()
     // we only want to update the visit list on buffer creation if we're not currently visiting
     // something else or if we're currently visiting the same kind of thing
@@ -159,7 +159,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
 
   @Fn("""Reads a project name from the minibuffer, then reads a file from that project (with smart
          completion), and visits it.""")
-  def findFileOtherProject () {
+  def findFileOtherProject () :Unit = {
     val pcomp = Completer.from(pspace.allProjects)(_._2)
     window.mini.read(s"Project:", "", projectHistory, pcomp) onSuccess { case pt =>
       findFileIn(pspace.projectFor(pt._1))
@@ -173,7 +173,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   def describeElement () :Unit = Intel(buffer).describeElement(view)
 
   @Fn("Navigates to the referent of the element at the point.")
-  def visitElement () {
+  def visitElement () :Unit = {
     val loc = view.point()
     Intel(buffer).visitElement(view, window).onSuccess { visited =>
       if (visited) window.visitStack.push(buffer, loc)
@@ -181,7 +181,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Queries for a project-wide symbol and visits it.")
-  def visitSymbol () {
+  def visitSymbol () :Unit = {
     val intel = Intel(buffer)
     window.mini.read("Symbol:", wordAt(view.point()), symbolHistory,
                      intel.symbolCompleter(None)).onSuccess(sym => {
@@ -191,7 +191,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Renames all occurrences of the element at the point.")
-  def renameElement () {
+  def renameElement () :Unit = {
     val loc = view.point()
     val intel = Intel(buffer)
     window.mini.read("New name:", wordAt(loc), renameHistory, Completer.none).
@@ -244,7 +244,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   def resetCompiler () :Unit = project.compiler.reset()
 
   @Fn("Displays the internal status of the compiler. For debugging.")
-  def showCompilerStatus () {
+  def showCompilerStatus () :Unit = {
     project.compiler.getStatus(project.logBuffer)
     showCompilerOutput(true)
   }
@@ -281,7 +281,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Determines the test method enclosing the point and runs it.")
-  def runTestAtPoint () {
+  def runTestAtPoint () :Unit = {
     Intel(buffer).enclosers(view, view.point()).map(tester.findTestFunc).onSuccess(_ match {
       case Some(defn) =>
         println(s"Tester ${project.tester} on ${defn.name}")
@@ -299,7 +299,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   def repeatLastTest () :Unit = tester.lastTest.getOption.foreach(_.apply(view))
 
   @Fn("Visits the source file that defines tests for the file in the current buffer.")
-  def visitTests () {
+  def visitTests () :Unit = {
     val file = bufferFile
     tester.findTestFile(file) match {
       case None => window.popStatus(
@@ -323,7 +323,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // Execute FNs
 
   @Fn("Invokes a particular execution in this workspace.")
-  def workspaceExecute () {
+  def workspaceExecute () :Unit = {
     val exns = pspace.execs.executions
     if (exns.isEmpty) window.popStatus(s"${pspace.name} defines no executions.")
     else window.mini.read(s"Execute:", "", pspace.execHistory,
@@ -331,7 +331,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("""Reinvokes the last invoked execution.""")
-  def workspaceExecuteAgain () {
+  def workspaceExecuteAgain () :Unit = {
     wspace.state[Execution].getOption match {
       case Some(e) => execute(e)
       case None    => window.popStatus("No execution has been invoked yet.")
@@ -339,7 +339,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Visits the workspace's execution configuration file.")
-  def workspaceEditExecutions () {
+  def workspaceEditExecutions () :Unit = {
     pspace.execs.visitConfig(window)
   }
 
@@ -347,24 +347,24 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   // Meta FNs
 
   @Fn("Describes the current project.")
-  def describeProject () {
+  def describeProject () :Unit = {
     project.visitDescription(window)
   }
 
   @Fn("Adds the current project to the current workspace.")
-  def addToWorkspace () {
+  def addToWorkspace () :Unit = {
     pspace.addProject(project)
     window.popStatus(s"'${project.name}' added to '${pspace.name}' workspace.")
   }
 
   @Fn("Removes the current project from the current workspace.")
-  def removeFromWorkspace () {
+  def removeFromWorkspace () :Unit = {
     pspace.removeProject(project)
     window.popStatus(s"'${project.name}' removed from '${pspace.name}' workspace.")
   }
 
   @Fn("Removes a project from the current workspace.")
-  def removeProject () {
+  def removeProject () :Unit = {
     val comp = Completer.from(pspace.allProjects)(_._2)
     window.mini.read(s"Project:", "", projectHistory, comp) onSuccess(info => {
       val (root, name) = info
@@ -388,7 +388,7 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     wspace.getInfoWindow("tests").focus.visit(tester.resultsBuffer, focus)
   private def maybeShowTestOutput () = if (config(showOutputOnTest)) showTestOutput(false)
 
-  private def compile (incremental :Boolean, interactive :Boolean) {
+  private def compile (incremental :Boolean, interactive :Boolean) :Unit = {
     val cfg = Compiler.Config(config(recompileTests), interactive,
                               if (incremental) buffer.store.file else None)
     project.compiler.compile(window, cfg)
@@ -396,12 +396,12 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   private def showCompilerOutput (focus :Boolean) =
     wspace.getInfoWindow("compile").focus.visit(project.logBuffer, focus)
 
-  private def runTest (action :RBufferView => Unit) {
+  private def runTest (action :RBufferView => Unit) :Unit = {
     tester.lastTest() = action
     action(view)
   }
 
-  private def execute (exec :Execution) {
+  private def execute (exec :Execution) :Unit = {
     pspace.execs.execute(exec, project)
     // track our last execution in the workspace state
     wspace.state[Execution]() = exec

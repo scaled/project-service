@@ -106,7 +106,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   val execHistory = new Ring(32)
 
   /** Adds `proj` to this workspace. */
-  def addProject (proj :Project) {
+  def addProject (proj :Project) :Unit = {
     // add the project to our database
     if (!pdb.add(proj)) throw Errors.feedback(s"${proj.name} already added to this workspace.")
     // add this project's root to our workspace's hint path
@@ -114,7 +114,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
   }
 
   /** Removes `proj` from this workspace. */
-  def removeProject (proj: Project) {
+  def removeProject (proj: Project) :Unit = {
     // remove this project's root from our workspace's hint path
     wspace.removeHintPath(proj.root.path)
     // remove the project from our database
@@ -155,7 +155,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
       })
   }
 
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addHeader(s"Projects")
     val allps = allProjects
     if (allps.isEmpty) bb.add("<none>")
@@ -198,7 +198,7 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
     execs.describeSelf(bb)
   }
 
-  override def close () {
+  override def close () :Unit = {
     toClose.close()
     projects.values.foreach(_.dispose())
     wspace.state[ProjectSpace].clear()

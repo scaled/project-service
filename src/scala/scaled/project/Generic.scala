@@ -68,7 +68,7 @@ class GenericResolverPlugin extends ResolverPlugin {
 
   override def metaFiles (root :Project.Root) = Seq(root.path.resolve(MetaFile))
 
-  def addComponents (project :Project) {
+  def addComponents (project :Project) :Unit = {
     val rootPath = project.root.path
     val metaFile = rootPath.resolve(MetaFile)
     val config = new MetaConfig(readConfig(metaFile))

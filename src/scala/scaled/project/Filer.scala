@@ -23,7 +23,7 @@ abstract class Filer extends Project.Component {
   /** Applies `op` to all (non-ignored) files in this project. */
   def onFiles (op :Consumer[Path]) :Unit
 
-  override def close () {}
+  override def close () :Unit = {}
 }
 
 /** A filer that obtains files from a directory on the file system. */
@@ -41,7 +41,7 @@ class DirectoryFiler (root :Path, exec :Executor, ignores :SeqV[Ignorer]) extend
 
   override def onFiles (op :Consumer[Path]) :Unit = allFiles foreach op.accept
 
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addSubHeader("Files")
     bb.addKeysValues("files: " -> allDirs.map(_.files.size).foldLeft(0)(_ + _).toString,
                      "ignores: " -> ignores.mkString(" "))
@@ -52,7 +52,7 @@ class DirectoryFiler (root :Path, exec :Executor, ignores :SeqV[Ignorer]) extend
     var dirs = Set[Path]()
     var lastRefresh = FileTime.fromMillis(0L)
 
-    def refresh () {
+    def refresh () :Unit = {
       val lm = Files.getLastModifiedTime(dir)
       if (lm.compareTo(lastRefresh) > 0) {
         lastRefresh = lm
@@ -113,7 +113,7 @@ class ZipFiler (zipPaths :Seq[Path]) extends Filer {
 
   override def onFiles (op :Consumer[Path]) :Unit = ???
 
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addSubHeader("Files")
     // TODO
     // bb.addKeysValues("files: " -> allDirs.map(_.files.size).foldLeft(0)(_ + _).toString,

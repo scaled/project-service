@@ -23,7 +23,7 @@ class LangMinorMode (env :Env) extends MinorMode(env) {
 
   @Fn("""Queries for the name of an 'execute command' supported by this buffer's language
          server and instructs the server to execute it.""")
-  def langExecCommand () {
+  def langExecCommand () :Unit = {
     if (client.execCommands.isEmpty) window.popStatus(s"Lang server exposes no commands.")
     else {
       val comp = Completer.from(client.execCommands)

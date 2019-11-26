@@ -25,7 +25,7 @@ class DocReader {
     case e :Throwable => e.getMessage
   }
 
-  def close () {
+  def close () :Unit = {
     _cache.values.foreach(_.close())
   }
 }

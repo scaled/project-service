@@ -11,7 +11,7 @@ import scaled._
 
 class ConfigFileTest {
 
-  @Test def testReadWriteConfig () {
+  @Test def testReadWriteConfig () :Unit = {
     val config = Seq(
       Seq("foo", "bar", "baz dingleberry quux"),
       Seq("who", "was", "that", "man"),

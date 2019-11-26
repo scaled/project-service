@@ -37,7 +37,7 @@ class Sources (val dirs :SeqV[Path]) extends Project.Component {
     mb.build()
   }
 
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     if (!dirs.isEmpty) {
       bb.addSubHeader("Sources")
       bb.addKeysValues("Dirs: " -> dirs.mkString(" "))
@@ -49,5 +49,5 @@ class Sources (val dirs :SeqV[Path]) extends Project.Component {
     }
   }
 
-  override def close () {}
+  override def close () :Unit = {}
 }

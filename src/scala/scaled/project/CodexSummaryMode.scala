@@ -27,7 +27,7 @@ object CodexSummaryMode {
   def visitDef (win :Window, df :Def) = visit(win, DefMembers(df))
   def visitTopLevel (win :Window, store :CodexStore) = visit(win, TopLevelMembers(store))
 
-  private def visit (win :Window, tgt :Target) {
+  private def visit (win :Window, tgt :Target) :Unit = {
     val project = ProjectSpace(win.workspace).projectFor(tgt.store.root)
     val buf = win.workspace.createBuffer(
       Store.scratch(tgt.name, project.root.path),
@@ -83,10 +83,10 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   // Implementation details
 
   class Info extends Line.Tag {
-    def zoomIn () {}
-    def visit () {}
-    def visitOrZoom () {}
-    def showDocs () {}
+    def zoomIn () :Unit = {}
+    def visit () :Unit = {}
+    def visitOrZoom () :Unit = {}
+    def showDocs () :Unit = {}
     override def key :Any = classOf[Info]
   }
   private val NoInfo = new Info() {
@@ -98,7 +98,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
   if (buffer.start == buffer.end) {
     val docr = new DocReader()
 
-    def add (defs :Iterable[Def]) {
+    def add (defs :Iterable[Def]) :Unit = {
       // group defs by access, then within access sort them by flavor, then name
       val byAcc = defs.groupBy(_.access)
       var wroteAcc :Access = null
@@ -154,14 +154,14 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
     view.point() = Loc.Zero
   }
 
-  private def addProjectInfo (store :ProjectStore) {
+  private def addProjectInfo (store :ProjectStore) :Unit = {
     val title = s"project ${store.name}"
     buffer.append(Seq(Line(title), Line("-" * title.length)))
     buffer.split(buffer.end)
     buffer.split(buffer.end)
   }
 
-  private def addDefInfo (df :Def, docr :DocReader, indent :String) {
+  private def addDefInfo (df :Def, docr :DocReader, indent :String) :Unit = {
     val fmt = codex.resolveDoc(stores, docr, df)
     val summary :SeqV[LineV] = fmt.summary(indent, view.width()-1)
     val sig :Seq[LineV] = df.sig match {
@@ -179,7 +179,7 @@ class CodexSummaryMode (env :Env, tgt :CodexSummaryMode.Target) extends CodexRea
       override def zoomIn () = visitDef(window, df)
       override def visit () = codex.visit(window, df)
       override def visitOrZoom () = df.kind match {
-        case Kind.MODULE | Kind.TYPE if (Some(df) != tgt) => zoomIn()
+        case Kind.MODULE | Kind.TYPE if (DefMembers(df) != tgt) => zoomIn()
         case _ => visit()
       }
       override def showDocs () = view.popup() = codex.mkDefPopup(view, stores, df, end)

@@ -42,8 +42,8 @@ object DocFormatterPlugin {
   }
 
   val NoDoc = new Format {
-    def summary (indent :String, bb :BufferBuilder) {}
-    def full (indent :String, bb :BufferBuilder) {}
+    def summary (indent :String, bb :BufferBuilder) :Unit = {}
+    def full (indent :String, bb :BufferBuilder) :Unit = {}
   }
 
   val Default = new DocFormatterPlugin() {
@@ -53,7 +53,7 @@ object DocFormatterPlugin {
         case ii => format(text.substring(0, ii), indent, bb)
       }
       def full (indent :String, bb :BufferBuilder) = format(text, indent, bb)
-      private def format (text :String, indent :String, bb :BufferBuilder) {
+      private def format (text :String, indent :String, bb :BufferBuilder) :Unit = {
         Line.splitText(text) foreach { l => bb.add(s"$indent$l", CodeConfig.docStyle) }
       }
     }
@@ -174,7 +174,7 @@ object DocFormatterPlugin {
       }
     }
 
-    private def close (newMode :Int, newListPre :String, newListPreStyle :String) {
+    private def close (newMode :Int, newListPre :String, newListPreStyle :String) :Unit = {
       if (haveLines) {
         val wantBlank = nextM != ListM || lastM != ListM
         if (!bb.lines.isEmpty && wantBlank) bb.addBlank()

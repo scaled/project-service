@@ -63,7 +63,7 @@ object Project {
   case class Root (path :Path, module :String = "") {
     /** Returns a hash name for this root. Used for internal directory names. */
     def hashName :String = md5hex(toString)
-    def toString (sep :String) = path + sep + module
+    def toString (sep :String) = s"$path$sep$module"
     override def toString = toString(if (module.length == 0) "" else ":")
   }
 
@@ -80,7 +80,7 @@ object Project {
     /** Reads a `T` from [[ConfigFile]] data. */
     def read (in :Map[String,SeqV[String]]) :T
     /** Writes `meta` to `out`. */
-    def write (out :ConfigFile.WriteMap, meta :T)
+    def write (out :ConfigFile.WriteMap, meta :T) :Unit
   }
 
   /** Defines the basic persistent metadata for a project. When a project is first resolved, the
@@ -104,7 +104,7 @@ object Project {
       }
       Meta(name, ids, testRoot)
     }
-    def write (out :ConfigFile.WriteMap, meta :Meta) {
+    def write (out :ConfigFile.WriteMap, meta :Meta) :Unit = {
       out.write("name", Seq(meta.name))
       out.write("ids", meta.ids.map(Codec.showId).toSeq)
       out.write("testRoot", meta.testRoot.map(Codec.showRoot).toSeq)
@@ -118,13 +118,13 @@ object Project {
   abstract class Component extends AutoCloseable {
 
     /** Adds info on this project component to the project description buffer. */
-    def describeSelf (bb :BufferBuilder) {}
+    def describeSelf (bb :BufferBuilder) :Unit = {}
 
     /** Called when the project of which this component is a part is added to `buffer`. */
-    def addToBuffer (buffer :RBuffer) {}
+    def addToBuffer (buffer :RBuffer) :Unit = {}
 
     /** Releases any resources held by this component. */
-    def close () {}
+    def close () :Unit = {}
   }
 
   private def md5hex (text :String) = toHex(digest.digest(text.getBytes))
@@ -221,7 +221,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     * By default adds this project to the buffer, but a project may which to inspect the path being
     * edited in the buffer and add a different project (a test companion project for example)
     * instead. */
-  def addToBuffer (buffer :RBuffer) {
+  def addToBuffer (buffer :RBuffer) :Unit = {
     buffer.state[Project]() = this
     import Config.Scope
     buffer.state[Scope]() = Scope("project", metaDir, buffer.state.get[Scope])
@@ -271,7 +271,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   }
 
   /** Visits a buffer containing a description of this project. */
-  def visitDescription (window :Window) {
+  def visitDescription (window :Window) :Unit = {
     val buf = createBuffer(s"*project:${name}*", "help")
     val bb = new BufferBuilder(window.focus.geometry.width-1)
     describeSelf(bb)
@@ -280,7 +280,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Emits a description of this project to `bb`. The default project adds basic metadata, and
     * derived project implementations undoubtedly have useful things to add. */
-  def describeSelf (bb :BufferBuilder) {
+  def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addHeader(name)
     bb.addBlank()
     describeMeta(bb)
@@ -296,7 +296,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
     components.values.foreach { _.describeSelf(bb) }
   }
 
-  protected def describeMeta (bb :BufferBuilder) {
+  protected def describeMeta (bb :BufferBuilder) :Unit = {
     val info = Seq.builder[(String,String)]
     info += ("Impl: " -> getClass.getName)
     info += ("Root: " -> root.path.toString)
@@ -323,7 +323,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
 
   /** Closes any open resources maintained by this project and prepares it to be freed. This
     * happens when this project's owning workspace is disposed. */
-  def dispose () {
+  def dispose () :Unit = {
     println(s"$this disposing")
     try toClose.close()
     catch {
@@ -391,7 +391,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   }
 
   /** Populates our status line (`sb`) and status line tooltip (`tb`) strings. */
-  protected def makeStatus (sb :StringBuilder, tb :StringBuilder) {
+  protected def makeStatus (sb :StringBuilder, tb :StringBuilder) :Unit = {
     compiler.addStatus(sb, tb)
     testCompanion foreach { tproj => tproj.compiler.addStatus(sb, tb) }
   }
@@ -417,8 +417,8 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   lazy val DefaultCompiler = new Compiler(this) {
     override def describeEngine = "no-op"
     override def recompileOnSave = false
-    override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
-    override def compile (window :Window, config :Compiler.Config) {
+    override def addStatus (sb :StringBuilder, tb :StringBuilder) :Unit = {} // nada
+    override def compile (window :Window, config :Compiler.Config) :Unit = {
       if (config.interactive) window.emitStatus("Compilation is not supported by this project.")
     }
     override protected def compile (buffer :Buffer, file :Option[Path]) = Future.success(true)
@@ -426,7 +426,7 @@ class Project (val pspace :ProjectSpace, val root :Project.Root) {
   }
 
   lazy val DefaultTester = new Tester(this) {
-    // override def addStatus (sb :StringBuilder, tb :StringBuilder) {} // nada
+    // override def addStatus (sb :StringBuilder, tb :StringBuilder) :Unit = {} // nada
     override def runAllTests (window :Window, iact :Boolean) = false
     override def runTests (window :Window, iact :Boolean, file :Path) = false
     override def runTest (window :Window, file :Path, defn :Intel.Defn) =

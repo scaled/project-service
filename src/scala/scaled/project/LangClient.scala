@@ -38,7 +38,7 @@ object LangClient {
       clientO
     }
 
-    override def addToBuffer (buffer :RBuffer) {
+    override def addToBuffer (buffer :RBuffer) :Unit = {
       // add a lang client if one is available
       val name = buffer.store.name
       val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
@@ -207,23 +207,14 @@ abstract class LangClient (
     buffer
   }
 
-  /** Formats a styled `code` block using TextMate `scope`, appending it to `buffer`. */
-  def format (buffer :Buffer, code :String, scope :String) :Buffer = {
-    if (buffer.lines.length > 0 && buffer.lines.last.length > 0) buffer.split(buffer.end)
-    val start = buffer.end
-    val end = buffer.insert(start, Line.fromText(code))
-    grammarSvc.scoper(buffer, scope).foreach(_.rethinkRegion(start.row, end.row+1))
-    buffer
-  }
-
   /** Formats a marked `code` block, appending it to `buffer`. */
   def format (buffer :Buffer, code :MarkedString) :Buffer =
-    format(buffer, code.getValue, "source." + code.getLanguage)
+    formatCode(buffer, code.getValue, "source." + code.getLanguage)
 
   /** Formats `markup`, appending it to `buffer`. */
   def format (buffer :Buffer, wrapWidth :Int, markup :MarkupContent) :Buffer =
     markup.getKind match {
-      case "markdown"      => format(buffer, wrapWidth, markup.getValue) // TODO: parse & format
+      case "markdown"      => formatMarkdown(buffer, wrapWidth, markup.getValue)
       case _ /*plaintext*/ => format(buffer, wrapWidth, markup.getValue)
     }
 
@@ -233,6 +224,47 @@ abstract class LangClient (
       case Left(text) => format(buffer, wrapWidth, text)
       case Right(mark) => format(buffer, mark)
     }
+
+  /** Formats a markdown `text` block, appending it to `buffer`. */
+  def formatMarkdown (buffer :Buffer, wrapWidth :Int, text :String) :Buffer = {
+    // TEMP: do something vaguely useful
+    tempFormatMarkdown(buffer, wrapWidth, Seq.from(text.split("\n")), 0)
+    // TODO: use Markdown parser &c
+    buffer
+  }
+
+  private def tempFormatMarkdown (buffer :Buffer, wrapWidth :Int, lines :SeqV[String],
+                                  iter :Int) :Unit = {
+    if (lines.size > 0) {
+      val open = lines.indexWhere(l => l.startsWith("```"), 0)
+      if (open == -1) format(buffer, wrapWidth, lines.mkString("\n"))
+      else {
+        val close = lines.indexWhere(l => l.startsWith("```"), open+1)
+        if (close == -1) format(buffer, wrapWidth, lines.mkString("\n"))
+        else {
+          if (open > 0) format(buffer, wrapWidth, lines.take(open).mkString("\n"))
+          val code = lines.slice(open+1, close).mkString("\n")
+          val scope = lines(open).substring(3).trim()
+          if (iter > 0) { buffer.split(buffer.end) ; buffer.split(buffer.end) }
+          formatCode(buffer, code, if (scope == "") "text" else s"source.$scope")
+          val rest = lines.drop(close+1)
+          if (rest.size > 0) {
+            if (iter > 0) { buffer.split(buffer.end) ; buffer.split(buffer.end) }
+            tempFormatMarkdown(buffer, wrapWidth, rest, iter+1)
+          }
+        }
+      }
+    }
+  }
+
+  /** Formats a styled `code` block using TextMate `scope`, appending it to `buffer`. */
+  def formatCode (buffer :Buffer, code :String, scope :String) :Buffer = {
+    if (buffer.lines.length > 0 && buffer.lines.last.length > 0) buffer.split(buffer.end)
+    val start = buffer.end
+    val end = buffer.insert(start, Line.fromText(code))
+    grammarSvc.scoper(buffer, scope).foreach(_.rethinkIsolatedRegion(start.row, end.row+1))
+    buffer
+  }
 
   /** Formats a `docs` string, appending to `buffer`. May contain newlines. */
   def formatDocs (buffer :Buffer, wrapWidth :Int, docs :String) = format(buffer, wrapWidth, docs)
@@ -277,7 +309,7 @@ abstract class LangClient (
     * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
     * location (one for which the source is provided by the language server).
     */
-  def visitLocation (project :Project, name :String, loc :LSP.URILoc, window :Window) {
+  def visitLocation (project :Project, name :String, loc :LSP.URILoc, window :Window) :Unit = {
     val point = LSP.fromPos(loc.range.getStart)
     if (loc.uri.getScheme == "file") window.focus.visitFile(loc.store).point() = point
     else fetchContents(loc.uri, window.exec).onSuccess(source => {
@@ -316,7 +348,7 @@ abstract class LangClient (
 
   /** Adds this lang client to `buffer`, stuffing various things into the buffer state that enable
     * code smarts. */
-  def addToBuffer (project :Project, buffer :RBuffer) {
+  def addToBuffer (project :Project, buffer :RBuffer) :Unit = {
     buffer.state[LangClient]() = this
     buffer.state[Intel]() = new LangIntel(this, project)
 
@@ -414,7 +446,7 @@ abstract class LangClient (
     }
   }
 
-  override def close () {
+  override def close () :Unit = {
     val transcript = transOut.toByteArray()
     if (transcript.length > 0) {
       trace("-- Session transcript: --")
@@ -459,7 +491,7 @@ abstract class LangClient (
    * The telemetry notification is sent from the server to the client to ask the client to log a
    * telemetry event.
    */
-  def telemetryEvent (data :Object) {
+  def telemetryEvent (data :Object) :Unit = {
     trace(s"telemetryEvent ${data}") // TODO
   }
 
@@ -467,7 +499,7 @@ abstract class LangClient (
    * Diagnostics notifications are sent from the server to the client to signal results of
    * validation runs.
    */
-  def publishDiagnostics (pdp :PublishDiagnosticsParams) {
+  def publishDiagnostics (pdp :PublishDiagnosticsParams) :Unit = {
     import Intel._
     def sevToNote (sev :DiagnosticSeverity) = sev match {
       case DiagnosticSeverity.Hint => Hint
@@ -514,7 +546,7 @@ abstract class LangClient (
    * The log message notification is send from the server to the client to ask the client to log a
    * particular message.
    */
-  def logMessage (msg :MessageParams) {
+  def logMessage (msg :MessageParams) :Unit = {
     exec.ui.execute(() => metaSvc.log.log(s"${msg.getType}: ${msg.getMessage}"))
   }
 
@@ -528,7 +560,7 @@ abstract class LangClient (
     CompletableFuture.completedFuture(Collections.emptyList[Object])
   }
 
-  protected def trace (msg :Any) {
+  protected def trace (msg :Any) :Unit = {
     if (debugMode) println(s"$name langserver: $msg")
   }
 }

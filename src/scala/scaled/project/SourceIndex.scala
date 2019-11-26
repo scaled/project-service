@@ -20,7 +20,7 @@ object SourceIndex {
     private val rows = Array.fill(lineOffsets.size)(new Row())
     private val encls = new TreeMap[Int,Def]()
 
-    override def accept (elem :Element) {
+    override def accept (elem :Element) :Unit = {
       lineOffsets.floorEntry(elem.offset) match {
         case null => println(s"No row entry for elem offset: $elem")
         case rowent =>
@@ -40,7 +40,7 @@ object SourceIndex {
   private class Row {
     lazy val elems = new TreeMap[Int,Element]()
 
-    def add (col :Int, elem :Element) {
+    def add (col :Int, elem :Element) :Unit = {
       elems.put(col, elem)
     }
 

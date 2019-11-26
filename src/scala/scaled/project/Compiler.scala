@@ -31,14 +31,14 @@ abstract class Compiler (val project :Project) extends Project.Component {
   /** Appends compiler status to our modeline status string and tooltip.
     * @param sb the builder for the status line
     * @param tb the builder for the tooltip */
-  def addStatus (sb :StringBuilder, tb :StringBuilder) {
+  def addStatus (sb :StringBuilder, tb :StringBuilder) :Unit = {
     val s = _status()
     sb.append(s.indicator)
     tb.append("\n").append(s.tip)
   }
 
   /** Adds compiler info to the project info buffer. */
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addSubHeader("Compiler")
     bb.addKeysValues("Engine:" -> describeEngine,
                      "Status: " -> _status().toString)
@@ -50,12 +50,12 @@ abstract class Compiler (val project :Project) extends Project.Component {
   def describeEngine :String
 
   /** Adds info on compiler options to the project info buffer. */
-  def describeOptions (bb :BufferBuilder) {
+  def describeOptions (bb :BufferBuilder) :Unit = {
     // nothing by default
   }
 
   /** Queries the compiler for internal status and appends it to `buffer`. */
-  def getStatus (buffer :Buffer) {
+  def getStatus (buffer :Buffer) :Unit = {
     buffer.append(Line.fromTextNL(s"Status not supported by this compiler ($describeEngine)."))
   }
 
@@ -66,7 +66,7 @@ abstract class Compiler (val project :Project) extends Project.Component {
     * @return a future which will report a summary of the compilation, or a failure if compilation
     * is not supported by this project.
     */
-  def compile (window :Window, config :Config) {
+  def compile (window :Window, config :Config) :Unit = {
     val buf = project.logBuffer
     val start = System.currentTimeMillis
     buf.replace(buf.start, buf.end, Line.fromTextNL(s"Compiling ${project.name} at ${new Date}..."))
@@ -108,13 +108,13 @@ abstract class Compiler (val project :Project) extends Project.Component {
   /** Requests that the build artifacts be deleted so that the next recompilation processes all
     * source files in the project.
     */
-  def clean () {} // nada by default
+  def clean () :Unit = {} // nada by default
 
   /** Requests that this compiler be reset. If a connection to an external compiler is being
     * maintained, it should be closed so that the next [[recompile]] request causes a new compiler
     * to be started.
     */
-  def reset () {} // nada by default
+  def reset () :Unit = {} // nada by default
 
   /** Initiates a compilation, sends output to `buffer`.
     * @param file the file that triggered this compile on save, or `None` for full recompile.
@@ -126,12 +126,12 @@ abstract class Compiler (val project :Project) extends Project.Component {
     * or `NoMoreNotes` if nothing more was found. */
   protected def nextNote (buffer :Buffer, start :Loc) :NoteLoc = NoMoreNotes
 
-  protected def gotStatus (errs :SeqV[Note], warns :SeqV[Note]) {
+  protected def gotStatus (errs :SeqV[Note], warns :SeqV[Note]) :Unit = {
     _status() = if (warns.isEmpty && errs.isEmpty) NoProblems else Problems(errs.size, warns.size)
     setNotes(errs, warns)
   }
 
-  private def setNotes (errs :SeqV[Note], warns :SeqV[Note]) {
+  private def setNotes (errs :SeqV[Note], warns :SeqV[Note]) :Unit = {
     warnings() = new Visit.List("compile warning", warns)
     errors()   = new Visit.List("compile error", errs)
   }

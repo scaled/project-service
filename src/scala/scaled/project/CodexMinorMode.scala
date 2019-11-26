@@ -29,12 +29,12 @@ abstract class CodexMinorMode (env :Env) extends MinorMode(env) {
   protected def codexSummarize (prompt :String, kind :Kind) :Unit =
     codexRead(prompt, kind)(summarize)
 
-  protected def visit (df :Def) {
+  protected def visit (df :Def) :Unit = {
     window.visitStack.push(view) // push current loc to the visit stack
     codex.visit(window, df)
   }
 
-  protected def summarize (df :Def) {
+  protected def summarize (df :Def) :Unit = {
     CodexSummaryMode.visitDef(wspace.getInfoWindow("codex"), df)
   }
 

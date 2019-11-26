@@ -27,7 +27,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     window.visits() = new Visit.List("occurrence", nuses.toSeq.sortBy(_.offset).map(
       u => Visit(buffer.store, u.offset)))
   }
-  private def upHighlight (on :Boolean)(use :Use) {
+  private def upHighlight (on :Boolean)(use :Use) :Unit = {
     val start = buffer.loc(use.offset) ; val end = buffer.loc(use.offset+use.length)
     if (on) buffer.addTag(EditorConfig.matchStyle, start, end)
     else buffer.removeTag(EditorConfig.matchStyle, start, end)
@@ -66,7 +66,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
     // bind("codex-visit-element",     "M-.").
     bind("codex-highlight-element", "C-c C-h");
 
-  override def deactivate () {
+  override def deactivate () :Unit = {
     super.deactivate()
     highlights() = Seq()
   }
@@ -75,7 +75,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   // FNs
 
   @Fn("Describes the internals of the Codex indices.")
-  def describeCodex () {
+  def describeCodex () :Unit = {
     val bb = new BufferBuilder(view.width()-1)
     codex.describeSelf(bb)
     window.focus.visit(bb.applyTo(project.createBuffer(s"*codex*", "help")))
@@ -142,7 +142,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   @Fn("""Displays the documentation and signature for the element at the point, if it is known to
          the project's Codex.""")
-  def codexDescribeElement () {
+  def codexDescribeElement () :Unit = {
     onElemAt(view.point()) { (elem, loc, df) =>
       view.popup() = codex.mkDefPopup(view, codex.stores(project), df, loc)
     }
@@ -151,7 +151,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   @Fn("""Displays the documentation and signature for the element at the point in a separate buffer
          (rather than in a popup). This can be useful when the docs are very long, or you wish
          to search them, etc.""")
-  def codexSummarizeElement () {
+  def codexSummarizeElement () :Unit = {
     onElemAt(view.point()) { (elem, loc, df) =>
       val info = codex.summarizeDef(view, codex.stores(project), df)
       val name = s"${df.name}:${df.qualifier}"
@@ -163,7 +163,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
 
   @Fn("Displays debugging info for all elements on the current line.")
-  def codexShowLineElements () {
+  def codexShowLineElements () :Unit = {
     val loc = view.point()
     val elems = reqIndex.elements(loc.row).toSeq
     if (elems.isEmpty) abort("No Codex elements on current line.")
@@ -186,7 +186,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
 
   @Fn("Highlights all occurrences of an element in the current buffer.")
-  def codexHighlightElement () {
+  def codexHighlightElement () :Unit = {
     onElemAt(view.point()) { (elem, loc, df) =>
       val bufSource = Codex.toSource(buffer.store)
       val dfRef = df.ref
@@ -206,7 +206,7 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
   }
 
   @Fn("Displays all uses of the element at the point in a separate buffer.")
-  def codexFindUses () {
+  def codexFindUses () :Unit = {
     onElemAt(view.point()) { (elem, loc, df) =>
       val initState = project.codexBufferState("codex-find-uses", df)
       window.focus.visit(project.createBuffer(s"*codex: ${df.name}*", initState))
@@ -215,23 +215,23 @@ class CodexMode (env :Env, major :ReadingMode) extends CodexMinorMode(env) {
 
   @Fn("""Navigates to the referent of the elmeent at the point, if it is known to this project's
          Codex.""")
-  def codexVisitElement () {
+  def codexVisitElement () :Unit = {
     onElemAt(view.point())((_, _, df) => visit(df))
   }
 
   @Fn("Initiates a reindexing of the current project.")
-  def codexReindexProject () {
+  def codexReindexProject () :Unit = {
     codex.queueReindexAll(project)
   }
 
   @Fn("Initiates a reindexing of file in the current buffer.")
-  def codexReindexBuffer () {
+  def codexReindexBuffer () :Unit = {
     codex.queueReindex(project, buffer.store, true)
   }
 
   @Fn("""Initiates a debug reindexing of file in the current buffer. The results will be dumped
          to stdout instead of used to populate the index.""")
-  def codexDebugReindexBuffer () {
+  def codexDebugReindexBuffer () :Unit = {
     codex.debugReindex(project, buffer.store)
   }
 

@@ -12,7 +12,7 @@ import scaled.util.BufferBuilder
 class DocFormatterTest {
   import DocFormatterPlugin._
 
-  @Test def testFiller () {
+  @Test def testFiller () :Unit = {
     val bb = new BufferBuilder(80)
     val fill = new DocFiller("..", bb)
     fill.para()

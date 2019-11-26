@@ -85,7 +85,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     override def isIncidental = true
   }
 
-  override def didStartup () {
+  override def didStartup () :Unit = {
     // create our codex and stick it into editor state
     editor.state[Codex]() = new Codex(editor, metaSvc)
 
@@ -94,7 +94,7 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
     editor.workspaceOpened.onValue { ws => new ProjectSpace(ws, metaSvc) }
   }
 
-  override def willShutdown () {
+  override def willShutdown () :Unit = {
     // shutdown our codex
     editor.state[Codex].get.close()
   }

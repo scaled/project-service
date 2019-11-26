@@ -16,7 +16,7 @@ abstract class Depends (project :Project) extends Project.Component {
   /** Information on any unresolvable dependencies. */
   def warnings :SeqV[String] = Seq.empty
 
-  override def describeSelf (bb :BufferBuilder) {
+  override def describeSelf (bb :BufferBuilder) :Unit = {
     bb.addSubHeader("Depends:")
     val deps = ids
     deps foreach { d =>

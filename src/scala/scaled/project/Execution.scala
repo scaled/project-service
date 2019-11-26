@@ -108,7 +108,7 @@ class Executions (pspace :ProjectSpace) {
   pspace.wspace.toClose += pspace.msvc.service[WatchService].watchFile(_config, readConfig(_))
 
   /** Adds compiler info to the project info buffer. */
-  def describeSelf (bb :BufferBuilder) {
+  def describeSelf (bb :BufferBuilder) :Unit = {
     if (!executions.isEmpty) {
       bb.addSubHeader("Executions")
       bb.addKeysValues(executions.map(_.describe))
@@ -119,7 +119,7 @@ class Executions (pspace :ProjectSpace) {
   def executions :SeqV[Execution] = _execs
 
   /** Invokes `exec` as a part of `project`. */
-  def execute (exec :Execution, project :Project) {
+  def execute (exec :Execution, project :Project) :Unit = {
     val id = exec.param("runner")
     _runners.plugins.find(_.id == id) match {
       case Some(r) => r.execute(exec, project)
@@ -139,7 +139,7 @@ class Executions (pspace :ProjectSpace) {
   )
 
   /** Opens this project's executions config file in `editor`. */
-  def visitConfig (window :Window) {
+  def visitConfig (window :Window) :Unit = {
     val buffer = window.workspace.openBuffer(Store(_config))
     // if the buffer is empty; populate it with an example configuration
     if (buffer.start == buffer.end) {

@@ -34,7 +34,7 @@ object ConfigFile {
   }
 
   /** Writes the config `data` to `path` in a way that can be recovered by [[readConfig]]. */
-  def write (path :Path, data :Ordered[SeqV[String]]) {
+  def write (path :Path, data :Ordered[SeqV[String]]) :Unit = {
     val out = Files.newBufferedWriter(path)
     var first = true
     for (group <- data) {
@@ -63,7 +63,7 @@ object ConfigFile {
     private val out = Files.newBufferedWriter(path)
     private var first = true
 
-    def write (key :String, data :Iterable[String]) {
+    def write (key :String, data :Iterable[String]) :Unit = {
       if (first) first = false
       else out.newLine() // blank separator
       out.write(key)
@@ -74,7 +74,7 @@ object ConfigFile {
       }
     }
 
-    def close () {
+    def close () :Unit = {
       out.close()
     }
   }
