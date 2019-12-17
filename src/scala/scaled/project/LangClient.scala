@@ -477,8 +477,10 @@ abstract class LangClient (
    * new capability on the client side. Not all clients need to support dynamic capability
    * registration. A client opts in via the ClientCapabilities.dynamicRegistration property
    */
-  override def registerCapability (params :RegistrationParams) :CompletableFuture[Void] =
-    throw new UnsupportedOperationException()
+  override def registerCapability (params :RegistrationParams) :CompletableFuture[Void] = {
+    for (reg <- params.getRegistrations) trace(s"registerCapability Unsupported [reg=$reg]")
+    CompletableFuture.completedFuture(null)
+  }
 
   /**
    * The client/unregisterCapability request is sent from the server to the client to unregister a
