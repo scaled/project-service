@@ -124,8 +124,11 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
         // def toEdit (edit :TextEdit) = Edit(LSP.fromRange(edit.getRange), edit.getNewText)
         Map.view(changes).map((uri, edits) => new Renamer(LSP.toStore(uri)) {
           def validate (buffer :Buffer) :Unit = {} // LSP does not supply enough info to validate
-          def apply (buffer :Buffer) = for (edit <- edits) buffer.replace(
-            LSP.fromRange(edit.getRange), Seq(Line(edit.getNewText)))
+          def apply (buffer :Buffer) = {
+            val backToFront = Seq.view(edits).sortBy(e => LSP.fromPos(e.getRange.getStart)).reverse
+            for (edit <- backToFront) buffer.replace(
+              LSP.fromRange(edit.getRange), Seq(Line(edit.getNewText)))
+          }
         })
       })
     })
