@@ -147,12 +147,26 @@ class ProjectSpace (val wspace :Workspace, val msvc :MetaService)
         val key = if (plugin.moduleSpecific) modKey else genKey
         plugin.suffs(root).foreach { suff => langClients.put(key, client) }
         // TODO: close lang clients if all buffers with their suff are closed
-        client onSuccess { client => toClose += client }
+        client onSuccess { client => {
+          toClose += client
+          project.toClose += client.messages.onValue(project.emitStatus(_))
+        }}
         client onFailure project.exec.handleError
         Some(client)
       } catch {
         case t :Throwable => project.exec.handleError(t) ; None
       })
+  }
+
+  /** Closes any active language client for `project` and `suff`. A subsequent call to
+    * `langClientFor` will re-resolve a new client. */
+  def closeLangClientFor (project :Project, suff :String) :Unit = {
+    val root = project.root
+    def close (clientF :Future[LangClient]) :Unit = {
+      if (clientF != null) clientF onSuccess { _.close() }
+    }
+    close(langClients.remove(LangKey(suff, root.path, None)));
+    close(langClients.remove(LangKey(suff, root.path, Some(root.module))));
   }
 
   override def describeSelf (bb :BufferBuilder) :Unit = {

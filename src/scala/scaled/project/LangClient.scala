@@ -26,23 +26,22 @@ object LangClient {
   }
 
   class Component (project :Project) extends Project.Component {
-    private val clients = new HashSet[Future[LangClient]]()
-    def clientFor (suff :String) :Option[Future[LangClient]] = {
-      val clientO = project.pspace.langClientFor(project, suff)
-      // the first time we get a particular lang client, route its messages to project status
-      clientO.ifDefined(clientF => {
-        if (clients.add(clientF)) clientF.onSuccess { client =>
-          project.toClose += client.messages.onValue(project.emitStatus(_))
-        }
-      })
-      clientO
+    private def suff (buffer :RBuffer) = {
+      val name = buffer.store.name
+      name.substring(name.lastIndexOf('.')+1).toLowerCase
+    }
+
+    def clientFor (suff :String) :Option[Future[LangClient]] =
+      project.pspace.langClientFor(project, suff)
+
+    def restartClient (buffer :RBuffer) :Unit = {
+      project.pspace.closeLangClientFor(project, suff(buffer))
+      addToBuffer(buffer)
     }
 
     override def addToBuffer (buffer :RBuffer) :Unit = {
       // add a lang client if one is available
-      val name = buffer.store.name
-      val suff = name.substring(name.lastIndexOf('.')+1).toLowerCase
-      clientFor(suff).map(_.onSuccess(_.addToBuffer(project, buffer)))
+      clientFor(suff(buffer)).map(_.onSuccess(_.addToBuffer(project, buffer)))
     }
   }
 }

@@ -226,6 +226,12 @@ class ProjectMode (env :Env) extends MinorMode(env) {
       onFailure(window.exec.handleError)
   }
 
+  @Fn("Restarts the language server client for the active project.")
+  def restartLangClient () :Unit = {
+    project.emitStatus("Restaring langserver client...")
+    project.lang.restartClient(buffer);
+  }
+
   //
   // Compile FNs
 
