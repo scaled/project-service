@@ -15,6 +15,9 @@ object ProjectServiceConfig extends Config.Defs {
   @Var("""The order of preference for project types. Used when multiple project types match
           a given project on the file system.""")
   val prefTypes = key(Seq("scaled", "maven"))
+
+  @Var("A list of (absolute) paths to ignore when scanning for projects.")
+  val ignoredPaths = key(Seq[String]())
 }
 
 class ProjectManager (metaSvc :MetaService, editor :Editor)
@@ -47,8 +50,9 @@ class ProjectManager (metaSvc :MetaService, editor :Editor)
   }
 
   override def resolveByPaths (paths :List[Path]) :Root = {
+    val ignorePaths = config(ignoredPaths).map(p => Paths.get(p.trim)).toSet
     val viablePaths = filterDegenerate(paths)
-    rootPlugins.flatMap(_(viablePaths)) match {
+    rootPlugins.flatMap(_(viablePaths)).filter(r => !ignorePaths(r.path)) match {
       case Seq() =>
         log.log(s"Unable to find project root, falling back to ${paths.head}")
         Root(paths.head)
