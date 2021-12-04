@@ -4,7 +4,7 @@
 
 package scaled.project
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 import java.util.regex.Pattern
 import scaled._
 
@@ -51,6 +51,22 @@ object Ignorer {
   }
 
   /** The standard set of directories that are ignored when enumerating all project dirs. */
-  def stockIgnores = SeqBuffer(dotfileIgnorer, ignoreName(".git"),
-                               ignoreName(".hg"), ignoreName(".svn")) // TODO: more?
+  def stockIgnores :SeqBuffer[Ignorer] = SeqBuffer(
+    dotfileIgnorer, ignoreName(".git"), ignoreName(".hg"), ignoreName(".svn")) // TODO: more?
+
+  /** Parses `.gitignore` and `.git/info/exclude` relative to `root` (if they exist) and creates
+    * ignorers for their contents. */
+  def gitIgnores (root :Path) :Seq[Ignorer] = {
+    var ignorers = SeqBuffer[Ignorer]()
+    def add (file :Path) :Unit = {
+      if (Files.exists(file)) for (line <- Files.readAllLines(file)) {
+        if (line.startsWith("#")) {} // comment
+        else if (line.contains("/")) ignorers += ignorePath(root.resolve(line), root)
+        else ignorers += ignoreName(line)
+      }
+    }
+    add(root.resolve(".gitignore"))
+    add(root.resolve(".git/info/exclude"))
+    ignorers.toSeq
+  }
 }
