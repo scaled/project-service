@@ -294,15 +294,19 @@ abstract class LangClient (
 
   /** Returns the fully qualified name for `sym`. Defaults to C style: `qualifier.name`. */
   def fqName (sym :SymbolInformation) = sym.getContainerName match {
-    case null => sym.getName
+    case null => s"${fileForLoc(sym.getLocation)}:${sym.getName}"
     case cont => s"${cont}.${sym.getName}"
   }
 
   /** Formats a symbol name for use during completion. Scaled convention is `name:qualifier`. */
   def formatSym (sym :SymbolInformation) = sym.getContainerName match {
-    case null => sym.getName
+    case null => s"${sym.getName}:${fileForLoc(sym.getLocation)}"
     case cont => s"${sym.getName}:${cont}"
   }
+
+  private def fileForUri (uri :String) = uri.substring(uri.lastIndexOf("/")+1)
+  private def fileForLoc (loc :Location) =
+    s"${fileForUri(loc.getUri)}@${loc.getRange.getStart.getLine}"
 
   /** Visits location `loc` in `window`.
     * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
