@@ -300,8 +300,8 @@ abstract class LangClient (
 
   /** Formats a symbol name for use during completion. Scaled convention is `name:qualifier`. */
   def formatSym (sym :SymbolInformation) = sym.getContainerName match {
-    case null => s"${sym.getName}:${fileForLoc(sym.getLocation)}"
-    case cont => s"${sym.getName}:${cont}"
+    case null => s"${sym.getName}:${fileForLoc(sym.getLocation)} [${sym.getKind}]"
+    case cont => s"${sym.getName}:${cont} [${sym.getKind}]"
   }
 
   private def fileForUri (uri :String) = uri.substring(uri.lastIndexOf("/")+1)

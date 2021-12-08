@@ -16,12 +16,46 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
   def textSvc = client.server.getTextDocumentService
   def wspaceSvc = client.server.getWorkspaceService
 
+  // used to sort symbol completion results
+  private val symbolOrder = Array(
+    SymbolKind.File,
+
+    SymbolKind.Class,
+    SymbolKind.Interface,
+    SymbolKind.Struct,
+    SymbolKind.Enum,
+
+    SymbolKind.Module,
+    SymbolKind.Namespace,
+    SymbolKind.Object,
+    SymbolKind.Package,
+
+    SymbolKind.Constructor,
+    SymbolKind.Method,
+    SymbolKind.Function,
+    SymbolKind.Operator,
+    SymbolKind.Property,
+    SymbolKind.Field,
+    SymbolKind.EnumMember,
+
+    SymbolKind.TypeParameter,
+    SymbolKind.Array,
+    SymbolKind.Boolean,
+    SymbolKind.Constant,
+    SymbolKind.Event,
+    SymbolKind.Key,
+    SymbolKind.Null,
+    SymbolKind.String,
+    SymbolKind.Variable,
+  )
+  private def sortKey (sym :SymbolInformation) = (symbolOrder.indexOf(sym.getKind), sym.getName)
+
   override def symbolCompleter (kind :Option[Kind]) = new Completer[SymbolInformation] {
     override def minPrefix = 2
     def complete (glob :String) =
       LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), project.exec).
       // TODO: filter results by kind if a kind is provided
-      map(results => Completion(glob, results, false)(client.formatSym))
+      map(results => Completion(glob, Seq.view(results).sortBy(sortKey), false)(client.formatSym))
   }
 
   override def fqName (sym :SymbolInformation) :String = client.fqName(sym)
