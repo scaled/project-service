@@ -62,7 +62,10 @@ class ProjectMode (env :Env) extends MinorMode(env) {
     // intel fns
     bind("describe-element", "C-c C-d").
     bind("visit-element",    "M-.").
-    bind("visit-symbol",     "C-c C-k").
+    bind("visit-symbol",     "C-c C-v").
+    bind("visit-type",       "C-c C-k").
+    bind("visit-func",       "C-c C-j").
+    bind("visit-value",      "C-c C-h").
     bind("rename-element",   "C-c C-r").
 
     // compilation fns
@@ -181,10 +184,18 @@ class ProjectMode (env :Env) extends MinorMode(env) {
   }
 
   @Fn("Queries for a project-wide symbol and visits it.")
-  def visitSymbol () :Unit = {
+  def visitSymbol () :Unit = visitSymbol(None)
+  @Fn("Queries for a project-wide type symbol and visits it.")
+  def visitType () :Unit = visitSymbol(Some(Kind.TYPE))
+  @Fn("Queries for a project-wide function symbol and visits it.")
+  def visitFunc () :Unit = visitSymbol(Some(Kind.FUNC))
+  @Fn("Queries for a project-wide value (field, property, variable) symbol and visits it.")
+  def visitValue () :Unit = visitSymbol(Some(Kind.VALUE))
+
+  private def visitSymbol (kind :Option[Kind]) = {
     val intel = Intel(buffer)
-    window.mini.read("Symbol:", wordAt(view.point()), symbolHistory,
-                     intel.symbolCompleter(None)).onSuccess(sym => {
+    window.mini.read("Type:", wordAt(view.point()), symbolHistory,
+                     intel.symbolCompleter(kind)).onSuccess(sym => {
       window.visitStack.push(view) // push current loc to the visit stack
       intel.visitSymbol(sym, window)
     })
