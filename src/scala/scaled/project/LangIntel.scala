@@ -53,9 +53,11 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
   override def symbolCompleter (kind :Option[Kind]) = new Completer[SymbolInformation] {
     override def minPrefix = 2
     def complete (glob :String) =
-      LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), project.exec).
-      // TODO: filter results by kind if a kind is provided
-      map(results => Completion(glob, Seq.view(results).sortBy(sortKey), false)(client.formatSym))
+      LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), project.exec).map(
+        results => Completion(
+          glob, Seq.view(results).filter(checkKind).sortBy(sortKey), false)(client.formatSym))
+    private def checkKind (sym :SymbolInformation) :Boolean =
+      kind.map(kk => kk == toKF(sym.getKind)._1) || true
   }
 
   override def fqName (sym :SymbolInformation) :String = client.fqName(sym)
@@ -177,7 +179,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
     case SymbolKind.EnumMember => (Kind.VALUE, Flavor.NONE)
     case SymbolKind.Event => (Kind.TYPE, Flavor.NONE)
     case SymbolKind.Field => (Kind.VALUE, Flavor.NONE)
-    case SymbolKind.File => (Kind.VALUE, Flavor.NONE)
+    case SymbolKind.File => (Kind.TYPE, Flavor.NONE) // temp: hack due to csharp-ls
     case SymbolKind.Function => (Kind.FUNC, Flavor.NONE)
     case SymbolKind.Interface => (Kind.TYPE, Flavor.NONE)
     case SymbolKind.Key => (Kind.VALUE, Flavor.NONE)
