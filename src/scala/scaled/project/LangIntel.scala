@@ -9,12 +9,53 @@ import java.util.Collections
 import org.eclipse.lsp4j._
 import scaled._
 
-class LangIntel (client :LangClient, project :Project) extends Intel {
-  import Intel._
+case class LangSymbol (
+  kind :SymbolKind, name :String, fqName :String, sig :String, loc :LSP.URILoc
+) {
 
-  type Symbol = SymbolInformation
-  def textSvc = client.server.getTextDocumentService
-  def wspaceSvc = client.server.getWorkspaceService
+  def sortKey = (LangSymbol.symbolOrder.indexOf(kind), name)
+}
+
+object LangSymbol {
+  def apply (sym :SymbolInformation) :LangSymbol = LangSymbol(
+    sym.getKind, sym.getName,
+    sym.getContainerName match {
+      case null => s"${fileForLoc(sym.getLocation)}:${sym.getName}"
+      case cont => s"${cont}.${sym.getName}"
+    },
+    formatSym(sym),
+    LSP.URILoc(sym.getLocation))
+
+  def apply (sym :WorkspaceSymbol) :LangSymbol = LangSymbol(
+    sym.getKind, sym.getName,
+    sym.getContainerName match {
+      case null => LSP.toScala(sym.getLocation) match {
+        case Left(loc) => s"${fileForLoc(loc)}:${sym.getName}"
+        case Right(wsloc) => s"${fileForUri(wsloc.getUri)}:${sym.getName}"
+      }
+      case cont => s"${cont}.${sym.getName}"
+    },
+    formatSym(sym),
+    LSP.URILoc(sym.getLocation))
+
+  /** Formats a symbol name for use during completion. Scaled convention is `name:qualifier`. */
+  private def formatSym (sym :SymbolInformation) = sym.getContainerName match {
+    case null => s"${sym.getName}:${fileForLoc(sym.getLocation)} [${sym.getKind}]"
+    case cont => s"${sym.getName}:${cont} [${sym.getKind}]"
+  }
+
+  /** Formats a symbol name for use during completion. Scaled convention is `name:qualifier`. */
+  private def formatSym (sym :WorkspaceSymbol) = sym.getContainerName match {
+    case null => LSP.toScala(sym.getLocation) match {
+      case Left(loc) => s"${sym.getName}:${fileForLoc(loc)} [${sym.getKind}]"
+      case Right(wsloc) => s"${sym.getName}:${fileForUri(wsloc.getUri)} [${sym.getKind}]"
+    }
+    case cont => s"${sym.getName}:${cont} [${sym.getKind}]"
+  }
+
+  private def fileForUri (uri :String) = uri.substring(uri.lastIndexOf("/")+1)
+  private def fileForLoc (loc :Location) =
+    s"${fileForUri(loc.getUri)}@${loc.getRange.getStart.getLine}"
 
   // used to sort symbol completion results
   private val symbolOrder = Array(
@@ -48,24 +89,34 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
     SymbolKind.String,
     SymbolKind.Variable,
   )
-  private def sortKey (sym :SymbolInformation) = (symbolOrder.indexOf(sym.getKind), sym.getName)
+}
 
-  override def symbolCompleter (kind :Option[Kind]) = new Completer[SymbolInformation] {
+class LangIntel (client :LangClient, project :Project) extends Intel {
+  import Intel._
+  import org.eclipse.lsp4j.jsonrpc.messages.Either
+
+  type Symbol = LangSymbol
+  def textSvc = client.server.getTextDocumentService
+  def wspaceSvc = client.server.getWorkspaceService
+
+  override def symbolCompleter (kind :Option[Kind]) = new Completer[LangSymbol] {
     override def minPrefix = 2
-    def complete (glob :String) =
-      LSP.adapt(wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), project.exec).map(
-        results => Completion(
-          glob, Seq.view(results).filter(checkKind).sortBy(sortKey), false)(client.formatSym))
-    private def checkKind (sym :SymbolInformation) :Boolean =
-      kind.map(kk => kk == toKF(sym.getKind)._1) || true
+    def complete (glob :String) = LSP.adapt(
+      wspaceSvc.symbol(new WorkspaceSymbolParams(glob)), project.exec).map(LSP.toScala).map(_ match {
+      case Left(res) => process(glob, Seq.view(res).map(LangSymbol.apply))
+      case Right(res) => process(glob, Seq.view(res).map(LangSymbol.apply))
+    })
+    private def process (glob :String, syms :SeqV[LangSymbol]) = Completion(
+      glob, syms.filter(checkKind).sortBy(_.sortKey), false)(_.sig)
+    private def checkKind (sym :LangSymbol) :Boolean =
+      kind.map(kk => kk == toKF(sym.kind)._1) || true
   }
 
-  override def fqName (sym :SymbolInformation) :String = client.fqName(sym)
+  override def fqName (sym :LangSymbol) = sym.fqName
 
   override def describeElement (view :RBufferView) :Unit = {
-    val pparams = LSP.toTDPP(view.buffer, view.point())
-    LSP.adapt(textSvc.hover(pparams), view.window.exec).onSuccess(hover => {
-      import org.eclipse.lsp4j.jsonrpc.messages.Either
+    val hparams = new HoverParams(LSP.docId(view.buffer), LSP.toPos(view.point()))
+    LSP.adapt(textSvc.hover(hparams), view.window.exec).onSuccess(hover => {
       val contents = if (hover == null) null else hover.getContents
       if (contents == null || (contents.isLeft && contents.getLeft.isEmpty))
         view.window.popStatus("No info available.")
@@ -89,7 +140,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
       case syms =>
         // convert from wonky "list of eithers" to two separate lists; we'll only have one kind of
         // symbol or the other but lsp4j's "translation" of LSP's "type" is a minor disaster
-        val sis = SeqBuffer[Symbol]()
+        val sis = SeqBuffer[SymbolInformation]()
         val dss = SeqBuffer[DocumentSymbol]()
         syms map(LSP.toScala) foreach {
           case Left(si) => sis += si
@@ -108,11 +159,11 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
         // that starts before our location and for which the next symbol ends after our location,
         // then use 'container name' to reconstruct encloser chain...
         else if (!sis.isEmpty) {
-          def symloc (si :Symbol) = LSP.fromPos(si.getLocation.getRange.getStart)
+          def symloc (si :SymbolInformation) = LSP.fromPos(si.getLocation.getRange.getStart)
           val (before, after) = sis.partition(si => symloc(si) <= loc)
           if (before.isEmpty) Seq()
           else {
-            def outers (si :Symbol, encs :List[Symbol]) :Seq[Defn] =
+            def outers (si :SymbolInformation, encs :List[SymbolInformation]) :Seq[Defn] =
               before.find(_.getName == si.getContainerName) match {
                 case Some(osi) => outers(osi, si :: encs)
                 case None => (si :: encs).reverse.map(toDefn(view.buffer, _)).toSeq
@@ -125,8 +176,8 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
   }
 
   override def visitElement (view :RBufferView, target :Window) :Future[Boolean] = {
-    val pparams = LSP.toTDPP(view.buffer, view.point())
-    LSP.adapt(textSvc.definition(pparams), target.exec).map(res => LSP.toScala(res) match {
+    val dparams = new DefinitionParams(LSP.docId(view.buffer), LSP.toPos(view.point()))
+    LSP.adapt(textSvc.definition(dparams), target.exec).map(res => LSP.toScala(res) match {
       case Left(locs) => locs.find(_.getUri != null).map(LSP.URILoc.apply)
       case Right(links) => links.find(_.getTargetUri != null).map(LSP.URILoc.apply)
     }).onSuccess(_ match {
@@ -135,8 +186,8 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
     }).map(_.isDefined)
   }
 
-  override def visitSymbol (sym :SymbolInformation, target :Window) = client.visitLocation(
-    project, s"${sym.getName}:${sym.getContainerName}", LSP.URILoc(sym.getLocation), target)
+  override def visitSymbol (sym :LangSymbol, target :Window) = client.visitLocation(
+    project, sym.sig, sym.loc, target)
 
   override def renameElementAt (view :RBufferView, loc :Loc, newName :String) =
     client.serverCaps.flatMap(caps => {
@@ -200,7 +251,7 @@ class LangIntel (client :LangClient, project :Project) extends Intel {
   }
 
   // TODO: convert Codex to use row/char instead of offset & avoid need to convert here
-  private def toDefn (b :BufferV, sym :Symbol) = {
+  private def toDefn (b :BufferV, sym :SymbolInformation) = {
     val r = LSP.fromRange(sym.getLocation.getRange)
     val (kind, flavor) = toKF(sym.getKind)
     Defn(kind, flavor, sym.getName(), None, b.offset(r.start), b.offset(r.start), b.offset(r.end))

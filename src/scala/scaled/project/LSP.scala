@@ -22,6 +22,13 @@ object LSP {
   case object URILoc {
     def apply (loc :Location) :URILoc = URILoc(new URI(loc.getUri), loc.getRange)
     def apply (link :LocationLink) :URILoc = URILoc(new URI(link.getTargetUri), link.getTargetRange)
+    def apply (loc :WorkspaceSymbolLocation) :URILoc = URILoc(new URI(loc.getUri), emptyRange)
+    def apply (eloc :Either[Location, WorkspaceSymbolLocation]) :URILoc = toScala(eloc) match {
+      case Left(loc) => apply(loc)
+      case Right(wsloc) => apply(wsloc)
+    }
+
+    private val emptyRange = new Range(new Position(0, 0), new Position(0, 0))
   }
 
   def textDocItem(uri :String, langId :String, vers :Int, text :String) :TextDocumentItem =

@@ -121,6 +121,9 @@ abstract class LangClient (
   private def init[T] (t :T)(f :T => Unit) = { f(t) ; t }
   private def createClientCaps = init(new ClientCapabilities()) { caps =>
     caps.setTextDocument(init(new TextDocumentClientCapabilities()) { caps =>
+      caps.setPublishDiagnostics(init(new PublishDiagnosticsCapabilities()) { caps =>
+        caps.setRelatedInformation(true)
+      })
       caps.setCompletion(init(new CompletionCapabilities()) { caps =>
         caps.setCompletionItem(init(new CompletionItemCapabilities()) { caps =>
           caps.setSnippetSupport(true)
@@ -292,22 +295,6 @@ abstract class LangClient (
     }
   }
 
-  /** Returns the fully qualified name for `sym`. Defaults to C style: `qualifier.name`. */
-  def fqName (sym :SymbolInformation) = sym.getContainerName match {
-    case null => s"${fileForLoc(sym.getLocation)}:${sym.getName}"
-    case cont => s"${cont}.${sym.getName}"
-  }
-
-  /** Formats a symbol name for use during completion. Scaled convention is `name:qualifier`. */
-  def formatSym (sym :SymbolInformation) = sym.getContainerName match {
-    case null => s"${sym.getName}:${fileForLoc(sym.getLocation)} [${sym.getKind}]"
-    case cont => s"${sym.getName}:${cont} [${sym.getKind}]"
-  }
-
-  private def fileForUri (uri :String) = uri.substring(uri.lastIndexOf("/")+1)
-  private def fileForLoc (loc :Location) =
-    s"${fileForUri(loc.getUri)}@${loc.getRange.getStart.getLine}"
-
   /** Visits location `loc` in `window`.
     * @param name the name to use for the visiting buffer if this turns out to be a "synthetic"
     * location (one for which the source is provided by the language server).
@@ -393,10 +380,15 @@ abstract class LangClient (
       new DidOpenTextDocumentParams(item)
     })
 
+    def decodeSave (save :Either[JBoolean, SaveOptions]) :(Boolean, Boolean) =
+      if (save == null) (false, false)
+      else if (save.isLeft) (save.getLeft, false)
+      else (true, save.getRight.getIncludeText)
+
     // let the server know when we save the buffer (if desired)
     val (wantDidSave, wantSaveText) = LSP.toScala(caps.getTextDocumentSync).fold(
       k => (true, false),
-      o => (o.getSave != null, o.getSave != null && o.getSave.getIncludeText))
+      o => decodeSave(o.getSave))
     if (wantDidSave) buffer.dirtyV.onValue { dirty =>
       if (!dirty) textSvc.didSave(new DidSaveTextDocumentParams(docId))
     }
